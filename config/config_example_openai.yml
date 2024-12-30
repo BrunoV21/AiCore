@@ -1,0 +1,10 @@
+embeddings:
+  provider: "openai"
+  api_key: "YPUR_SUPER_SECRET_OPENAI_API_KEY"
+  model: "text-embedding-3-small"
+llm:
+  provider: "openai"
+  api_key: "YPUR_SUPER_SECRET_OPENAI_API_KEY"
+  model: "gpt4o-mini"
+  temperature: 0
+  max_tokens: 8192
