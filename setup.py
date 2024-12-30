@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 install_requires = [
     "mistralai==1.2.3",
-    "pydantic==2.9.2",
+    "pydantic==2.10.3",
     "pydantic_core==2.23.4",
     "PyYAML==6.0.2",
     "openai==1.56.1"
@@ -14,7 +14,7 @@ install_requires = [
 
 setuptools.setup(
     name="myaicore",
-    version="0.0a.1",
+    version="0.1",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
     description="..",
