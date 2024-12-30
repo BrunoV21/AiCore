@@ -91,4 +91,4 @@ Make sure your `config.yml` file is properly set up with the necessary configura
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache 2.0 License.

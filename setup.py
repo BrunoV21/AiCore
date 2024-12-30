@@ -7,7 +7,6 @@ with open("README.md", "r") as fh:
 install_requires = [
     "mistralai==1.2.3",
     "pydantic==2.10.3",
-    "pydantic_core==2.23.4",
     "PyYAML==6.0.2",
     "openai==1.56.1"
 ]
