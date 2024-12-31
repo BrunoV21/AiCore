@@ -3,6 +3,7 @@ from aicore.llm.utils import parse_content, image_to_base64
 from typing import Any, Dict, Self, Optional, Literal, List, Union
 from pydantic import BaseModel, RootModel
 from pathlib import Path
+import tiktoken
 import json
 
 #TODO keep track of usage in accordance to embeddings tracking model
@@ -14,6 +15,7 @@ class BaseProvider(BaseModel):
     _completion_fn :Any=None
     _acompletion_fn :Any=None
     _normalize_fn :Any=None
+    _tokenizer_fn :Any=None
 
     @classmethod
     def from_config(cls, config :LlmConfig)->"BaseProvider":
@@ -68,6 +70,21 @@ class BaseProvider(BaseModel):
     @normalize_fn.setter
     def normalize_fn(self, normalize_fn :Any):
         self._normalize_fn = normalize_fn
+
+    @property
+    def tokernizer_fn(self)->Any:
+        return self._tokenizer_fn
+    
+    @tokernizer_fn.setter
+    def tokernizer_fn(self, tokenizer_fn :Any):
+        self._tokenizer_fn = tokenizer_fn    
+
+    @staticmethod
+    def get_default_tokenizer(model_name :str)->str:
+        try:
+            return tiktoken.encoding_name_for_model(model_name)
+        except KeyError:
+            return "gpt-4o"
 
     @staticmethod
     def _message_content(prompt :str, img_b64_str :Optional[List[str]]=None)->List[Dict]:
