@@ -2,6 +2,7 @@ from aicore.llm.providers.base_provider import BaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
 from typing import Self
+import tiktoken
 
 class OpenAiLlm(BaseProvider):
 
@@ -20,6 +21,12 @@ class OpenAiLlm(BaseProvider):
             "include_usage": True
         }
         self.normalize_fn = self.normalize
+
+        self.tokernizer_fn = tiktoken.get_encoding(
+            self.get_default_tokenizer(
+                self.config.model_name
+            )
+        ).encode
 
         return self
     
