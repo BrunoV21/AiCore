@@ -43,6 +43,10 @@ class Llm(BaseModel):
     def from_config(cls, config :LlmConfig)->"Llm":
         return cls(config=config)
     
+    @property
+    def tokenizer(self):
+        return self.provider.tokenizer_fn
+    
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel], 
                  system_prompt :Optional[str]=None,
