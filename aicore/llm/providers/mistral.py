@@ -21,7 +21,7 @@ class MistralLlm(BaseProvider):
         self.normalize_fn = self.normalize
         self.tokernizer_fn = tiktoken.get_encoding(
             self.get_default_tokenizer(
-                self.config.model_name
+                self.config.model
             )
         ).encode
 
