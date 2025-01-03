@@ -22,7 +22,7 @@ class OpenAiLlm(BaseProvider):
         }
         self.normalize_fn = self.normalize
 
-        self.tokernizer_fn = tiktoken.get_encoding(
+        self.tokernizer_fn = tiktoken.encoding_for_model(
             self.get_default_tokenizer(
                 self.config.model
             )

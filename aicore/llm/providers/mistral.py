@@ -19,7 +19,7 @@ class MistralLlm(BaseProvider):
         self.completion_fn = self.client.chat.stream
         self.acompletion_fn = self.client.chat.stream_async
         self.normalize_fn = self.normalize
-        self.tokernizer_fn = tiktoken.get_encoding(
+        self.tokernizer_fn = tiktoken.encoding_for_model(
             self.get_default_tokenizer(
                 self.config.model
             )
