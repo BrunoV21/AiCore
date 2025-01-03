@@ -72,11 +72,11 @@ class BaseProvider(BaseModel):
         self._normalize_fn = normalize_fn
 
     @property
-    def tokernizer_fn(self)->Any:
+    def tokenizer_fn(self)->Any:
         return self._tokenizer_fn
     
-    @tokernizer_fn.setter
-    def tokernizer_fn(self, tokenizer_fn :Any):
+    @tokenizer_fn.setter
+    def tokenizer_fn(self, tokenizer_fn :Any):
         self._tokenizer_fn = tokenizer_fn    
 
     @staticmethod
