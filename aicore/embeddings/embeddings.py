@@ -3,11 +3,12 @@ from typing import Self, List
 from enum import Enum
 
 from aicore.embeddings.config import EmbeddingsConfig
-from aicore.embeddings.providers import BaseProvider, OpenAiEmbeddings, MistralEmbeddings
+from aicore.embeddings.providers import BaseProvider, OpenAiEmbeddings, MistralEmbeddings, GroqEmbeddings
 
 class Providers(Enum):
     OPENAI = OpenAiEmbeddings
     MISTRAL = MistralEmbeddings
+    GROQ = GroqEmbeddings
 
     def get_instance(self, config: EmbeddingsConfig) -> BaseProvider:
         """
@@ -56,12 +57,13 @@ class Embeddings(BaseModel):
 if __name__ == "__main__":
 
     import asyncio    
-    from aicore.config import config
+    from aicore.config import Config
     from aicore.embeddings.providers.mistral import EmbeddingResponseData, EmbeddingResponse
 
     # print(Embeddings.from_config(config.embeddings).generate(["Hi there, how you doing mate?"]))
 
     async def main():
+        config = Config.from_yaml()
         embeddings_obj = Embeddings.from_config(config.embeddings)
         print(embeddings_obj.vector_dimensions)
         vectors = await embeddings_obj.agenerate(["Hi there, how you doing mate?"])
