@@ -109,9 +109,11 @@ class BaseProvider(BaseModel):
             "role": role,
             "content": self._message_content(prompt, img_b64_str)
         }
+        if role == "assistant" and self.config.provider == "mistral":
+            message_body["prefix"] = True
         return message_body
 
-    def completion_args_template(self, prompt :str, system_prompt :Optional[str]=None, img_b64_str :Optional[Union[str, List[str]]]=None, stream :bool=False)->Dict:
+    def completion_args_template(self, prompt :str, system_prompt :Optional[str]=None, prefix_prompt :Optional[str]=None, img_b64_str :Optional[Union[str, List[str]]]=None, stream :bool=False)->Dict:
         if img_b64_str and isinstance(img_b64_str, str):
             img_b64_str = [img_b64_str]
 
@@ -119,6 +121,8 @@ class BaseProvider(BaseModel):
         if system_prompt is not None:
             messages.append(self._message_body(system_prompt, role="system"))
         messages.append(self._message_body(prompt, role="user"))
+        if prefix_prompt is not None:
+            messages.append(self._message_body(prefix_prompt, role="assistant"))
         
         args = dict(
             model=self.config.model,
@@ -136,6 +140,7 @@ class BaseProvider(BaseModel):
     def _prepare_completion_args(self,
                                  prompt :str, 
                                  system_prompt :Optional[str]=None,
+                                 prefix_prompt :Optional[str]=None,
                                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                                  stream :bool=True)->Dict:
         if img_path and not isinstance(img_path, list):
@@ -149,6 +154,7 @@ class BaseProvider(BaseModel):
         completion_args = self.completion_args_template(
             prompt=prompt,
             system_prompt=system_prompt,
+            prefix_prompt=prefix_prompt,
             img_b64_str=img_b64_str,
             stream=stream
         )
@@ -192,6 +198,7 @@ class BaseProvider(BaseModel):
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel], 
                  system_prompt :Optional[str]=None,
+                 prefix_prompt :Optional[str]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
@@ -202,6 +209,7 @@ class BaseProvider(BaseModel):
         completion_args = self._prepare_completion_args(
             prompt=prompt,
             system_prompt=system_prompt,
+            prefix_prompt=prefix_prompt,
             img_path=img_path,
             stream=stream
         )
@@ -215,6 +223,7 @@ class BaseProvider(BaseModel):
     async def acomplete(self,
                         prompt :Union[str, BaseModel, RootModel], 
                         system_prompt :Optional[str]=None,
+                        prefix_prompt :Optional[str]=None,
                         img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                         json_output :bool=False,
                         stream :bool=True)->Union[str, Dict]:
@@ -225,6 +234,7 @@ class BaseProvider(BaseModel):
         completion_args = self._prepare_completion_args(
             prompt=prompt,
             system_prompt=system_prompt,
+            prefix_prompt=prefix_prompt,
             img_path=img_path,
             stream=stream
         )

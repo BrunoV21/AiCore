@@ -51,20 +51,22 @@ class Llm(BaseModel):
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel], 
                  system_prompt :Optional[str]=None,
+                 prefix_prompt :Optional[str]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
         
-        return self.provider.complete(prompt, system_prompt, img_path, json_output, stream)
+        return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
     
     async def acomplete(self,
                  prompt :Union[str, BaseModel, RootModel],
                  system_prompt :Optional[str]=None,
+                 prefix_prompt :Optional[str]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
          
-         return await self.provider.acomplete(prompt, system_prompt, img_path, json_output, stream)
+         return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
 
 if __name__ == "__main__":
     import asyncio
