@@ -1,0 +1,10 @@
+embeddings:
+  provider: "groq"
+  api_key: "YPUR_SUPER_SECRET_GROQ_API_KEY"
+  model: "nomic-embed-text-v1_5"
+llm:
+  provider: "groq"
+  api_key: "YPUR_SUPER_SECRET_GROQ_API_KEY"
+  model: "llama-3.3-70b-versatile"
+  temperature: 0
+  max_tokens: 8192
