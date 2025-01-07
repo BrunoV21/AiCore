@@ -4,11 +4,12 @@ from pathlib import Path
 from enum import Enum
 
 from aicore.llm.config import LlmConfig
-from aicore.llm.providers import BaseProvider, OpenAiLlm, MistralLlm
+from aicore.llm.providers import BaseProvider, OpenAiLlm, MistralLlm, GroqLlm
 
 class Providers(Enum):
     OPENAI = OpenAiLlm
     MISTRAL = MistralLlm
+    GROQ = GroqLlm
 
     def get_instance(self, config: LlmConfig) -> BaseProvider:
         """
