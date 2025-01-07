@@ -37,3 +37,13 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+  
+  security:
+
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@main
+        - name: Run Safety CLI to check for vulnerabilities
+          uses: pyupio/safety-action@v1
+          with:
+            api-key: ${{ secrets.SAFETY_API_KEY }}
