@@ -4,6 +4,9 @@
 name: Python package
 
 on:
+  schedule:
+    - cron: '0 0 14 * *'  # Runs on the 14th
+    - cron: '0 0 28 * *'  # Runs on the 28th
   push:
     branches: [ "main" ]
   pull_request:
@@ -40,10 +43,11 @@ jobs:
   
   security:
 
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@main
-        - name: Run Safety CLI to check for vulnerabilities
-          uses: pyupio/safety-action@v1
-          with:
-            api-key: ${{ secrets.SAFETY_API_KEY }}
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && (startsWith(github.event.schedule, '14') || startsWith(github.event.schedule, '28'))
+    steps:
+      - uses: actions/checkout@main
+      - name: Run Safety CLI to check for vulnerabilities
+        uses: pyupio/safety-action@v1
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
