@@ -193,7 +193,10 @@ class BaseProvider(BaseModel):
     
     @staticmethod
     def extract_json(output :str)->Dict:
-        return json.loads(parse_content(output))
+        try:
+            return json.loads(parse_content(output))
+        except json.JSONDecodeError:
+            return output
 
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel], 
