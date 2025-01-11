@@ -93,19 +93,26 @@ Make sure your `config.yml` file is properly set up with the necessary configura
 
 ## Class Diagram
 
-The class diagram for this project will focus on the core components and their relationships, highlighting the configuration, embedding, and LLM functionalities. The key classes include `Config`, `EmbeddingsConfig`, `LlmConfig`, `Embeddings`, `Llm`, and various provider classes (`BaseProvider`, `GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`, `GroqLlm`, `MistralLlm`, `OpenAiLlm`). These classes are interconnected through inheritance, composition, and dependencies, forming the backbone of the project's architecture.
+## Reasoning
 
-1. **Config Class**: This is the central configuration class that manages the application settings, including embeddings and LLM configurations. It loads settings from a YAML file and initializes the `EmbeddingsConfig` and `LlmConfig` classes.
+The class diagram will represent the core components of the project, focusing on the key classes, their relationships, and critical dependencies. The main modules are `config`, `embeddings`, and `llm`, each with its own configuration, base providers, and specific implementations. The diagram will highlight the inheritance and composition relationships between these classes.
 
-2. **EmbeddingsConfig and LlmConfig Classes**: These classes are responsible for configuring the embedding and LLM providers, respectively. They specify details such as API keys, models, and other parameters required for the providers to function.
+1. **Config Module**:
+   - `Config`: Central configuration class that manages application settings, including embeddings and LLM configurations.
 
-3. **Embeddings and Llm Classes**: These classes manage the embedding generation and LLM interactions. They use the configuration classes to initialize the appropriate providers and handle both synchronous and asynchronous operations.
+2. **Embeddings Module**:
+   - `EmbeddingsConfig`: Configuration class for embedding providers.
+   - `Embeddings`: Manages embedding generation using configured providers.
+   - `BaseProvider`: Base class for embedding providers, defining common properties and methods.
+   - `GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`: Specific implementations of `BaseProvider` for different embedding providers.
 
-4. **BaseProvider Class**: This is the base class for all provider implementations. It defines common properties and methods for client initialization and embedding generation or LLM completions.
+3. **LLM Module**:
+   - `LlmConfig`: Configuration class for LLM providers.
+   - `Llm`: Manages configuration and interaction with various LLM providers.
+   - `BaseProvider`: Abstract base class for LLM providers, defining common methods for configuration, completion, and normalization.
+   - `GroqLlm`, `MistralLlm`, `OpenAiLlm`: Specific implementations of `BaseProvider` for different LLM providers.
 
-5. **Specific Provider Classes**: These classes (`GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`, `GroqLlm`, `MistralLlm`, `OpenAiLlm`) are specific implementations of the `BaseProvider` class for different providers. They handle client setup and embedding generation or LLM completions for their respective providers.
-
-The diagram will show the inheritance hierarchy and the relationships between these classes, highlighting how the configuration classes are used to initialize the provider classes, which in turn are used by the `Embeddings` and `Llm` classes to perform their respective functions.
+The diagram will show the inheritance hierarchy and the composition relationships, such as how `Embeddings` and `Llm` classes use their respective `BaseProvider` implementations.
 
 ```mermaid
 classDiagram
@@ -122,16 +129,6 @@ classDiagram
         +Optional[str] base_url
     }
 
-    class LlmConfig {
-        +Literal provider
-        +str api_key
-        +Optional[str] model
-        +Optional[str] base_url
-        +float temperature
-        +int max_tokens
-        +field_validator(temperature: float) -> float
-    }
-
     class Embeddings {
         +EmbeddingsConfig config
         +BaseProvider _provider
@@ -141,17 +138,6 @@ classDiagram
         +from_config(config: EmbeddingsConfig) -> Embeddings
         +generate(text_batches: List[str])
         +agenerate(text_batches: List[str])
-    }
-
-    class Llm {
-        +LlmConfig config
-        +BaseProvider _provider
-        +provider: BaseProvider
-        +start_provider() -> Self
-        +from_config(config: LlmConfig) -> Llm
-        +tokenizer: Any
-        +complete(prompt: Union[str, BaseModel, RootModel], system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, json_output: bool = False, stream: bool = True) -> Union[str, Dict]
-        +acomplete(prompt: Union[str, BaseModel, RootModel], system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, json_output: bool = False, stream: bool = True) -> Union[str, Dict]
     }
 
     class BaseProvider {
@@ -187,27 +173,85 @@ classDiagram
         +agenerate(text_batches: List[str]) -> CreateEmbeddingResponse
     }
 
+    class LlmConfig {
+        +Literal provider
+        +str api_key
+        +Optional[str] model
+        +Optional[str] base_url
+        +float temperature
+        +int max_tokens
+        +ensure_temperature_lower_than_unit(temperature: float) -> float
+    }
+
+    class Llm {
+        +LlmConfig config
+        +BaseProvider _provider
+        +provider: BaseProvider
+        +start_provider() -> Self
+        +from_config(config: LlmConfig) -> Llm
+        +tokenizer: Any
+        +complete(prompt: Union[str, BaseModel, RootModel], system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, json_output: bool = False, stream: bool = True) -> Union[str, Dict]
+        +acomplete(prompt: Union[str, BaseModel, RootModel], system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, json_output: bool = False, stream: bool = True) -> Union[str, Dict]
+    }
+
+    class BaseProvider {
+        +LlmConfig config
+        +Any _client
+        +Any _aclient
+        +Dict _completion_args
+        +Any _completion_fn
+        +Any _acompletion_fn
+        +Any _normalize_fn
+        +Any _tokenizer_fn
+        +from_config(config: LlmConfig) -> BaseProvider
+        +client: Any
+        +aclient: Any
+        +completion_args: Dict
+        +completion_fn: Any
+        +acompletion_fn: Any
+        +normalize_fn: Any
+        +tokenizer_fn: Any
+        +get_default_tokenizer(model_name: str) -> str
+        +_message_content(prompt: str, img_b64_str: Optional[List[str]] = None) -> List[Dict]
+        +_message_body(prompt: str, role: Literal["user", "system", "assistant"] = "user", img_b64_str: Optional[List[str]] = None) -> Dict
+        +completion_args_template(prompt: str, system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_b64_str: Optional[Union[str, List[str]]] = None, stream: bool = False) -> Dict
+        +_prepare_completion_args(prompt: str, system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, stream: bool = True) -> Dict
+        +_stream(stream) -> str
+        +_astream(stream) -> str
+        +model_to_str(model: Union[BaseModel, RootModel]) -> str
+        +extract_json(output: str) -> Dict
+        +complete(prompt: Union[str, BaseModel, RootModel], system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, json_output: bool = False, stream: bool = True) -> Union[str, Dict]
+        +acomplete(prompt: Union[str, BaseModel, RootModel], system_prompt: Optional[str] = None, prefix_prompt: Optional[str] = None, img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None, json_output: bool = False, stream: bool = True) -> Union[str, Dict]
+    }
+
     class GroqLlm {
         +set_groq() -> Self
+        +normalize(chunk) -> Any
     }
 
     class MistralLlm {
         +set_mistral() -> Self
+        +normalize(chunk) -> Any
     }
 
     class OpenAiLlm {
         +set_openai() -> Self
+        +normalize(chunk) -> Any
     }
 
     Config "1" --> "1" EmbeddingsConfig : embeddings
     Config "1" --> "1" LlmConfig : llm
+
     Embeddings "1" --> "1" EmbeddingsConfig : config
-    Llm "1" --> "1" LlmConfig : config
     Embeddings "1" --> "1" BaseProvider : _provider
-    Llm "1" --> "1" BaseProvider : _provider
+
     BaseProvider <|-- GroqEmbeddings
     BaseProvider <|-- MistralEmbeddings
     BaseProvider <|-- OpenAiEmbeddings
+
+    Llm "1" --> "1" LlmConfig : config
+    Llm "1" --> "1" BaseProvider : _provider
+
     BaseProvider <|-- GroqLlm
     BaseProvider <|-- MistralLlm
     BaseProvider <|-- OpenAiLlm
@@ -215,46 +259,46 @@ classDiagram
 
 ## Sequence Diagram
 
-The sequence diagram will focus on the interactions between the core components of the system, specifically the `Config`, `Embeddings`, `Llm`, and their respective providers. The diagram will highlight the key messages and events critical to the system�s main functionalities, such as configuration loading, provider instantiation, and the generation of embeddings or completions.
+## Reasoning
 
-1. **Config**: This component is central to the system as it loads and manages application settings, including embeddings and LLM configurations. It initializes the settings used by other components.
-2. **Embeddings**: This component manages embedding generation using configured providers. It supports both synchronous and asynchronous operations.
-3. **Llm**: This component manages configuration and interaction with various LLM providers, handling both synchronous and asynchronous completions.
-4. **Providers**: These are responsible for instantiating provider classes based on the configuration. They play a key role in selecting the appropriate embedding or LLM provider.
+The sequence diagram will focus on the interactions between the core components of the system, highlighting the key messages and events critical to the system�s main functionalities. The core components include the central configuration class `Config`, the embedding-related classes `EmbeddingsConfig`, `Embeddings`, and `Providers` (for embeddings), and the LLM-related classes `LlmConfig`, `Llm`, and `Providers` (for LLM).
 
-The diagram will show the flow of communication between these components, starting from loading the configuration, instantiating the providers, and generating embeddings or completions. Utility or helper modules are excluded to maintain clarity and focus on the high-level communication paths.
+The diagram will illustrate the following workflow:
+1. **Initialization**: The `Config` class loads the configuration settings, including embeddings and LLM configurations.
+2. **Embeddings Configuration**: The `EmbeddingsConfig` class specifies provider details for embedding providers.
+3. **Embeddings Generation**: The `Embeddings` class manages embedding generation using configured providers.
+4. **LLM Configuration**: The `LlmConfig` class specifies provider details for LLM providers.
+5. **LLM Interaction**: The `Llm` class manages configuration and interaction with various LLM providers.
+
+The sequence diagram will show the high-level communication paths between these components, excluding utility or helper modules unless their interactions are essential to understanding the core logic. This approach ensures clarity and focuses on the primary workflow.
+
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant User
+
     participant Config
     participant EmbeddingsConfig
-    participant LlmConfig
     participant Embeddings
+    participant EmbeddingsProviders
+    participant LlmConfig
     participant Llm
-    participant EmbeddingsProvider
-    participant LlmProvider
+    participant LlmProviders
 
-    User->>Config: Load configuration
-    Config->>EmbeddingsConfig: Initialize EmbeddingsConfig
-    Config->>LlmConfig: Initialize LlmConfig
+    Config->>EmbeddingsConfig: Load EmbeddingsConfig
+    Config->>LlmConfig: Load LlmConfig
 
-    EmbeddingsConfig->>Embeddings: Initialize Embeddings
-    Embeddings->>EmbeddingsProvider: Instantiate provider
-    EmbeddingsProvider->>Embeddings: Return provider instance
+    EmbeddingsConfig->>Embeddings: Initialize with config
+    Embeddings->>EmbeddingsProviders: Get provider instance
+    EmbeddingsProviders-->>Embeddings: Return provider instance
+    Embeddings->>Embeddings: Start provider
+    Embeddings->>Embeddings: Generate embeddings
 
-    LlmConfig->>Llm: Initialize Llm
-    Llm->>LlmProvider: Instantiate provider
-    LlmProvider->>Llm: Return provider instance
-
-    User->>Embeddings: Generate embeddings
-    Embeddings->>EmbeddingsProvider: Generate embeddings
-    EmbeddingsProvider->>Embeddings: Return generated embeddings
-
-    User->>Llm: Complete prompt
-    Llm->>LlmProvider: Complete prompt
-    LlmProvider->>Llm: Return completion
+    LlmConfig->>Llm: Initialize with config
+    Llm->>LlmProviders: Get provider instance
+    LlmProviders-->>Llm: Return provider instance
+    Llm->>Llm: Start provider
+    Llm->>Llm: Complete LLM interaction
 ```
 
 ## License
