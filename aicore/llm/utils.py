@@ -18,6 +18,9 @@ def parse_content(text :str):
     end_matches = list(re.finditer(end_pattern, text))
 
     # If there are no start or end matches, return None
+    if not start_matches:
+        return text
+
     if not end_matches:
         first_start = start_matches[0].end()
         return text[first_start:]
