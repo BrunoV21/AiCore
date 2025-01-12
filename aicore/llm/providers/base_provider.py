@@ -169,6 +169,7 @@ class BaseProvider(BaseModel):
                 chunk_message = _chunk[0].delta.content or ""
                 print(chunk_message, end="")
                 message.append(chunk_message)
+        print("\n")
         # usage = chunk.usage if self.provider == "openai" else None
         # Combine the streamed message into a single response
         response = "".join(message)
