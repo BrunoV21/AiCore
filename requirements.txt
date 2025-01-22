@@ -4,5 +4,7 @@ mistralai==1.2.3
 openai==1.56.1
 tiktoken==0.8.0
 pydantic==2.10.3
+pytest==8.3.4
+pytest-asyncio==0.25.2
 PyYAML==6.0.2
 setuptools==75.6.0

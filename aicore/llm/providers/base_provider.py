@@ -11,7 +11,7 @@ class BaseProvider(BaseModel):
     config :LlmConfig
     _client :Any=None
     _aclient :Any=None
-    _completion_args :Dict=None
+    _completion_args :Dict={}
     _completion_fn :Any=None
     _acompletion_fn :Any=None
     _normalize_fn :Any=None
