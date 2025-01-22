@@ -82,7 +82,8 @@ class BaseProvider(BaseModel):
     @staticmethod
     def get_default_tokenizer(model_name :str)->str:
         try:
-            return tiktoken.encoding_name_for_model(model_name)
+            tiktoken.encoding_name_for_model(model_name)
+            return model_name
         except KeyError:
             return "gpt-4o"
 
