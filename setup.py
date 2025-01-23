@@ -5,6 +5,7 @@ with open("README.md", "r") as fh:
 
 
 install_requires = [
+    "google-genai== 0.6.0",
     "groq==0.13.1",
     "mistralai==1.2.3",
     # "mistral_common==1.5.1",

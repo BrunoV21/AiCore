@@ -2,7 +2,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, field_validator
 
 class LlmConfig(BaseModel):
-    provider :Literal["groq", "mistral", "openai"]
+    provider :Literal["gemini", "groq", "mistral", "openai"]
     api_key :str
     model :Optional[str]=None
     base_url :Optional[str]=None
