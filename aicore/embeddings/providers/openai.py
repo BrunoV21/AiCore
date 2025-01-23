@@ -2,20 +2,23 @@ from aicore.embeddings.providers.base_provider import BaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
 from openai.types.create_embedding_response import CreateEmbeddingResponse
-from typing import List, Self
+from typing import Optional, List, Self
 
 class OpenAiEmbeddings(BaseProvider):
     vector_dimensions :int=1536
+    base_url :Optional[str]=None
 
     @model_validator(mode="after")
     def set_openai(self)->Self:
 
         self.client :OpenAI = OpenAI(
-            api_key=self.config.api_key
+            api_key=self.config.api_key,
+            base_url=self.base_url
         )
 
         self.aclient :AsyncOpenAI = AsyncOpenAI(
-            api_key=self.config.api_key
+            api_key=self.config.api_key,
+            base_url=self.base_url
         )
 
         return self
