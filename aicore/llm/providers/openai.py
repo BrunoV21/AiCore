@@ -1,16 +1,18 @@
 from aicore.llm.providers.base_provider import BaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
-from typing import Self
+from typing import Self, Optional
 import tiktoken
 
 class OpenAiLlm(BaseProvider):
+    base_url :Optional[str]=None
 
     @model_validator(mode="after")
     def set_openai(self)->Self:
 
         self.client :OpenAI = OpenAI(
-            api_key=self.config.api_key
+            api_key=self.config.api_key,
+            base_url=self.base_url
         )
         self.aclient :AsyncOpenAI = AsyncOpenAI(
             api_key=self.config.api_key
