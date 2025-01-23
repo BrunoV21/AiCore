@@ -1,0 +1,9 @@
+embeddings:
+  provider: "google"
+  api_key: "YOUR_SUPER_SECRET_GEMINI_API_KEY"
+  model: "text-embedding-004"
+llm:
+  provider: "google"
+  temperature: 0
+  api_key: "YOUR_SUPER_SECRET_GEMINI_API_KEY"
+  model: "gemini-2.0-flash-exp"
