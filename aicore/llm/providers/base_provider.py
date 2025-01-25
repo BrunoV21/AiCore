@@ -7,7 +7,7 @@ import tiktoken
 import json
 
 #TODO keep track of usage in accordance to embeddings tracking model
-class BaseProvider(BaseModel):
+class LlmBaseProvider(BaseModel):
     config :LlmConfig
     _client :Any=None
     _aclient :Any=None
@@ -18,7 +18,7 @@ class BaseProvider(BaseModel):
     _tokenizer_fn :Any=None
 
     @classmethod
-    def from_config(cls, config :LlmConfig)->"BaseProvider":
+    def from_config(cls, config :LlmConfig)->"LlmBaseProvider":
         return cls(
             config=config
         )

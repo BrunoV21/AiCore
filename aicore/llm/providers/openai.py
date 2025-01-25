@@ -1,10 +1,10 @@
-from aicore.llm.providers.base_provider import BaseProvider
+from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
 from typing import Self, Optional
 import tiktoken
 
-class OpenAiLlm(BaseProvider):
+class OpenAiLlm(LlmBaseProvider):
     base_url :Optional[str]=None
 
     @model_validator(mode="after")

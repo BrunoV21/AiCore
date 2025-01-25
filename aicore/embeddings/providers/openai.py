@@ -1,10 +1,10 @@
-from aicore.embeddings.providers.base_provider import BaseProvider
+from aicore.embeddings.providers.base_provider import EmbeddingsBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
 from openai.types.create_embedding_response import CreateEmbeddingResponse
 from typing import Optional, List, Self
 
-class OpenAiEmbeddings(BaseProvider):
+class OpenAiEmbeddings(EmbeddingsBaseProvider):
     vector_dimensions :int=1536
     base_url :Optional[str]=None
 

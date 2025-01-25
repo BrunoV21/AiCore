@@ -3,14 +3,14 @@ from aicore.embeddings.config import EmbeddingsConfig
 from pydantic import BaseModel
 from typing import Any
 
-class BaseProvider(BaseModel):
+class EmbeddingsBaseProvider(BaseModel):
     config :EmbeddingsConfig
     vector_dimensions :int
     _client :Any=None
     _aclient :Any=None
 
     @classmethod
-    def from_config(cls, config :EmbeddingsConfig)->"BaseProvider":
+    def from_config(cls, config :EmbeddingsConfig)->"EmbeddingsBaseProvider":
         return cls(
             config=config
         )

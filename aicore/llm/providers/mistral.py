@@ -1,4 +1,4 @@
-from aicore.llm.providers.base_provider import BaseProvider
+from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
@@ -7,7 +7,7 @@ from typing import Self
 import tiktoken
 
 #TODO replace Tiktoken with Mistral tekken encoder when it is updated to work on python 3.13#
-class MistralLlm(BaseProvider):
+class MistralLlm(LlmBaseProvider):
 
     @model_validator(mode="after")
     def set_mistral(self)->Self:

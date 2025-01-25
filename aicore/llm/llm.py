@@ -4,7 +4,7 @@ from pathlib import Path
 from enum import Enum
 
 from aicore.llm.config import LlmConfig
-from aicore.llm.providers import BaseProvider, OpenAiLlm, MistralLlm, GroqLlm, GeminiLlm
+from aicore.llm.providers import LlmBaseProvider, OpenAiLlm, MistralLlm, GroqLlm, GeminiLlm
 
 class Providers(Enum):
     OPENAI = OpenAiLlm
@@ -12,7 +12,7 @@ class Providers(Enum):
     GROQ = GroqLlm
     GEMINI = GeminiLlm
 
-    def get_instance(self, config: LlmConfig) -> BaseProvider:
+    def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
         """
         Instantiate the provider associated with the enum.
         
@@ -20,20 +20,20 @@ class Providers(Enum):
             config (EmbeddingsConfig): Configuration for the provider.
         
         Returns:
-            BaseProvider: An instance of the embedding provider.
+            LlmBaseProvider: An instance of the embedding provider.
         """
         return self.value.from_config(config)
 
 class Llm(BaseModel):
     config :LlmConfig
-    _provider :BaseProvider=None
+    _provider :LlmBaseProvider=None
     
     @property
-    def provider(self)->BaseProvider:
+    def provider(self)->LlmBaseProvider:
         return self._provider
     
     @provider.setter
-    def provider(self, provider :BaseProvider):
+    def provider(self, provider :LlmBaseProvider):
         self._provider = provider
     
     @model_validator(mode="after")

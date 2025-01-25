@@ -1,10 +1,10 @@
-from aicore.llm.providers.base_provider import BaseProvider
+from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from groq import Groq, AsyncGroq
 from typing import Self
 import tiktoken
 
-class GroqLlm(BaseProvider):
+class GroqLlm(LlmBaseProvider):
 
     @model_validator(mode="after")
     def set_groq(self)->Self:

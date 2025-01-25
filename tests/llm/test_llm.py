@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aicore.llm.config import LlmConfig
-from aicore.llm.providers import BaseProvider
+from aicore.llm.providers import LlmBaseProvider
 from aicore.llm.llm import Llm, Providers
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def mock_config():
 
 @pytest.fixture
 def mock_provider():
-    provider = MagicMock(spec=BaseProvider)
+    provider = MagicMock(spec=LlmBaseProvider)
     provider.complete = MagicMock(return_value="Hello from mock!")
     provider.acomplete = AsyncMock(return_value="Hello from mock async!")
     return provider

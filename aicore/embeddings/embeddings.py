@@ -3,14 +3,14 @@ from typing import Self, List
 from enum import Enum
 
 from aicore.embeddings.config import EmbeddingsConfig
-from aicore.embeddings.providers import BaseProvider, OpenAiEmbeddings, MistralEmbeddings, GroqEmbeddings
+from aicore.embeddings.providers import EmbeddingsBaseProvider, OpenAiEmbeddings, MistralEmbeddings, GroqEmbeddings
 
 class Providers(Enum):
     OPENAI = OpenAiEmbeddings
     MISTRAL = MistralEmbeddings
     GROQ = GroqEmbeddings
 
-    def get_instance(self, config: EmbeddingsConfig) -> BaseProvider:
+    def get_instance(self, config: EmbeddingsConfig) -> EmbeddingsBaseProvider:
         """
         Instantiate the provider associated with the enum.
         
@@ -18,20 +18,20 @@ class Providers(Enum):
             config (EmbeddingsConfig): Configuration for the provider.
         
         Returns:
-            BaseProvider: An instance of the embedding provider.
+            EmbeddingsBaseProvider: An instance of the embedding provider.
         """
         return self.value.from_config(config)
 
 class Embeddings(BaseModel):
     config :EmbeddingsConfig
-    _provider :BaseProvider=None
+    _provider :EmbeddingsBaseProvider=None
     
     @property
-    def provider(self)->BaseProvider:
+    def provider(self)->EmbeddingsBaseProvider:
         return self._provider
     
     @provider.setter
-    def provider(self, provider :BaseProvider):
+    def provider(self, provider :EmbeddingsBaseProvider):
         self._provider = provider
     
     @property
