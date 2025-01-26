@@ -3,12 +3,21 @@ from typing import Self, List
 from enum import Enum
 
 from aicore.embeddings.config import EmbeddingsConfig
-from aicore.embeddings.providers import EmbeddingsBaseProvider, OpenAiEmbeddings, MistralEmbeddings, GroqEmbeddings
+from aicore.embeddings.providers import (
+    EmbeddingsBaseProvider,
+    OpenAiEmbeddings,
+    MistralEmbeddings,
+    NvidiaEmbeddings,
+    GroqEmbeddings,
+    GeminiEmbeddings
+)
 
 class Providers(Enum):
     OPENAI = OpenAiEmbeddings
+    NVIDIA = NvidiaEmbeddings
     MISTRAL = MistralEmbeddings
     GROQ = GroqEmbeddings
+    GEMINI = GeminiEmbeddings
 
     def get_instance(self, config: EmbeddingsConfig) -> EmbeddingsBaseProvider:
         """
