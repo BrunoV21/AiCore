@@ -178,3 +178,30 @@ async def test_llm_complete_json(provider_name, mock_openai_json, mock_mistral_j
     if provider_name == "openai":
         mock_openai_json.complete.assert_called_once()
         mock_openai_json.acomplete.assert_called_once()
+
+@pytest.mark.parametrize("provider_name", ["openai", "mistral", "groq", "nvidia"])
+@pytest.mark.asyncio
+async def test_llm_tokenizer(provider_name, llm_config_openai, llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia):
+    config = {
+        "openai": llm_config_openai,
+        "mistral": llm_config_mistral,
+        "groq": llm_config_groq,
+        "gemini": llm_config_gemini,
+        "nvidia": llm_config_nvidia
+    }[provider_name]
+
+    if provider_name == "gemini":
+        #TODO mock gemini response
+        ...
+    
+    llm = Llm.from_config(config)
+    
+    prompt = "test prompt"
+    
+    # Call the tokenizer function
+    tokens = llm.tokenizer(prompt)
+    
+    # Assert that the tokenizer returns a list
+    assert isinstance(tokens, list)
+    # Assert that the list of tokens is not empty
+    assert len(tokens) > 0
