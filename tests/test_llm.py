@@ -50,7 +50,7 @@ class MockUsage:
 def mock_openai(*args, **kwargs):
     mock_openai = MagicMock()
     mock_openai.complete = MagicMock(return_value=MockResponse(MockChunk("mocked response")))
-    mock_openai.acomplete = AsyncMock(return_value=MockAsyncResponse(MockChunk("mocked async response")))
+    mock_openai.acomplete = AsyncMock(return_value=MockResponse(MockChunk("mocked async response")))
     return mock_openai
 
 @pytest.fixture
