@@ -50,6 +50,9 @@ class MockUsage:
     def __init__(self, total_tokens):
         self.total_tokens = total_tokens
 
+def MockGeminiTokenizer(content):
+    return [_ for _ in content.split(" ")]
+
 @pytest.fixture
 def mock_openai(*args, **kwargs):
     mock_openai = MagicMock()
@@ -77,6 +80,12 @@ def mock_mistral_json(*args, **kwargs):
     mock_mistral.complete = MagicMock(return_value=MockMistralResponse(MockMistralChunk(json.dumps({"response": "mocked"}))))
     mock_mistral.acomplete = AsyncMock(return_value=MockMistralResponse(MockMistralChunk(json.dumps({"response": "async mocked"}))))
     return mock_mistral
+
+@pytest.fixture
+def mock_gemini_tokenizer(*args, **kwargs):
+    mock_gemini = MagicMock()
+    mock_gemini.tokenizer_fn = MagicMock(return_value=MockGeminiTokenizer("Hi there"))
+    return mock_gemini
 
 @pytest.fixture
 def llm_config_openai():
@@ -179,22 +188,21 @@ async def test_llm_complete_json(provider_name, mock_openai_json, mock_mistral_j
         mock_openai_json.complete.assert_called_once()
         mock_openai_json.acomplete.assert_called_once()
 
-@pytest.mark.parametrize("provider_name", ["openai", "mistral", "groq", "nvidia"])
+@pytest.mark.parametrize("provider_name", ["openai", "mistral", "gemini", "groq", "nvidia"])
 @pytest.mark.asyncio
-async def test_llm_tokenizer(provider_name, llm_config_openai, llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia):
+async def test_llm_tokenizer(provider_name, llm_config_openai, llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia, mock_gemini_tokenizer):
     config = {
         "openai": llm_config_openai,
         "mistral": llm_config_mistral,
         "groq": llm_config_groq,
         "gemini": llm_config_gemini,
         "nvidia": llm_config_nvidia
-    }[provider_name]
-
-    if provider_name == "gemini":
-        #TODO mock gemini response
-        ...
+    }[provider_name]    
     
     llm = Llm.from_config(config)
+
+    if provider_name == "gemini":
+        llm.provider.tokenizer_fn = mock_gemini_tokenizer.tokenizer_fn
     
     prompt = "test prompt"
     
