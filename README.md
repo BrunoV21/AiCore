@@ -1,6 +1,39 @@
 # AiCore Project
 
-This project provides a framework for integrating various language models and embedding providers. It supports both synchronous and asynchronous operations for generating text completions and embeddings. The current implementation includes support for OpenAI, Mistral and Groq providers.
+# Updated the description to include all supported providers
+# This section lists all supported LLM and Embedding providers.
+This project provides a framework for integrating various language models and embedding providers. It supports both synchronous and asynchronous operations for generating text completions and embeddings. The current implementation includes support for the following providers:
+
+**LLM Providers:**
+- OpenAI
+- Mistral
+- Groq
+- Gemini
+- Nvidia
+
+**Embedding Providers:**
+- OpenAI
+- Mistral
+- Groq
+- Gemini
+- Nvidia
+
+To configure the application for testing, you need to set up a `config.yml` file with the necessary API keys and model names for each provider you intend to use. The `CONFIG_PATH` environment variable should point to the location of this file. Here's an example of how to set up the `config.yml` file:
+
+```yaml
+# config.yml
+embeddings:
+  provider: "openai" # or "mistral", "groq", "gemini", "nvidia"
+  api_key: "your_openai_api_key"
+  model: "your_openai_embedding_model" # Optional
+
+llm:
+  provider: "openai" # or "mistral", "groq", "gemini", "nvidia"
+  api_key: "your_openai_api_key"
+  model: "gpt-4o" # Optional
+  temperature: 0.7
+  max_tokens: 100
+```
 
 ## Installation
 
@@ -92,8 +125,7 @@ Make sure your `config.yml` file is properly set up with the necessary configura
 **Disclaimer**: the following diagrams and explanations were Ai Generated
 
 ## Class Diagram
-
-The class diagram for this project will focus on the core components and their relationships, highlighting the configuration, embedding, and LLM modules. The key classes include `Config`, `EmbeddingsConfig`, `LlmConfig`, `Embeddings`, `Llm`, and various provider classes (`BaseProvider`, `GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`, `GroqLlm`, `MistralLlm`, `OpenAiLlm`). These classes are interconnected through inheritance, composition, and dependencies, forming the backbone of the system's architecture.
+The class diagram for this project will focus on the core components and their relationships, highlighting the configuration, embedding, and LLM modules. The key classes include `Config`, `EmbeddingsConfig`, `LlmConfig`, `Embeddings`, `Llm`, and various provider classes (`EmbeddingsBaseProvider`, `GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`, `GeminiEmbeddings`, `NvidiaEmbeddings`, `LlmBaseProvider`, `GroqLlm`, `MistralLlm`, `OpenAiLlm`, `GeminiLlm`, `NvidiaLlm`). These classes are interconnected through inheritance, composition, and dependencies, forming the backbone of the system's architecture.
 
 1. **Configuration Classes**:
    - `Config`: Central configuration class that manages application settings, including embeddings and LLM configurations.
@@ -103,14 +135,14 @@ The class diagram for this project will focus on the core components and their r
 2. **Embeddings Module**:
    - `Embeddings`: Manages embedding generation using configured providers.
    - `Providers` (Enum): Enumeration for instantiating embedding provider classes.
-   - `BaseProvider`: Base class for embedding providers, defining common properties and methods.
-   - `GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`: Specific implementations of `BaseProvider` for different embedding providers.
+   - `EmbeddingsBaseProvider`: Base class for embedding providers, defining common properties and methods.
+   - `GroqEmbeddings`, `MistralEmbeddings`, `OpenAiEmbeddings`, `GeminiEmbeddings`, `NvidiaEmbeddings`: Specific implementations of `EmbeddingsBaseProvider` for different embedding providers.
 
 3. **LLM Module**:
    - `Llm`: Manages configuration and interaction with various LLM providers.
    - `Providers` (Enum): Enumeration for instantiating LLM provider classes.
-   - `BaseProvider`: Base class for LLM providers, defining common methods for configuration, completion, and normalization.
-   - `GroqLlm`, `MistralLlm`, `OpenAiLlm`: Specific implementations of `BaseProvider` for different LLM providers.
+   - `LlmBaseProvider`: Base class for LLM providers, defining common methods for configuration, completion, and normalization.
+   - `GroqLlm`, `MistralLlm`, `OpenAiLlm`, `GeminiLlm`, `NvidiaLlm`: Specific implementations of `LlmBaseProvider` for different LLM providers.
 
 ```mermaid
 classDiagram
@@ -125,14 +157,14 @@ classDiagram
     }
 
     class embeddings.config.EmbeddingsConfig {
-        +Literal["groq", "mistral", "openai"] provider
+        +Literal["groq", "mistral", "openai", "gemini", "nvidia"] provider
         +str api_key
         +Optional[str] model
         +Optional[str] base_url
     }
 
     class llm.config.LlmConfig {
-        +Literal["groq", "mistral", "openai"] provider
+        +Literal["groq", "mistral", "openai", "gemini", "nvidia"] provider
         +str api_key
         +Optional[str] model
         +Optional[str] base_url
@@ -143,14 +175,14 @@ classDiagram
 
     %% Embeddings Module
     embeddings.embeddings.Embeddings "1" --> "1" embeddings.config.EmbeddingsConfig : config
-    embeddings.embeddings.Embeddings "1" --> "1" embeddings.providers.base_provider.BaseProvider : _provider
-    embeddings.embeddings.Providers ..|> embeddings.providers.base_provider.BaseProvider : get_instance
+    embeddings.embeddings.Embeddings "1" --> "1" embeddings.providers.base_provider.EmbeddingsBaseProvider : _provider
+    embeddings.embeddings.Providers ..|> embeddings.providers.base_provider.EmbeddingsBaseProvider : get_instance
 
     class embeddings.embeddings.Embeddings {
         +EmbeddingsConfig config
-        +BaseProvider _provider
-        +provider() : BaseProvider
-        +provider(provider: BaseProvider) : void
+        +EmbeddingsBaseProvider _provider
+        +provider() : EmbeddingsBaseProvider
+        +provider(provider: EmbeddingsBaseProvider) : void
         +vector_dimensions() : int
         +start_provider() : Self
         +from_config(config: EmbeddingsConfig) : Embeddings
@@ -163,19 +195,23 @@ classDiagram
         OPENAI
         MISTRAL
         GROQ
-        +get_instance(config: EmbeddingsConfig) : BaseProvider
+        GEMINI
+        NVIDIA
+        +get_instance(config: EmbeddingsConfig) : EmbeddingsBaseProvider
     }
 
-    embeddings.providers.base_provider.BaseProvider <|-- embeddings.providers.groq.GroqEmbeddings
-    embeddings.providers.base_provider.BaseProvider <|-- embeddings.providers.mistral.MistralEmbeddings
-    embeddings.providers.base_provider.BaseProvider <|-- embeddings.providers.openai.OpenAiEmbeddings
+    embeddings.providers.base_provider.EmbeddingsBaseProvider <|-- embeddings.providers.groq.GroqEmbeddings
+    embeddings.providers.base_provider.EmbeddingsBaseProvider <|-- embeddings.providers.mistral.MistralEmbeddings
+    embeddings.providers.base_provider.EmbeddingsBaseProvider <|-- embeddings.providers.openai.OpenAiEmbeddings
+    embeddings.providers.base_provider.EmbeddingsBaseProvider <|-- embeddings.providers.gemini.GeminiEmbeddings
+    embeddings.providers.base_provider.EmbeddingsBaseProvider <|-- embeddings.providers.nvidia.NvidiaEmbeddings
 
-    class embeddings.providers.base_provider.BaseProvider {
+    class embeddings.providers.base_provider.EmbeddingsBaseProvider {
         +EmbeddingsConfig config
         +int vector_dimensions
         +Any _client
         +Any _aclient
-        +from_config(config: EmbeddingsConfig) : BaseProvider
+        +from_config(config: EmbeddingsConfig) : EmbeddingsBaseProvider
         +client() : Any
         +client(client: Any) : void
         +aclient() : Any
@@ -205,16 +241,30 @@ classDiagram
         +agenerate(text_batches: List[str]) : CreateEmbeddingResponse
     }
 
+    class embeddings.providers.gemini.GeminiEmbeddings {
+        +int vector_dimensions = 768
+        +set_gemini() : Self
+        +generate(text_batches: List[str]) : CreateEmbeddingResponse
+        +agenerate(text_batches: List[str]) : CreateEmbeddingResponse
+    }
+
+    class embeddings.providers.nvidia.NvidiaEmbeddings {
+        +int vector_dimensions = 1024
+        +set_nvidia() : Self
+        +generate(text_batches: List[str]) : CreateEmbeddingResponse
+        +agenerate(text_batches: List[str]) : CreateEmbeddingResponse
+    }
+
     %% LLM Module
     llm.llm.Llm "1" --> "1" llm.config.LlmConfig : config
-    llm.llm.Llm "1" --> "1" llm.providers.base_provider.BaseProvider : _provider
-    llm.llm.Providers ..|> llm.providers.base_provider.BaseProvider : get_instance
+    llm.llm.Llm "1" --> "1" llm.providers.base_provider.LlmBaseProvider : _provider
+    llm.llm.Providers ..|> llm.providers.base_provider.LlmBaseProvider : get_instance
 
     class llm.llm.Llm {
         +LlmConfig config
-        +BaseProvider _provider
-        +provider() : BaseProvider
-        +provider(provider: BaseProvider) : void
+        +LlmBaseProvider _provider
+        +provider() : LlmBaseProvider
+        +provider(provider: LlmBaseProvider) : void
         +start_provider() : Self
         +from_config(config: LlmConfig) : Llm
         +tokenizer() : Any
@@ -227,14 +277,18 @@ classDiagram
         OPENAI
         MISTRAL
         GROQ
-        +get_instance(config: LlmConfig) : BaseProvider
+        GEMINI
+        NVIDIA
+        +get_instance(config: LlmConfig) : LlmBaseProvider
     }
 
-    llm.providers.base_provider.BaseProvider <|-- llm.providers.groq.GroqLlm
-    llm.providers.base_provider.BaseProvider <|-- llm.providers.mistral.MistralLlm
-    llm.providers.base_provider.BaseProvider <|-- llm.providers.openai.OpenAiLlm
+    llm.providers.base_provider.LlmBaseProvider <|-- llm.providers.groq.GroqLlm
+    llm.providers.base_provider.LlmBaseProvider <|-- llm.providers.mistral.MistralLlm
+    llm.providers.base_provider.LlmBaseProvider <|-- llm.providers.openai.OpenAiLlm
+    llm.providers.base_provider.LlmBaseProvider <|-- llm.providers.gemini.GeminiLlm
+    llm.providers.base_provider.LlmBaseProvider <|-- llm.providers.nvidia.NvidiaLlm
 
-    class llm.providers.base_provider.BaseProvider {
+    class llm.providers.base_provider.LlmBaseProvider {
         +LlmConfig config
         +Any _client
         +Any _aclient
@@ -243,7 +297,7 @@ classDiagram
         +Any _acompletion_fn
         +Any _normalize_fn
         +Any _tokenizer_fn
-        +from_config(config: LlmConfig) : BaseProvider
+        +from_config(config: LlmConfig) : LlmBaseProvider
         +client() : Any
         +client(client: Any) : void
         +aclient() : Any
@@ -282,6 +336,14 @@ classDiagram
     class llm.providers.openai.OpenAiLlm {
         +set_openai() : Self
     }
+
+    class llm.providers.gemini.GeminiLlm {
+        +set_gemini() : Self
+    }
+
+    class llm.providers.nvidia.NvidiaLlm {
+        +set_nvidia() : Self
+    }
 ```
 
 ## Sequence Diagram
@@ -295,7 +357,7 @@ The sequence diagram will illustrate the interactions between the core component
 5. **Embeddings Generation**: The `Embeddings` class manages embedding generation using the configured provider.
 6. **LLM Completion**: The `Llm` class manages interactions with LLM providers for synchronous and asynchronous completions.
 
-The diagram will use full module paths to ensure clarity and avoid ambiguity, highlighting the key messages and events critical to the system�s main functionalities.
+The diagram will use full module paths to ensure clarity and avoid ambiguity, highlighting the key messages and events critical to the system’s main functionalities.
 
 ```mermaid
 sequenceDiagram
@@ -308,47 +370,51 @@ sequenceDiagram
     participant LlmProviders as llm.llm.Providers
     participant Embeddings as embeddings.embeddings.Embeddings
     participant Llm as llm.llm.Llm
-    participant BaseProvider as embeddings.providers.base_provider.BaseProvider
+    participant EmbeddingsBaseProvider as embeddings.providers.base_provider.EmbeddingsBaseProvider
+    participant LlmBaseProvider as llm.providers.base_provider.LlmBaseProvider
     participant MistralLlm as llm.providers.mistral.MistralLlm
     participant OpenAiLlm as llm.providers.openai.OpenAiLlm
+    participant GroqLlm as llm.providers.groq.GroqLlm
+    participant GeminiLlm as llm.providers.gemini.GeminiLlm
+    participant NvidiaLlm as llm.providers.nvidia.NvidiaLlm
 
     Config->>Config: from_yaml(config_path)
     Config->>EmbeddingsConfig: Initialize with embeddings config
     Config->>LlmConfig: Initialize with LLM config
 
     EmbeddingsConfig->>EmbeddingsProviders: Get provider instance
-    EmbeddingsProviders->>BaseProvider: Instantiate provider
-    BaseProvider-->>EmbeddingsProviders: Provider instance
+    EmbeddingsProviders->>EmbeddingsBaseProvider: Instantiate provider
+    EmbeddingsBaseProvider-->>EmbeddingsProviders: Provider instance
     EmbeddingsProviders-->>EmbeddingsConfig: Provider instance
 
     LlmConfig->>LlmProviders: Get provider instance
-    LlmProviders->>BaseProvider: Instantiate provider
-    BaseProvider-->>LlmProviders: Provider instance
+    LlmProviders->>LlmBaseProvider: Instantiate provider
+    LlmBaseProvider-->>LlmProviders: Provider instance
     LlmProviders-->>LlmConfig: Provider instance
 
     EmbeddingsConfig->>Embeddings: from_config(config)
     Embeddings->>EmbeddingsProviders: Get provider instance
-    EmbeddingsProviders->>BaseProvider: Instantiate provider
-    BaseProvider-->>EmbeddingsProviders: Provider instance
+    EmbeddingsProviders->>EmbeddingsBaseProvider: Instantiate provider
+    EmbeddingsBaseProvider-->>EmbeddingsProviders: Provider instance
     EmbeddingsProviders-->>Embeddings: Provider instance
 
     LlmConfig->>Llm: from_config(config)
     Llm->>LlmProviders: Get provider instance
-    LlmProviders->>BaseProvider: Instantiate provider
-    BaseProvider-->>LlmProviders: Provider instance
+    LlmProviders->>LlmBaseProvider: Instantiate provider
+    LlmBaseProvider-->>LlmProviders: Provider instance
     LlmProviders-->>Llm: Provider instance
 
     Embeddings->>Embeddings: generate(text_batches)
-    Embeddings->>BaseProvider: generate(text_batches)
-    BaseProvider-->>Embeddings: Embeddings generated
+    Embeddings->>EmbeddingsBaseProvider: generate(text_batches)
+    EmbeddingsBaseProvider-->>Embeddings: Embeddings generated
 
     Llm->>Llm: complete(prompt)
-    Llm->>BaseProvider: complete(prompt)
-    BaseProvider-->>Llm: Completion result
+    Llm->>LlmBaseProvider: complete(prompt)
+    LlmBaseProvider-->>Llm: Completion result
 
     Llm->>Llm: acomplete(prompt)
-    Llm->>BaseProvider: acomplete(prompt)
-    BaseProvider-->>Llm: Asynchronous completion result
+    Llm->>LlmBaseProvider: acomplete(prompt)
+    LlmBaseProvider-->>Llm: Asynchronous completion result
 
     note over Embeddings,Llm: Synchronous and Asynchronous operations
 ```
