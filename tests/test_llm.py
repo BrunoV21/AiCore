@@ -17,23 +17,27 @@ class MockResponse:
         for chunks in self.chunks:
             yield chunks
 
-class MockAsyncResponse:
-    def __init__(self, chunks, usage=None):
-        self.chunks = [chunks]
-        self.usage = usage
+class MockMistralResponse:
+    def __init__(self, chunks):
+        self.chunks = [(chunks)]
+
+    def __iter__(self):
+        for chunks in self.chunks:
+            yield chunks
 
     async def __aiter__(self):
         for chunks in self.chunks:
             yield chunks
-
 class MockChunk:
     def __init__(self, chunk_content):
         self.choices = [MockChoices(chunk_content)]
+class MockMistralChunk:
+    def __init__(self, data):
+        self.data = MockData(data)
 
-    async def __aiter__(self):
-        for choice in self.choices:
-            yield choice
-
+class MockData:
+    def __init__(self, choices):
+        self.choices = [MockChoices(choices)]
 class MockChoices:
     def __init__(self, delta):
         self.delta = MockDelta(delta)
@@ -61,6 +65,20 @@ def mock_openai_json(*args, **kwargs):
     return mock_openai
 
 @pytest.fixture
+def mock_mistral(*args, **kwargs):
+    mock_mistral = MagicMock()
+    mock_mistral.complete = MagicMock(return_value=MockMistralResponse(MockMistralChunk("mocked response")))
+    mock_mistral.acomplete = AsyncMock(return_value=MockMistralResponse(MockMistralChunk("mocked async response")))
+    return mock_mistral
+
+@pytest.fixture
+def mock_mistral_json(*args, **kwargs):
+    mock_mistral = MagicMock()
+    mock_mistral.complete = MagicMock(return_value=MockMistralResponse(MockMistralChunk(json.dumps({"response": "mocked"}))))
+    mock_mistral.acomplete = AsyncMock(return_value=MockMistralResponse(MockMistralChunk(json.dumps({"response": "async mocked"}))))
+    return mock_mistral
+
+@pytest.fixture
 def llm_config_openai():
     return LlmConfig(provider="openai", api_key="test_key", model="gpt-4")
 
@@ -80,9 +98,9 @@ def llm_config_gemini():
 def llm_config_nvidia():
     return LlmConfig(provider="nvidia", api_key="test_key", model="nemotron-4")
 
-@pytest.mark.parametrize("provider_name", ["openai", "groq", "gemini", "nvidia"])
+@pytest.mark.parametrize("provider_name", ["openai", "groq", "gemini", "mistral", "nvidia"])
 @pytest.mark.asyncio
-async def test_llm_complete(provider_name,  mock_openai, llm_config_openai,
+async def test_llm_complete(provider_name,  mock_openai, mock_mistral, llm_config_openai,
         llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia):
     
     config = {
@@ -92,6 +110,9 @@ async def test_llm_complete(provider_name,  mock_openai, llm_config_openai,
         "gemini": llm_config_gemini,
         "nvidia": llm_config_nvidia
     }[provider_name]
+
+    if provider_name == "mistral":
+        mock_openai = mock_mistral
     
     # Initialize Llm with the given configuration
     llm = Llm.from_config(config)
@@ -117,9 +138,9 @@ async def test_llm_complete(provider_name,  mock_openai, llm_config_openai,
         mock_openai.complete.assert_called_once()
         mock_openai.acomplete.assert_called_once()
 
-@pytest.mark.parametrize("provider_name", ["openai", "groq", "gemini", "nvidia"])
+@pytest.mark.parametrize("provider_name", ["openai", "groq", "gemini", "mistral", "nvidia"])
 @pytest.mark.asyncio
-async def test_llm_complete_json(provider_name, mock_openai_json, llm_config_openai,
+async def test_llm_complete_json(provider_name, mock_openai_json, mock_mistral_json, llm_config_openai,
         llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia):
     
     config = {
@@ -129,6 +150,9 @@ async def test_llm_complete_json(provider_name, mock_openai_json, llm_config_ope
         "gemini": llm_config_gemini,
         "nvidia": llm_config_nvidia
     }[provider_name]
+
+    if provider_name == "mistral":
+        mock_openai_json = mock_mistral_json
     
     # Initialize Llm with the given configuration
     llm = Llm.from_config(config)
