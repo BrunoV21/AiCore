@@ -4,11 +4,19 @@ from pathlib import Path
 from enum import Enum
 
 from aicore.llm.config import LlmConfig
-from aicore.llm.providers import LlmBaseProvider, OpenAiLlm, MistralLlm, GroqLlm, GeminiLlm
+from aicore.llm.providers import (
+    LlmBaseProvider,
+    OpenAiLlm,
+    MistralLlm, 
+    NvidiaLlm,
+    GroqLlm,
+    GeminiLlm
+)
 
 class Providers(Enum):
     OPENAI = OpenAiLlm
     MISTRAL = MistralLlm
+    NVIDIA = NvidiaLlm
     GROQ = GroqLlm
     GEMINI = GeminiLlm
 
