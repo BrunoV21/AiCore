@@ -34,7 +34,8 @@ class Providers(Enum):
 
 class Llm(BaseModel):
     config :LlmConfig
-    _provider :LlmBaseProvider=None
+    _provider :Union[LlmBaseProvider, None]=None
+    _reasoner :Union["Llm", None]=None
     
     @property
     def provider(self)->LlmBaseProvider:
@@ -43,10 +44,19 @@ class Llm(BaseModel):
     @provider.setter
     def provider(self, provider :LlmBaseProvider):
         self._provider = provider
+
+    @property
+    def reasoner(self)->"Llm":
+        return self._reasoner
+    
+    @reasoner.setter
+    def reasoner(self, reasoning_llm :"Llm"):
+        self._reasoner = reasoning_llm
     
     @model_validator(mode="after")
     def start_provider(self)->Self:
-        self._provider = Providers[self.config.provider.upper()].get_instance(self.config)
+        self.provider = Providers[self.config.provider.upper()].get_instance(self.config)
+        self.reasoner = Llm.from_config(self.config.reasoner) if self.config.reasoner else None
         return self
     
     @classmethod
