@@ -1,7 +1,9 @@
 from aicore.llm.config import LlmConfig
+from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64
-from typing import Any, Dict, Self, Optional, Literal, List, Union
+from typing import Any, Dict, Optional, Literal, List, Union
 from pydantic import BaseModel, RootModel
+from functools import partial
 from pathlib import Path
 import tiktoken
 import json
@@ -104,6 +106,13 @@ class LlmBaseProvider(BaseModel):
                     }
                 )
         return message_content
+    
+    def use_as_reasoner(self, stop_thinking_token :str=REASONING_STOP_TOKEN):
+        """
+        pass stop token to completion fn
+        """
+        self.completion_fn = partial(self.completion_fn, stop=stop_thinking_token)
+        self.acompletion_fn = partial(self.acompletion_fn, stop=stop_thinking_token)
 
     def _message_body(self, prompt :str, role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None)->Dict:
         message_body = {
