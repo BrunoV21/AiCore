@@ -1,0 +1,16 @@
+embeddings:
+  provider: "nvidia"
+  api_key: "YOUR_SUPER_SECRET_NVIDIA_API_KEY"
+  model: "nv-embedqa-mistral-7b-v2"
+
+llm:
+  provider: "google"
+  temperature: 0
+  api_key: "YOUR_SUPER_SECRET_GEMINI_API_KEY"
+  model: "gemini-2.0-flash-exp"
+  reasoner:
+    provider: "groq"
+    api_key: "YOUR_SUPER_SECRET_GROQ_API_KEY"
+    model: "deepseek-r1-distill-llama-70b"
+    temperature: 0
+    max_tokens: 8192
