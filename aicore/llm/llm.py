@@ -4,6 +4,8 @@ from pathlib import Path
 from enum import Enum
 
 from aicore.llm.config import LlmConfig
+from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN
+from aicore.llm.templates import REASONING_INJECTION_TEMPLATE
 from aicore.llm.providers import (
     LlmBaseProvider,
     OpenAiLlm,
@@ -52,11 +54,13 @@ class Llm(BaseModel):
     @reasoner.setter
     def reasoner(self, reasoning_llm :"Llm"):
         self._reasoner = reasoning_llm
+        self._reasoner.provider.use_as_reasoner()
     
     @model_validator(mode="after")
     def start_provider(self)->Self:
         self.provider = Providers[self.config.provider.upper()].get_instance(self.config)
-        self.reasoner = Llm.from_config(self.config.reasoner) if self.config.reasoner else None
+        if self.config.reasoner:
+            self.reasoner = Llm.from_config(self.config.reasoner)
         return self
     
     @classmethod
@@ -74,6 +78,12 @@ class Llm(BaseModel):
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
+
+        if self.reasoner:
+            print(REASONING_START_TOKEN)
+            reasoning = self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
+            print(REASONING_STOP_TOKEN)
+            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt)
         
         return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
     
@@ -85,7 +95,13 @@ class Llm(BaseModel):
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
          
-         return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
+        if self.reasoner:
+            print(REASONING_START_TOKEN)
+            reasoning = await self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)            
+            print(REASONING_STOP_TOKEN)
+            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt)
+         
+        return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
 
 if __name__ == "__main__":
     import asyncio
