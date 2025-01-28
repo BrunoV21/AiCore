@@ -50,3 +50,6 @@ def image_to_base64(image_path :Union[Path, str])->str:
     except Exception as e:  # Added general exception handling
         print(f"Error: {e}")
         return None
+    
+def default_stream_handler(message :str)->str:
+    print(message, end="")

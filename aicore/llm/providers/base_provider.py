@@ -1,7 +1,7 @@
 from aicore.llm.config import LlmConfig
 from aicore.const import REASONING_STOP_TOKEN
-from aicore.llm.utils import parse_content, image_to_base64
-from typing import Any, Dict, Optional, Literal, List, Union
+from aicore.llm.utils import parse_content, image_to_base64, default_stream_handler
+from typing import Any, Dict, Optional, Literal, List, Union, Callable
 from pydantic import BaseModel, RootModel
 from functools import partial
 from pathlib import Path
@@ -80,7 +80,7 @@ class LlmBaseProvider(BaseModel):
     @tokenizer_fn.setter
     def tokenizer_fn(self, tokenizer_fn :Any):
         self._tokenizer_fn = tokenizer_fn    
-
+    
     @staticmethod
     def get_default_tokenizer(model_name :str)->str:
         try:
@@ -171,30 +171,28 @@ class LlmBaseProvider(BaseModel):
 
         return completion_args
     
-    def _stream(self, stream)->str:
+    def _stream(self, stream, logger_fn)->str:
         message = []
         for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                print(chunk_message, end="")
+                
+                logger_fn(chunk_message)
                 message.append(chunk_message)
-        print("\n")
-        # usage = chunk.usage if self.provider == "openai" else None
-        # Combine the streamed message into a single response
+        logger_fn("\n")
         response = "".join(message)
         return response
     
-    async def _astream(self, stream)->str:
+    async def _astream(self, stream, logger_fn)->str:
         message = []
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                print(chunk_message, end="")
+                logger_fn(chunk_message)
                 message.append(chunk_message)
-        # usage = chunk.usage if self.provider == "openai" else None
-        # Combine the streamed message into a single response
+        logger_fn("\n")
         response = "".join(message)
         return response
     
@@ -215,7 +213,8 @@ class LlmBaseProvider(BaseModel):
                  prefix_prompt :Optional[str]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
-                 stream :bool=True)->Union[str, Dict]:
+                 stream :bool=True,
+                 stream_handler: Optional[Callable[[str], None]]=default_stream_handler)->Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -230,7 +229,7 @@ class LlmBaseProvider(BaseModel):
         output = self.completion_fn(**completion_args)
 
         if stream:
-            output = self._stream(output)
+            output = self._stream(output, stream_handler)
 
         return output if not json_output else self.extract_json(output)
 
@@ -240,7 +239,8 @@ class LlmBaseProvider(BaseModel):
                         prefix_prompt :Optional[str]=None,
                         img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                         json_output :bool=False,
-                        stream :bool=True)->Union[str, Dict]:
+                        stream :bool=True,
+                        stream_handler: Optional[Callable[[str], None]]=default_stream_handler)->Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -255,6 +255,6 @@ class LlmBaseProvider(BaseModel):
         output = await self.acompletion_fn(**completion_args)
 
         if stream:
-            output = await self._astream(output)
+            output = await self._astream(output, stream_handler)
 
         return output if not json_output else self.extract_json(output)
