@@ -80,10 +80,9 @@ class Llm(BaseModel):
                  stream :bool=True)->Union[str, Dict]:
 
         if self.reasoner:
-            print(REASONING_START_TOKEN)
-            reasoning = self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
+            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
             print(REASONING_STOP_TOKEN)
-            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt)
+            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
         
         return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
     
@@ -96,10 +95,9 @@ class Llm(BaseModel):
                  stream :bool=True)->Union[str, Dict]:
          
         if self.reasoner:
-            print(REASONING_START_TOKEN)
-            reasoning = await self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)            
+            reasoning = await self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
             print(REASONING_STOP_TOKEN)
-            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt)
+            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
          
         return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
 

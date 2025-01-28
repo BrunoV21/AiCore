@@ -4,6 +4,7 @@ REASONING_INJECTION_TEMPLATE = """
 
 ## Reasoning steps
 {reasoning}
+{reasoning_stop_token}
 
 ## Solution
 """
