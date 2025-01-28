@@ -8,11 +8,13 @@ install_requires = [
     "google-genai== 0.6.0",
     "groq==0.13.1",
     "mistralai==1.2.3",
+    "loguru==0.7.3",
     # "mistral_common==1.5.1",
     "openai==1.56.1",
     "tiktoken==0.8.0",
     "pydantic==2.10.3",
-    "PyYAML==6.0.2"
+    "PyYAML==6.0.2",
+    "ulid==1.1"
 ]
 
 setuptools.setup(

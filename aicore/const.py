@@ -1,5 +1,7 @@
 DEFAULT_CONFIG_PATH = "./config/config.yml"
 
+DEFAULT_LOGS_DIR = "./logs"
+
 SUPPORTED_REASONER_PROVIDERS = ["groq"]
 
 SUPPORTED_REASONER_MODELS = ["deepseek-r1-distill-llama-70b"]
