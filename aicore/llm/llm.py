@@ -1,10 +1,13 @@
 from pydantic import BaseModel, RootModel, model_validator
-from typing import Self, List, Union, Dict, List, Optional
+from typing import Union, Optional, Callable, List, Dict, Self
+from functools import partial
 from pathlib import Path
 from enum import Enum
+from ulid import ulid
 
 from aicore.llm.config import LlmConfig
-from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN
+from aicore.logger import _logger
+from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE
 from aicore.llm.providers import (
     LlmBaseProvider,
@@ -37,6 +40,7 @@ class Providers(Enum):
 class Llm(BaseModel):
     config :LlmConfig
     _provider :Union[LlmBaseProvider, None]=None
+    _logger_fn :Optional[Callable[[str], None]]=None
     _reasoner :Union["Llm", None]=None
     
     @property
@@ -46,6 +50,16 @@ class Llm(BaseModel):
     @provider.setter
     def provider(self, provider :LlmBaseProvider):
         self._provider = provider
+
+    @property
+    def logger_fn(self)->Callable[[str], None]:
+        if self._logger_fn is None:
+            self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=ulid())
+        return self._logger_fn
+
+    @logger_fn.setter
+    def logger_fn(self, logger_fn:Callable[[str], None]):
+        self._logger_fn = logger_fn
 
     @property
     def reasoner(self)->"Llm":
@@ -80,11 +94,12 @@ class Llm(BaseModel):
                  stream :bool=True)->Union[str, Dict]:
 
         if self.reasoner:
-            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
-            print(REASONING_STOP_TOKEN)
-            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
-        
-        return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
+            if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
+                reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
+                self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
+                prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
+
+        return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
     
     async def acomplete(self,
                  prompt :Union[str, BaseModel, RootModel],
@@ -95,21 +110,9 @@ class Llm(BaseModel):
                  stream :bool=True)->Union[str, Dict]:
          
         if self.reasoner:
-            reasoning = await self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
-            print(REASONING_STOP_TOKEN)
-            prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
-         
-        return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
-
-if __name__ == "__main__":
-    import asyncio
-    from aicore.config import config
-
-    async def main():
-        llm_obj = Llm.from_config(config.llm)
-        print("Sync reponse:")
-        llm_obj.complete("When are going to Mars with Elon Musk?")
-        print("\nAsync response:")
-        await llm_obj.acomplete("When are going to Mars with Elon Musk?")
-
-    asyncio.run(main())
+            if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
+                reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
+                self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
+                prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
+        
+        return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
