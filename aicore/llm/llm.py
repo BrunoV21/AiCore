@@ -9,6 +9,7 @@ from aicore.llm.config import LlmConfig
 from aicore.logger import _logger
 from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE
+from aicore.llm.utils import default_stream_handler
 from aicore.llm.providers import (
     LlmBaseProvider,
     OpenAiLlm,
@@ -107,7 +108,7 @@ class Llm(BaseModel):
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
                 reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream)
-                self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
+                default_stream_handler(f"{REASONING_STOP_TOKEN}\n\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
 
         return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
@@ -123,7 +124,7 @@ class Llm(BaseModel):
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
                 reasoning = await self.reasoner.provider.acomplete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
-                self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
+                await self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
         
         return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)

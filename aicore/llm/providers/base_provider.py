@@ -57,14 +57,13 @@ class LlmBaseProvider(BaseModel):
     def completion_fn(self, completion_fn :Any):
         self._completion_fn = completion_fn
 
-    async def acompletion_fn(self, **kwargs)->Any:
-        return await self.aclient.chat.completions.create(**kwargs)
+    @property
+    def acompletion_fn(self)->Any:
+        return self._acompletion_fn
     
-    # _acompletion_fn
-    
-    # @acompletion_fn.setter
-    # async def acompletion_fn(self, acompletion_fn :Any):
-    #     self._acompletion_fn = acompletion_fn
+    @acompletion_fn.setter
+    def acompletion_fn(self, acompletion_fn :Any):
+        self._acompletion_fn = acompletion_fn
 
     @property
     def normalize_fn(self)->Any:
@@ -187,13 +186,10 @@ class LlmBaseProvider(BaseModel):
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                
-                # logger_fn(chunk_message)
+                default_stream_handler(chunk_message)
                 message.append(chunk_message)
-                # yield("".join(message))
-        # logger_fn("\n")
+        default_stream_handler("\n")
         response = "".join(message)
-        # yield response
         return response
     
     async def _astream(self, stream, logger_fn)->str:
