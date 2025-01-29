@@ -1,16 +1,19 @@
 from pydantic import BaseModel, model_validator
 from typing import Optional, List, Self
-from queue import Queue, Empty
+from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger
 import os
+import asyncio
+
+from aicore.const import DEFAULT_LOGS_DIR
 
 class LogEntry(BaseModel):
     session_id: str = ""
     message: str
     timestamp: Optional[str] = None
 
-    @model_validator( mode="after")
+    @model_validator(mode="after")
     def init_timestamp(self) -> Self:
         """Initialize timestamp if not provided"""
         if not self.timestamp:
@@ -18,7 +21,7 @@ class LogEntry(BaseModel):
         return self
 
 class Logger:
-    def __init__(self, logs_dir="logs"):
+    def __init__(self, logs_dir=DEFAULT_LOGS_DIR):
         """
         Initialize the logger object.
         :param logs_dir: Directory where log files will be stored.
@@ -38,17 +41,17 @@ class Logger:
             serialize=False,
         )
 
-        # Central log queue
-        self.queue = Queue()
-        # Session-based queues
+        # Central log queue (now async)
+        self.queue = AsyncQueue()
+        # Session-based queues (now async)
         self.session_queues = {}
-        self._temp_storage = []  # Added for preserving logs during get_all_logs_in_queue
+        self._temp_storage = []
 
     @property
-    def all_sessions_in_queue(self)->List[str]:
+    def all_sessions_in_queue(self) -> List[str]:
         return list(self.session_queues.keys())
 
-    def log_chunk_to_queue(self, message: str, session_id: str):
+    async def log_chunk_to_queue(self, message: str, session_id: str):
         """
         Log a message to the central queue and the log file.
         :param message: Message to log.
@@ -58,31 +61,41 @@ class Logger:
             session_id=session_id,
             message=message
         )
-        self.queue.put(log_entry)
-        self._temp_storage.append(log_entry)  # Store for retrieval
+        await self.queue.put(log_entry)
+        self._temp_storage.append(log_entry)
         print(message, end="")
-        # self.distribute()
 
     def get_all_logs_in_queue(self) -> list:
         """
         Retrieve all logs currently in the central log queue without removing them.
         :return: List of all log entries in the central queue.
         """
-        return self._temp_storage.copy()  # Return copy of stored logs
+        return self._temp_storage.copy()
 
-    def distribute(self):
+    async def distribute(self):
         """
         Distribute logs from the central queue to session-specific queues.
+        Runs continuously in the background.
         """
-        while not self.queue.empty():
+        while True:
             try:
-                log = self.queue.get_nowait()
+                # Wait for the next log entry
+                log = await self.queue.get()
+                
                 session_id = log.session_id
                 if session_id not in self.session_queues:
-                    self.session_queues[session_id] = Queue()
-                self.session_queues[session_id].put(log)
-            except Empty:
+                    self.session_queues[session_id] = AsyncQueue()
+                
+                await self.session_queues[session_id].put(log)
+                self.queue.task_done()
+                
+            except asyncio.CancelledError:
+                # Handle cancellation gracefully
+                logger.info("Distribute task cancelled")
                 break
+            except Exception as e:
+                logger.error(f"Error in distribute: {str(e)}")
+                await asyncio.sleep(0.1)
 
     async def pop(self, session_id: str, poll_interval: float = 0.5):
         """
@@ -91,38 +104,66 @@ class Logger:
         :param poll_interval: Time in seconds to wait before checking the queue again.
         """
         temp_storage = []
+        
         while True:
-            while not self.queue.empty():
-                try:
-                    log = self.queue.get_nowait()
-                    if log.session_id == session_id:
-                        yield log.message
-                    else:
-                        temp_storage.append(log)
-                except Empty:
-                    break
-            
-            # Restore non-matching logs
-            for log in temp_storage:
-                self.queue.put(log)
-            temp_storage.clear()
+            try:
+                # Try to get an item from the queue
+                log = await self.queue.get()
+                
+                if log.session_id == session_id:
+                    self.queue.task_done()
+                    yield log.message
+                else:
+                    temp_storage.append(log)
+                    
+                # Put back non-matching logs
+                for stored_log in temp_storage:
+                    await self.queue.put(stored_log)
+                temp_storage.clear()
+                
+            except asyncio.CancelledError:
+                # Handle cancellation gracefully
+                if temp_storage:
+                    for stored_log in temp_storage:
+                        await self.queue.put(stored_log)
+                break
+            except Exception as e:
+                logger.error(f"Error in pop: {str(e)}")
+                await asyncio.sleep(poll_interval)
 
-    def pop_from_session_queue(self, session_id: str):
+    async def pop_from_session_queue(self, session_id: str):
         """
         Pop messages from a session-specific queue.
         :param session_id: Session ID to pop messages from.
         """
         if session_id not in self.session_queues:
-            self.session_queues[session_id] = Queue()
+            self.session_queues[session_id] = AsyncQueue()
             return []
 
         messages = []
-        while not self.session_queues[session_id].empty():
+        session_queue = self.session_queues[session_id]
+        
+        while not session_queue.empty():
             try:
-                log = self.session_queues[session_id].get_nowait()
+                log = await session_queue.get_nowait()
                 messages.append(log.message)
-            except Empty:
+                session_queue.task_done()
+            except asyncio.QueueEmpty:
                 break
+            
         return messages
-    
+
+    async def cleanup(self):
+        """
+        Cleanup method to ensure all queues are properly emptied.
+        Should be called when shutting down the logger.
+        """
+        try:
+            await self.queue.join()
+            for session_queue in self.session_queues.values():
+                await session_queue.join()
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
+
+# Global logger instance
 _logger = Logger()
