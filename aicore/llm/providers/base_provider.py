@@ -3,7 +3,7 @@ from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64, default_stream_handler
 from typing import Any, Dict, Optional, Literal, List, Union, Callable
 from pydantic import BaseModel, RootModel
-from functools import partial
+from functools import partial, wraps
 from pathlib import Path
 import tiktoken
 import json
@@ -57,13 +57,14 @@ class LlmBaseProvider(BaseModel):
     def completion_fn(self, completion_fn :Any):
         self._completion_fn = completion_fn
 
-    @property
-    def acompletion_fn(self)->Any:
-        return self._acompletion_fn
+    async def acompletion_fn(self, **kwargs)->Any:
+        return await self.aclient.chat.completions.create(**kwargs)
     
-    @acompletion_fn.setter
-    def acompletion_fn(self, acompletion_fn :Any):
-        self._acompletion_fn = acompletion_fn
+    # _acompletion_fn
+    
+    # @acompletion_fn.setter
+    # async def acompletion_fn(self, acompletion_fn :Any):
+    #     self._acompletion_fn = acompletion_fn
 
     @property
     def normalize_fn(self)->Any:
@@ -107,12 +108,19 @@ class LlmBaseProvider(BaseModel):
                 )
         return message_content
     
+    @staticmethod
+    def async_partial(func, *args, **kwargs):
+        @wraps(func)
+        async def wrapped(*inner_args, **inner_kwargs):
+            return await func(*args, *inner_args, **kwargs, **inner_kwargs)
+        return wrapped
+    
     def use_as_reasoner(self, stop_thinking_token :str=REASONING_STOP_TOKEN):
         """
         pass stop token to completion fn
         """
         self.completion_fn = partial(self.completion_fn, stop=stop_thinking_token)
-        self.acompletion_fn = partial(self.acompletion_fn, stop=stop_thinking_token)
+        self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)
 
     def _message_body(self, prompt :str, role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None)->Dict:
         message_body = {
@@ -143,6 +151,8 @@ class LlmBaseProvider(BaseModel):
         )
 
         if self.completion_args:
+            if not stream:
+                self.completion_args.pop("stream_options", None)
             args.update(self.completion_args)
         
         return args
@@ -171,17 +181,19 @@ class LlmBaseProvider(BaseModel):
 
         return completion_args
     
-    def _stream(self, stream, logger_fn)->str:
+    def _stream(self, stream)->str:
         message = []
         for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
                 
-                logger_fn(chunk_message)
+                # logger_fn(chunk_message)
                 message.append(chunk_message)
-        logger_fn("\n")
+                # yield("".join(message))
+        # logger_fn("\n")
         response = "".join(message)
+        # yield response
         return response
     
     async def _astream(self, stream, logger_fn)->str:
@@ -190,9 +202,9 @@ class LlmBaseProvider(BaseModel):
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                logger_fn(chunk_message)
+                await logger_fn(chunk_message)
                 message.append(chunk_message)
-        logger_fn("\n")
+        await logger_fn("\n")
         response = "".join(message)
         return response
     
@@ -213,8 +225,7 @@ class LlmBaseProvider(BaseModel):
                  prefix_prompt :Optional[str]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
-                 stream :bool=True,
-                 stream_handler: Optional[Callable[[str], None]]=default_stream_handler)->Union[str, Dict]:
+                 stream :bool=True)->Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -229,7 +240,7 @@ class LlmBaseProvider(BaseModel):
         output = self.completion_fn(**completion_args)
 
         if stream:
-            output = self._stream(output, stream_handler)
+            output = self._stream(output)
 
         return output if not json_output else self.extract_json(output)
 
