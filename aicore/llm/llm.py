@@ -41,6 +41,7 @@ class Llm(BaseModel):
     config :LlmConfig
     _provider :Union[LlmBaseProvider, None]=None
     _logger_fn :Optional[Callable[[str], None]]=None
+    _session_id :Optional[str]=None
     _reasoner :Union["Llm", None]=None
     
     @property
@@ -52,9 +53,19 @@ class Llm(BaseModel):
         self._provider = provider
 
     @property
+    def session_id(self)->str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, session_id):
+        self._session_id = session_id
+
+    @property
     def logger_fn(self)->Callable[[str], None]:
         if self._logger_fn is None:
-            self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=ulid())
+            if self.session_id is None:
+                self.session_id = ulid()
+            self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=self.session_id)
         return self._logger_fn
 
     @logger_fn.setter
@@ -95,11 +106,11 @@ class Llm(BaseModel):
 
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
-                reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
+                reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream)
                 self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
 
-        return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
+        return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
     
     async def acomplete(self,
                  prompt :Union[str, BaseModel, RootModel],
@@ -111,7 +122,7 @@ class Llm(BaseModel):
          
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
-                reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
+                reasoning = await self.reasoner.provider.acomplete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
                 self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
         
