@@ -3,23 +3,21 @@ from loguru import logger
 from pydantic import BaseModel, field_validator
 from queue import Queue, Empty
 from datetime import datetime
-
-from aicore.const import DEFAULT_LOGS_DIR
+from typing import Optional, List
 
 class LogEntry(BaseModel):
-    session_id :str=""
-    message :str
-    timestamp :str=None
+    session_id: str = ""
+    message: str
+    timestamp: Optional[str] = None
 
     @field_validator("timestamp", mode="after")
     @classmethod
-    def init_timestamp(cls, timestamp :str)->str:
-        if not timestamp:
-            timestamp = str(datetime.now().isoformat())
-        return timestamp
+    def init_timestamp(cls, v: Optional[str]) -> str:
+        """Initialize timestamp if not provided"""
+        return v or datetime.now().isoformat()
 
 class Logger:
-    def __init__(self, logs_dir=DEFAULT_LOGS_DIR):
+    def __init__(self, logs_dir="logs"):
         """
         Initialize the logger object.
         :param logs_dir: Directory where log files will be stored.
@@ -43,97 +41,87 @@ class Logger:
         self.queue = Queue()
         # Session-based queues
         self.session_queues = {}
+        self._temp_storage = []  # Added for preserving logs during get_all_logs_in_queue
+
+    @property
+    def all_sessions_in_queue(self)->List[str]:
+        return list(self.session_queues.keys())
 
     def log_chunk_to_queue(self, message: str, session_id: str):
         """
         Log a message to the central queue and the log file.
-        :param session_id: Unique session ID for the log.
-        :param level: Log level (INFO, DEBUG, ERROR, etc.).
         :param message: Message to log.
+        :param session_id: Unique session ID for the log.
         """
         log_entry = LogEntry(
             session_id=session_id,
             message=message
         )
         self.queue.put(log_entry)
+        self._temp_storage.append(log_entry)  # Store for retrieval
         print(message, end="")
         self.distribute()
-
-    def log_completion(self):
-        """
-        not implemented yet
-        """
-        # logger.log(level.upper(), f"[session_id={session_id}] {message}")
-
-    async def pop(self, session_id: str, poll_interval: float = 0.5):
-        """
-        Asynchronously retrieves logs for a given session ID.
-        Uses yield to continuously return logs as they become available.
-        
-        :param session_id: Unique session ID to filter logs.
-        :param poll_interval: Time in seconds to wait before checking the queue again.
-        """
-        while True:
-            found = False
-            temp_queue = Queue()
-
-            while not self.queue.empty():
-                try:
-                    log = self.queue.get_nowait()
-                    if log.session_id == session_id:
-                        yield log.message
-                        found = True
-                    else:
-                        temp_queue.put(log)
-                except Empty:
-                    break
-
-            # Restore non-matching logs to the original queue
-            while not temp_queue.empty():
-                self.queue.put(temp_queue.get())
-
-    def distribute(self):
-        """
-        Distribute logs from the central queue to session-specific queues.
-        """
-        while not self.queue.empty():
-            log = self.queue.get()
-            session_id = log.session_id
-            if session_id not in self.session_queues:
-                self.session_queues[session_id] = Queue()
-            self.session_queues[session_id].put(log)
-
-    def pop_from_session_queue(self, session_id: str):
-
-        if session_id not in self.session_queues:
-            self.session_queues[session_id] = Queue()
-
-        session_queue = self.session_queues[session_id]
-
-        while True:
-            if not session_queue.empty():
-                yield session_queue.get().message
-            else:
-                break
 
     def get_all_logs_in_queue(self) -> list:
         """
         Retrieve all logs currently in the central log queue without removing them.
         :return: List of all log entries in the central queue.
         """
-        logs = []
-        temp_queue = Queue()
+        return self._temp_storage.copy()  # Return copy of stored logs
 
-        # Transfer logs to a temporary queue to inspect them
+    def distribute(self):
+        """
+        Distribute logs from the central queue to session-specific queues.
+        """
         while not self.queue.empty():
-            log = self.queue.get()
-            logs.append(log)
-            temp_queue.put(log)
+            try:
+                log = self.queue.get_nowait()
+                session_id = log.session_id
+                if session_id not in self.session_queues:
+                    self.session_queues[session_id] = Queue()
+                self.session_queues[session_id].put(log)
+            except Empty:
+                break
 
-        # Restore logs to the original queue
-        while not temp_queue.empty():
-            self.queue.put(temp_queue.get())
+    async def pop(self, session_id: str, poll_interval: float = 0.5):
+        """
+        Asynchronously retrieves logs for a given session ID.
+        :param session_id: Unique session ID to filter logs.
+        :param poll_interval: Time in seconds to wait before checking the queue again.
+        """
+        temp_storage = []
+        while True:
+            while not self.queue.empty():
+                try:
+                    log = self.queue.get_nowait()
+                    if log.session_id == session_id:
+                        yield log.message
+                    else:
+                        temp_storage.append(log)
+                except Empty:
+                    break
+            
+            # Restore non-matching logs
+            for log in temp_storage:
+                self.queue.put(log)
+            temp_storage.clear()
 
-        return logs
+    def pop_from_session_queue(self, session_id: str):
+        """
+        Pop messages from a session-specific queue.
+        :param session_id: Session ID to pop messages from.
+        """
+        if session_id not in self.session_queues:
+            self.session_queues[session_id] = Queue()
+            return []
 
+        messages = []
+        while not self.session_queues[session_id].empty():
+            try:
+                log = self.session_queues[session_id].get_nowait()
+                messages.append(log.message)
+            except Empty:
+                break
+        return messages
+    
 _logger = Logger()
