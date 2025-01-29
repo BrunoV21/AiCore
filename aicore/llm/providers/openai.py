@@ -3,7 +3,6 @@ from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
 from typing import Self, Optional
 import tiktoken
-
 class OpenAiLlm(LlmBaseProvider):
     base_url :Optional[str]=None
 
@@ -14,12 +13,13 @@ class OpenAiLlm(LlmBaseProvider):
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        self.aclient :AsyncOpenAI = AsyncOpenAI(
+        _aclient :AsyncOpenAI = AsyncOpenAI(
             api_key=self.config.api_key,
             base_url=self.base_url
         )
+        self.aclient =  _aclient
         self.completion_fn = self.client.chat.completions.create
-        self.acompletion_fn = self.aclient.chat.completions.create
+        self.acompletion_fn = _aclient.chat.completions.create
         self.completion_args["stream_options"] = {
             "include_usage": True
         }

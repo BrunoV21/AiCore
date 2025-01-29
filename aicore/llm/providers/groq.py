@@ -12,13 +12,14 @@ class GroqLlm(LlmBaseProvider):
         self.client :Groq = Groq(
             api_key=self.config.api_key
         )
-
-        self.aclient :AsyncGroq = AsyncGroq(
+        
+        _aclient = AsyncGroq(
             api_key=self.config.api_key
         )
+        self.aclient :AsyncGroq = _aclient
 
         self.completion_fn = self.client.chat.completions.create
-        self.acompletion_fn = self.aclient.chat.completions.create
+        self.acompletion_fn = _aclient.chat.completions.create
 
         self.normalize_fn = self.normalize
 
