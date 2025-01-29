@@ -1,20 +1,21 @@
-import os
-from loguru import logger
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
+from typing import Optional, List, Self
 from queue import Queue, Empty
 from datetime import datetime
-from typing import Optional, List
+from loguru import logger
+import os
 
 class LogEntry(BaseModel):
     session_id: str = ""
     message: str
     timestamp: Optional[str] = None
 
-    @field_validator("timestamp", mode="after")
-    @classmethod
-    def init_timestamp(cls, v: Optional[str]) -> str:
+    @model_validator( mode="after")
+    def init_timestamp(self) -> Self:
         """Initialize timestamp if not provided"""
-        return v or datetime.now().isoformat()
+        if not self.timestamp:
+            self.timestamp = datetime.now().isoformat()
+        return self
 
 class Logger:
     def __init__(self, logs_dir="logs"):
@@ -60,7 +61,7 @@ class Logger:
         self.queue.put(log_entry)
         self._temp_storage.append(log_entry)  # Store for retrieval
         print(message, end="")
-        self.distribute()
+        # self.distribute()
 
     def get_all_logs_in_queue(self) -> list:
         """
