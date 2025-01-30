@@ -80,6 +80,8 @@ class Llm(BaseModel):
     @reasoner.setter
     def reasoner(self, reasoning_llm :"Llm"):
         self._reasoner = reasoning_llm
+        if self.session_id:
+            self._reasoner.session_id = self.session_id
         self._reasoner.provider.use_as_reasoner()
     
     @model_validator(mode="after")
@@ -108,7 +110,7 @@ class Llm(BaseModel):
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
                 reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream)
-                default_stream_handler(f"{REASONING_STOP_TOKEN}\n\n")
+                default_stream_handler(f"{REASONING_STOP_TOKEN}\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
 
         return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
@@ -124,7 +126,7 @@ class Llm(BaseModel):
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
                 reasoning = await self.reasoner.provider.acomplete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
-                await self.logger_fn(f"{REASONING_STOP_TOKEN}\n\n")
+                await self.logger_fn(f"{REASONING_STOP_TOKEN}\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
         
         return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
