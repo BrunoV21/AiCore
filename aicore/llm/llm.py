@@ -44,6 +44,7 @@ class Llm(BaseModel):
     _logger_fn :Optional[Callable[[str], None]]=None
     _session_id :Optional[str]=None
     _reasoner :Union["Llm", None]=None
+    _is_reasoner :bool=False
     
     @property
     def provider(self)->LlmBaseProvider:
@@ -126,7 +127,6 @@ class Llm(BaseModel):
         if self.reasoner:
             if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
                 reasoning = await self.reasoner.provider.acomplete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
-                await self.logger_fn(f"{REASONING_STOP_TOKEN}\n")
                 prompt = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, prompt=prompt, reasoning_stop_token=REASONING_STOP_TOKEN)
         
         return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)

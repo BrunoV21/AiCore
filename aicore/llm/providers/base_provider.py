@@ -1,5 +1,5 @@
 from aicore.llm.config import LlmConfig
-from aicore.const import REASONING_STOP_TOKEN
+from aicore.const import REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64, default_stream_handler
 from typing import Any, Dict, Optional, Literal, List, Union, Callable
 from pydantic import BaseModel, RootModel
@@ -7,6 +7,7 @@ from functools import partial, wraps
 from pathlib import Path
 import tiktoken
 import json
+import time
 
 #TODO keep track of usage in accordance to embeddings tracking model
 class LlmBaseProvider(BaseModel):
@@ -18,6 +19,7 @@ class LlmBaseProvider(BaseModel):
     _acompletion_fn :Any=None
     _normalize_fn :Any=None
     _tokenizer_fn :Any=None
+    _is_reasoner :bool=False
 
     @classmethod
     def from_config(cls, config :LlmConfig)->"LlmBaseProvider":
@@ -120,6 +122,7 @@ class LlmBaseProvider(BaseModel):
         """
         self.completion_fn = partial(self.completion_fn, stop=stop_thinking_token)
         self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)
+        self._is_reasoner = True
 
     def _message_body(self, prompt :str, role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None)->Dict:
         message_body = {
@@ -194,13 +197,17 @@ class LlmBaseProvider(BaseModel):
     
     async def _astream(self, stream, logger_fn)->str:
         message = []
+        await logger_fn(STREAM_START_TOKEN)
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
                 await logger_fn(chunk_message)
                 message.append(chunk_message)
-        await logger_fn("\n")
+        if self._is_reasoner:
+            await logger_fn(REASONING_STOP_TOKEN)
+        else:
+            await logger_fn(STREAM_END_TOKEN)
         response = "".join(message)
         return response
     
