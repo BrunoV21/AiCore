@@ -98,7 +98,7 @@ class Logger:
                 logger.error(f"Error in distribute: {str(e)}")
                 await asyncio.sleep(0.1)
 
-    async def pop(self, session_id: str, poll_interval: float = 0.5, timeout: float = None):
+    async def pop(self, session_id: str, poll_interval: float = 0.1):
         """
         Asynchronously retrieves logs for a given session ID.
         :param session_id: Unique session ID to filter logs.
@@ -112,16 +112,6 @@ class Logger:
         
         while True:
             try:
-                # Check if the queue is empty
-                if self.queue.empty():
-                    # If timeout is enabled and the timer has started, check if the timeout is reached
-                    if timeout is not None \
-                        and last_log_time is not None \
-                        and (time.time() - last_log_time) >= (timeout if last_log_content != REASONING_STOP_TOKEN else 5 * timeout):
-                        break  # Exit if the timeout since the first log is reached
-                    await asyncio.sleep(poll_interval)  # Wait before checking the queue again
-                    continue
-                
                 # Try to get an item from the queue
                 log: LogEntry = await self.queue.get()
                 
@@ -132,6 +122,9 @@ class Logger:
                         last_log_time = time.time()
                     last_log_content = log.message
                     yield log.message
+                    if REASONING_STOP_TOKEN in last_log_content:
+                        break
+
                 else:
                     temp_storage.append(log)
                     

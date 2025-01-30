@@ -9,7 +9,7 @@ class LlmConfig(BaseModel):
     model :Optional[str]=None
     base_url :Optional[str]=None
     temperature :float=0
-    max_tokens :int=124000
+    max_tokens :int=12000
     reasoner :Union["LlmConfig", None]=None
 
     @field_validator("temperature")
