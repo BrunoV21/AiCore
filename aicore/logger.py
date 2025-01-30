@@ -3,10 +3,11 @@ from typing import Optional, List, Self
 from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger
-import os
 import asyncio
+import time
+import os
 
-from aicore.const import DEFAULT_LOGS_DIR
+from aicore.const import DEFAULT_LOGS_DIR, REASONING_STOP_TOKEN
 
 class LogEntry(BaseModel):
     session_id: str = ""
@@ -65,7 +66,7 @@ class Logger:
         self._temp_storage.append(log_entry)
         print(message, end="")
 
-    def get_all_logs_in_queue(self) -> list:
+    def get_all_logs_in_queue(self) -> List[LogEntry]:
         """
         Retrieve all logs currently in the central log queue without removing them.
         :return: List of all log entries in the central queue.
@@ -97,21 +98,39 @@ class Logger:
                 logger.error(f"Error in distribute: {str(e)}")
                 await asyncio.sleep(0.1)
 
-    async def pop(self, session_id: str, poll_interval: float = 0.5):
+    async def pop(self, session_id: str, poll_interval: float = 0.5, timeout: float = None):
         """
         Asynchronously retrieves logs for a given session ID.
         :param session_id: Unique session ID to filter logs.
         :param poll_interval: Time in seconds to wait before checking the queue again.
+        :param timeout: Maximum time in seconds to wait since the first log was extracted.
+            If None, no timeout is applied.
         """
         temp_storage = []
+        last_log_content = None
+        last_log_time = None  # Initialize as None; start counting after the first log
         
         while True:
             try:
+                # Check if the queue is empty
+                if self.queue.empty():
+                    # If timeout is enabled and the timer has started, check if the timeout is reached
+                    if timeout is not None \
+                        and last_log_time is not None \
+                        and (time.time() - last_log_time) >= (timeout if last_log_content != REASONING_STOP_TOKEN else 5 * timeout):
+                        break  # Exit if the timeout since the first log is reached
+                    await asyncio.sleep(poll_interval)  # Wait before checking the queue again
+                    continue
+                
                 # Try to get an item from the queue
-                log = await self.queue.get()
+                log: LogEntry = await self.queue.get()
                 
                 if log.session_id == session_id:
                     self.queue.task_done()
+                    # Start the timer after the first log is extracted
+                    if last_log_time is None:
+                        last_log_time = time.time()
+                    last_log_content = log.message
                     yield log.message
                 else:
                     temp_storage.append(log)
