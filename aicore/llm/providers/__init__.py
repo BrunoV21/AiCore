@@ -3,12 +3,14 @@ from aicore.llm.providers.groq import GroqLlm
 from aicore.llm.providers.mistral import MistralLlm
 from aicore.llm.providers.nvidia import NvidiaLlm
 from aicore.llm.providers.openai import OpenAiLlm
+from aicore.llm.providers.openrouter import OpenRouterLlm
 from aicore.llm.providers.base_provider import LlmBaseProvider
 
 __all__ = [
     "GeminiLlm",
     "GroqLlm",
     "OpenAiLlm",
+    "OpenRouterLlm",
     "MistralLlm",
     "NvidiaLlm",
     "LlmBaseProvider"

@@ -9,10 +9,10 @@ from aicore.llm.config import LlmConfig
 from aicore.logger import _logger
 from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE, DEFAULT_SYSTEM_PROMPT, REASONER_DEFAULT_SYSTEM_PROMPT
-from aicore.llm.utils import default_stream_handler
 from aicore.llm.providers import (
     LlmBaseProvider,
     OpenAiLlm,
+    OpenRouterLlm,
     MistralLlm, 
     NvidiaLlm,
     GroqLlm,
@@ -21,6 +21,7 @@ from aicore.llm.providers import (
 
 class Providers(Enum):
     OPENAI = OpenAiLlm
+    OPENROUTER = OpenRouterLlm
     MISTRAL = MistralLlm
     NVIDIA = NvidiaLlm
     GROQ = GroqLlm
@@ -133,7 +134,6 @@ class Llm(BaseModel):
         
         if self.reasoner:
             sys_prompt = system_prompt or self.reasoner.system_prompt
-            print(f"{sys_prompt=}")
             reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn)
             reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)

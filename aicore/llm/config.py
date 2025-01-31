@@ -4,7 +4,7 @@ from pydantic import BaseModel, field_validator
 from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
 
 class LlmConfig(BaseModel):
-    provider :Literal["gemini", "groq", "mistral", "nvidia", "openai"]
+    provider :Literal["gemini", "groq", "mistral", "nvidia", "openai", "openrouter"]
     api_key :str
     model :Optional[str]=None
     base_url :Optional[str]=None
