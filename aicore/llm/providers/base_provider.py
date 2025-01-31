@@ -92,12 +92,15 @@ class LlmBaseProvider(BaseModel):
             return "gpt-4o"
 
     @staticmethod
-    def _message_content(prompt :str, img_b64_str :Optional[List[str]]=None)->List[Dict]:
+    def _message_content(prompt :Union[List[str], str], img_b64_str :Optional[List[str]]=None)->List[Dict]:
+        if isinstance(prompt, str):
+            prompt = [prompt]
+
         message_content = [
             {
                 "type": "text",
-                "text": prompt
-            } 
+                "text": _prompt
+            } for _prompt in prompt
         ]
         if img_b64_str is not None:
             for img in img_b64_str:
@@ -124,7 +127,7 @@ class LlmBaseProvider(BaseModel):
         self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)
         self._is_reasoner = True
 
-    def _message_body(self, prompt :str, role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None)->Dict:
+    def _message_body(self, prompt :Union[List[str], str], role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None)->Dict:
         message_body = {
             "role": role,
             "content": self._message_content(prompt, img_b64_str)
@@ -133,7 +136,7 @@ class LlmBaseProvider(BaseModel):
             message_body["prefix"] = True
         return message_body
 
-    def completion_args_template(self, prompt :str, system_prompt :Optional[str]=None, prefix_prompt :Optional[str]=None, img_b64_str :Optional[Union[str, List[str]]]=None, stream :bool=False)->Dict:
+    def completion_args_template(self, prompt :str, system_prompt :Optional[Union[List[str], str]]=None, prefix_prompt :Optional[Union[List[str], str]]=None, img_b64_str :Optional[Union[str, List[str]]]=None, stream :bool=False)->Dict:
         if img_b64_str and isinstance(img_b64_str, str):
             img_b64_str = [img_b64_str]
 
@@ -161,8 +164,8 @@ class LlmBaseProvider(BaseModel):
     
     def _prepare_completion_args(self,
                                  prompt :str, 
-                                 system_prompt :Optional[str]=None,
-                                 prefix_prompt :Optional[str]=None,
+                                 system_prompt :Optional[Union[List[str], str]]=None,
+                                 prefix_prompt :Optional[Union[List[str], str]]=None,
                                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                                  stream :bool=True)->Dict:
         if img_path and not isinstance(img_path, list):
@@ -183,27 +186,51 @@ class LlmBaseProvider(BaseModel):
 
         return completion_args
     
-    def _stream(self, stream)->str:
+    def _stream(self, stream, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
         message = []
+
+        prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
+        prefix_buffer = []
+        prefix_completed = not bool(prefix_prompt)
         for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                default_stream_handler(chunk_message)
-                message.append(chunk_message)
+                if prefix_completed:
+                    default_stream_handler(chunk_message)
+                    message.append(chunk_message)
+                else:
+                    prefix_buffer.append(chunk_message)
+                    if "".join(prefix_buffer) == prefix_prompt:
+                        prefix_completed = True
+
         default_stream_handler("\n")
+        if self._is_reasoner:
+            default_stream_handler(f"{REASONING_STOP_TOKEN}\n")
         response = "".join(message)
         return response
     
-    async def _astream(self, stream, logger_fn)->str:
+    async def _astream(self, stream, logger_fn, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
         message = []
-        await logger_fn(STREAM_START_TOKEN)
+    
+        await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
+
+        prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
+        prefix_buffer = []
+        prefix_completed = not bool(prefix_prompt)
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                await logger_fn(chunk_message)
-                message.append(chunk_message)
+                if prefix_completed:
+                    await logger_fn(chunk_message)
+                    message.append(chunk_message)
+                else:
+                    prefix_buffer.append(chunk_message)
+                    if "".join(prefix_buffer) == prefix_prompt:
+                        prefix_completed = True
+                        await logger_fn(STREAM_START_TOKEN)
+        
         if self._is_reasoner:
             await logger_fn(REASONING_STOP_TOKEN)
         else:
@@ -224,8 +251,8 @@ class LlmBaseProvider(BaseModel):
 
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel], 
-                 system_prompt :Optional[str]=None,
-                 prefix_prompt :Optional[str]=None,
+                 system_prompt :Optional[Union[str, List[str]]]=None,
+                 prefix_prompt :Optional[Union[str, List[str]]]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
@@ -243,14 +270,14 @@ class LlmBaseProvider(BaseModel):
         output = self.completion_fn(**completion_args)
 
         if stream:
-            output = self._stream(output)
+            output = self._stream(output, prefix_prompt)
 
         return output if not json_output else self.extract_json(output)
 
     async def acomplete(self,
-                        prompt :Union[str, BaseModel, RootModel], 
-                        system_prompt :Optional[str]=None,
-                        prefix_prompt :Optional[str]=None,
+                        prompt :Union[str, BaseModel, RootModel],
+                        system_prompt :Optional[Union[str, List[str]]]=None,
+                        prefix_prompt :Optional[Union[str, List[str]]]=None,
                         img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                         json_output :bool=False,
                         stream :bool=True,
@@ -269,6 +296,6 @@ class LlmBaseProvider(BaseModel):
         output = await self.acompletion_fn(**completion_args)
 
         if stream:
-            output = await self._astream(output, stream_handler)
+            output = await self._astream(output, stream_handler, prefix_prompt)
 
         return output if not json_output else self.extract_json(output)

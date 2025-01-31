@@ -1,10 +1,6 @@
 REASONING_INJECTION_TEMPLATE = """
-## Problem Statement
-{prompt}
+Consider the following reasoning steps to help you generate the answer:
 
-## Reasoning steps
 {reasoning}
 {reasoning_stop_token}
-
-## Solution
 """
