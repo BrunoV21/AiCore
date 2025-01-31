@@ -92,17 +92,19 @@ class LlmBaseProvider(BaseModel):
             return "gpt-4o"
 
     @staticmethod
-    def _message_content(prompt :Union[List[str], str], img_b64_str :Optional[List[str]]=None)->List[Dict]:
+    def _message_content(prompt :Union[List[str], str], img_b64_str :Optional[List[str]]=None)->Union[str, List[Dict]]:
         if isinstance(prompt, str):
             prompt = [prompt]
 
-        message_content = [
-            {
-                "type": "text",
-                "text": _prompt
-            } for _prompt in prompt
-        ]
-        if img_b64_str is not None:
+        if img_b64_str is None:
+            message_content = "\n".join(prompt)
+        else:
+            message_content = [
+                {
+                    "type": "text",
+                    "text": _prompt
+                } for _prompt in prompt
+            ]
             for img in img_b64_str:
                 message_content.append(
                     {
