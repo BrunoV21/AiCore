@@ -8,7 +8,7 @@ from ulid import ulid
 from aicore.llm.config import LlmConfig
 from aicore.logger import _logger
 from aicore.const import REASONING_STOP_TOKEN
-from aicore.llm.templates import REASONING_INJECTION_TEMPLATE
+from aicore.llm.templates import REASONING_INJECTION_TEMPLATE, DEFAULT_SYSTEM_PROMPT, REASONER_DEFAULT_SYSTEM_PROMPT
 from aicore.llm.utils import default_stream_handler
 from aicore.llm.providers import (
     LlmBaseProvider,
@@ -40,6 +40,7 @@ class Providers(Enum):
 
 class Llm(BaseModel):
     config :LlmConfig
+    system_prompt :str=DEFAULT_SYSTEM_PROMPT
     _provider :Union[LlmBaseProvider, None]=None
     _logger_fn :Optional[Callable[[str], None]]=None
     _session_id :Optional[str]=None
@@ -81,6 +82,7 @@ class Llm(BaseModel):
     @reasoner.setter
     def reasoner(self, reasoning_llm :"Llm"):
         self._reasoner = reasoning_llm
+        self._reasoner.system_prompt = REASONER_DEFAULT_SYSTEM_PROMPT
         if self.session_id:
             self._reasoner.session_id = self.session_id
         self._reasoner.provider.use_as_reasoner()
@@ -109,6 +111,35 @@ class Llm(BaseModel):
         prefix_prompt.append(reasoning)
         return prefix_prompt
     
+    def _reason(self, 
+            prompt :Union[str, BaseModel, RootModel],
+            system_prompt :Optional[Union[str, List[str]]]=None,
+            prefix_prompt :Optional[Union[str, List[str]]]=None,
+            img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,stream :bool=True)->List[str]:
+        
+        if self.reasoner:
+            system_prompt = system_prompt or self.reasoner.system_prompt
+            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
+            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
+            prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
+            
+        return prefix_prompt
+    
+    async def _areason(self, 
+        prompt :Union[str, BaseModel, RootModel],
+        system_prompt :Optional[Union[str, List[str]]]=None,
+        prefix_prompt :Optional[Union[str, List[str]]]=None,
+        img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,stream :bool=True)->List[str]:
+        
+        if self.reasoner:
+            sys_prompt = system_prompt or self.reasoner.system_prompt
+            print(f"{sys_prompt=}")
+            reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn)
+            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
+            prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
+            
+        return prefix_prompt
+    
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel],
                  system_prompt :Optional[Union[str, List[str]]]=None,
@@ -117,13 +148,9 @@ class Llm(BaseModel):
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
 
-        if self.reasoner:
-            # if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
-            reasoning = self.reasoner.provider.complete(prompt, None, prefix_prompt, img_path, False, stream)
-            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning,  reasoning_stop_token=REASONING_STOP_TOKEN)
-            prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
-
-        return self.provider.complete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream)
+        sys_prompt = system_prompt or self.system_prompt
+        prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path)
+        return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream)
     
     async def acomplete(self,
                  prompt :Union[str, BaseModel, RootModel],
@@ -133,10 +160,6 @@ class Llm(BaseModel):
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
          
-        if self.reasoner:
-            # if len(self.tokenizer(system_prompt if system_prompt else "" + prompt)) <= self.reasoner.config.max_tokens:
-            reasoning = await self.reasoner.provider.acomplete(prompt, None, prefix_prompt, img_path, False, stream, self.logger_fn)
-            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
-            prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
-        
-        return await self.provider.acomplete(prompt, system_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
+        sys_prompt = system_prompt or self.system_prompt
+        prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path)
+        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
