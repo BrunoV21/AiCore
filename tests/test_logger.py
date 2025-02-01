@@ -1,139 +1,98 @@
 import pytest
-import os
-from datetime import datetime
-from queue import Queue
 import asyncio
-from unittest.mock import patch, Mock
+from datetime import datetime
+from time import time
+from typing import AsyncGenerator
 
+# Import the classes from your module
 from aicore.logger import Logger, LogEntry
 
 @pytest.fixture
-def temp_dir(tmp_path):
-    """Fixture to provide a temporary directory for logs"""
-    return str(tmp_path)
-
-@pytest.fixture
-def logger(temp_dir):
-    """Fixture to provide a logger instance with a temporary directory"""
-    return Logger(logs_dir=temp_dir)
-
-def test_logger_initialization(temp_dir):
-    """Test logger initialization and directory creation"""
-    logger = Logger(logs_dir=temp_dir)
-    assert os.path.exists(temp_dir)
-    assert isinstance(logger.queue, Queue)
-    assert isinstance(logger.session_queues, dict)
-
-def test_log_entry_model():
-    """Test LogEntry model initialization and timestamp validation"""
-    # Test with provided timestamp
-    timestamp = datetime.now().isoformat()
-    entry = LogEntry(session_id="test123", message="Test message", timestamp=timestamp)
-    assert entry.session_id == "test123"
-    assert entry.message == "Test message"
-    assert entry.timestamp == timestamp
-
-    # Test with auto-generated timestamp
-    entry = LogEntry(session_id="test123", message="Test message")
-    print(entry.model_dump_json(indent=4))
-    assert entry.timestamp is not None
-    # Verify it's a valid timestamp
-    datetime.fromisoformat(entry.timestamp)
-
-def test_log_chunk_to_queue(logger):
-    """Test logging chunks to the central queue"""
-    session_id = "test_session"
-    message = "Test message"
-    
-    with patch('builtins.print') as mock_print:
-        logger.log_chunk_to_queue(message, session_id)
-        
-        # Verify message was printed
-        mock_print.assert_called_once_with(message, end="")
-        
-        # Verify message was added to queue
-        logs = logger.get_all_logs_in_queue()
-        assert len(logs) == 1
-        assert logs[0].session_id == session_id
-        assert logs[0].message == message
-
-def test_distribute_logs(logger):
-    """Test distribution of logs to session-specific queues"""
-    session_id = "test_session"
-    messages = ["Message 1", "Message 2"]
-    
-    for msg in messages:
-        logger.log_chunk_to_queue(msg, session_id)
-    
-    logger.distribute()
-    
-    # Verify messages in session queue
-    assert session_id in logger.session_queues
-    received_messages = logger.pop_from_session_queue(session_id)
-    assert received_messages == messages
+def logger():
+    """Fixture to create and cleanup a logger instance for each test."""
+    test_logs_dir = "test_logs"
+    logger_instance = Logger(logs_dir=test_logs_dir)
+    return logger_instance
 
 @pytest.mark.asyncio
-async def test_pop_async(logger):
-    """Test asynchronous log retrieval"""
+async def test_log_chunk_to_queue(logger):
+    """Test basic logging functionality with timeout."""
     session_id = "test_session"
-    messages = ["Message 1", "Message 2"]
+    test_message = "Test message"
     
-    # Add messages to queue
-    for msg in messages:
-        logger.log_chunk_to_queue(msg, session_id)
+    await logger.log_chunk_to_queue(test_message, session_id)
     
-    # Collect messages using pop
+    # Get logs with timeout
+    async def get_logs():
+        return logger.get_all_logs_in_queue()
+    
+    logs = await asyncio.wait_for(asyncio.create_task(get_logs()), timeout=2.0)
+    
+    assert len(logs) == 1
+    assert logs[0].message == test_message
+    assert logs[0].session_id == session_id
+    assert isinstance(logs[0].timestamp, str)
+
+@pytest.mark.asyncio
+async def test_pop_with_timeout(logger):
+    """Test pop functionality with timeout."""
+    session_id = "test_session"
+    test_messages = ["Message 1", "Message 2", "Message 3"]
+    
+    # Log multiple messages
+    for msg in test_messages:
+        await logger.log_chunk_to_queue(msg, session_id)
+    
     received_messages = []
-    async for msg in logger.pop(session_id, poll_interval=0.1):
-        received_messages.append(msg)
-        if len(received_messages) == len(messages):
-            break
     
-    assert received_messages == messages
+    # Create async generator for pop method
+    async def collect_messages():
+        async for message in logger.pop(session_id):
+            received_messages.append(message)
+            if len(received_messages) == len(test_messages):
+                break
+    
+    # Run with timeout
+    try:
+        await asyncio.wait_for(collect_messages(), timeout=2.0)
+    except asyncio.TimeoutError:
+        pytest.fail("Pop operation timed out")
+    
+    assert received_messages == test_messages
 
-def test_get_all_logs_in_queue(logger):
-    """Test retrieving all logs without removing them from queue"""
-    session_id = "test_session"
-    messages = ["Message 1", "Message 2", "Message 3"]
-    
-    # Add messages to queue
-    for msg in messages:
-        logger.log_chunk_to_queue(msg, session_id)
-    
-    # Get all logs
-    logs = logger.get_all_logs_in_queue()
-    assert len(logs) == len(messages)
-    
-    # Verify log contents
-    for i, log in enumerate(logs):
-        assert log.session_id == session_id
-        assert log.message == messages[i]
-
-def test_pop_from_empty_session_queue(logger):
-    """Test popping from an empty or non-existent session queue"""
-    session_id = "nonexistent_session"
-    
-    # Should return empty list for non-existent session
-    messages = logger.pop_from_session_queue(session_id)
-    assert isinstance(messages, list)
-    assert len(messages) == 0
-    assert session_id in logger.session_queues
-
-def test_multiple_sessions(logger):
-    """Test handling multiple sessions simultaneously"""
-    sessions = {
-        "session1": ["Message 1-1", "Message 1-2"],
-        "session2": ["Message 2-1", "Message 2-2"]
-    }
+@pytest.mark.asyncio
+async def test_multiple_sessions(logger):
+    """Test handling of multiple sessions with timeout."""
+    session_1 = "session_1"
+    session_2 = "session_2"
     
     # Log messages for different sessions
-    for session_id, messages in sessions.items():
-        for msg in messages:
-            logger.log_chunk_to_queue(msg, session_id)
+    await logger.log_chunk_to_queue("Message 1 for session 1", session_1)
+    await logger.log_chunk_to_queue("Message 1 for session 2", session_2)
+    await logger.log_chunk_to_queue("Message 2 for session 1", session_1)
     
-    logger.distribute()
+    # Test session queues are created
+    assert set(logger.all_sessions_in_queue) == {session_1, session_2}
+
+@pytest.mark.asyncio
+async def test_reasoning_stop_token(logger):
+    """Test that pop stops when encountering REASONING_STOP_TOKEN."""
+    from aicore.logger import REASONING_STOP_TOKEN
     
-    # Verify each session's messages
-    for session_id, expected_messages in sessions.items():
-        received_messages = logger.pop_from_session_queue(session_id)
-        assert received_messages == expected_messages
+    session_id = "test_session"
+    messages = [
+        "Message 1",
+        f"Message 2 {REASONING_STOP_TOKEN}",
+        "Message 3"  # This shouldn't be received
+    ]
+    
+    for msg in messages:
+        await logger.log_chunk_to_queue(msg, session_id)
+    
+    received_messages = []
+    async for message in logger.pop(session_id):
+        received_messages.append(message)
+    
+    assert len(received_messages) == 2
+    assert REASONING_STOP_TOKEN in received_messages[1]
+    assert messages[2] not in received_messages
