@@ -7,7 +7,6 @@ from functools import partial, wraps
 from pathlib import Path
 import tiktoken
 import json
-import time
 
 #TODO keep track of usage in accordance to embeddings tracking model
 class LlmBaseProvider(BaseModel):
@@ -188,23 +187,16 @@ class LlmBaseProvider(BaseModel):
 
         return completion_args
     
+
     def _stream(self, stream, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
         message = []
 
-        prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
-        prefix_buffer = []
-        prefix_completed = not bool(prefix_prompt)
         for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                if prefix_completed:
-                    default_stream_handler(chunk_message)
-                    message.append(chunk_message)
-                else:
-                    prefix_buffer.append(chunk_message)
-                    if "".join(prefix_buffer) == prefix_prompt:
-                        prefix_completed = True
+                default_stream_handler(chunk_message)
+                message.append(chunk_message)
 
         default_stream_handler("\n")
         if self._is_reasoner:
@@ -216,21 +208,12 @@ class LlmBaseProvider(BaseModel):
         message = []
     
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
-        prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
-        prefix_buffer = []
-        prefix_completed = not bool(prefix_prompt)
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                if prefix_completed:
-                    await logger_fn(chunk_message)
-                    message.append(chunk_message)
-                else:
-                    prefix_buffer.append(chunk_message)
-                    if "".join(prefix_buffer) == prefix_prompt:
-                        prefix_completed = True
-                        await logger_fn(STREAM_START_TOKEN)
+                await logger_fn(chunk_message)
+                message.append(chunk_message)
         
         if self._is_reasoner:
             await logger_fn(REASONING_STOP_TOKEN)

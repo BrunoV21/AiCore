@@ -1,9 +1,11 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
+from aicore.llm.utils import default_stream_handler
+from aicore.const import STREAM_START_TOKEN, STREAM_END_TOKEN, REASONING_STOP_TOKEN
 from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistralai import Mistral
-from typing import Self
+from typing import Self, Optional, Union, List
 import tiktoken
 
 #TODO replace Tiktoken with Mistral tekken encoder when it is updated to work on python 3.13#
@@ -29,3 +31,54 @@ class MistralLlm(LlmBaseProvider):
     
     def normalize(self, chunk):
         return chunk.data.choices
+    
+    def _stream(self, stream, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
+        message = []
+
+        prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
+        prefix_buffer = []
+        prefix_completed = not bool(prefix_prompt)
+        for chunk in stream:
+            _chunk = self.normalize_fn(chunk)
+            if _chunk:
+                chunk_message = _chunk[0].delta.content or ""
+                if prefix_completed:
+                    default_stream_handler(chunk_message)
+                    message.append(chunk_message)
+                else:
+                    prefix_buffer.append(chunk_message)
+                    if "".join(prefix_buffer) == prefix_prompt:
+                        prefix_completed = True
+
+        default_stream_handler("\n")
+        if self._is_reasoner:
+            default_stream_handler(f"{REASONING_STOP_TOKEN}\n")
+        response = "".join(message)
+        return response
+    
+    async def _astream(self, stream, logger_fn, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
+        message = []
+    
+        await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
+        prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
+        prefix_buffer = []
+        prefix_completed = not bool(prefix_prompt)
+        async for chunk in stream:
+            _chunk = self.normalize_fn(chunk)
+            if _chunk:
+                chunk_message = _chunk[0].delta.content or ""
+                if prefix_completed:
+                    await logger_fn(chunk_message)
+                    message.append(chunk_message)
+                else:
+                    prefix_buffer.append(chunk_message)
+                    if "".join(prefix_buffer) == prefix_prompt:
+                        prefix_completed = True
+                        await logger_fn(STREAM_START_TOKEN)
+        
+        if self._is_reasoner:
+            await logger_fn(REASONING_STOP_TOKEN)
+        else:
+            await logger_fn(STREAM_END_TOKEN)
+        response = "".join(message)
+        return response
