@@ -1,6 +1,6 @@
 DEFAULT_CONFIG_PATH = "./config/config.yml"
 
-DEFAULT_LOGS_DIR = "./logs"
+DEFAULT_LOGS_DIR = "logs"
 
 SUPPORTED_REASONER_PROVIDERS = ["groq", "openrouter", "nvidia"]
 

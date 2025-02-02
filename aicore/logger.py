@@ -27,7 +27,7 @@ class Logger:
         Initialize the logger object.
         :param logs_dir: Directory where log files will be stored.
         """
-        self.logs_dir = logs_dir
+        self.logs_dir = os.path.join(os.getcwd(), logs_dir)
         os.makedirs(self.logs_dir, exist_ok=True)
 
         # Loguru setup
