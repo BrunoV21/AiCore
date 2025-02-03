@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, List, Self, Set
+from typing import Optional, List, Self, AsyncGenerator
 from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger
@@ -81,10 +81,13 @@ class Logger:
         """
         return self._temp_storage.copy()
 
-    async def distribute(self, finite :bool=False):
+    async def distribute(self, finite: bool = False):
         """
         Distribute logs from the central queue to session-specific queues.
-        Runs continuously in the background.
+        Runs continuously in the background unless finite=True.
+        
+        Args:
+            finite (bool): If True, method will return when queue is empty
         """
         while True:
             try:
@@ -92,20 +95,66 @@ class Logger:
                 log = await self.queue.get()
                 
                 session_id = log.session_id
+                # Create session queue if it doesn't exist
                 if session_id not in self.session_queues:
                     self.session_queues[session_id] = AsyncQueue()
                 
+                # Distribute to session-specific queue
                 await self.session_queues[session_id].put(log)
                 self.queue.task_done()
+                
                 if self.queue.empty() and finite:
                     return
                 
             except asyncio.CancelledError:
-                # Handle cancellation gracefully
                 logger.info("Distribute task cancelled")
                 break
             except Exception as e:
                 logger.error(f"Error in distribute: {str(e)}")
+                await asyncio.sleep(0.1)
+
+    async def get_session_logs(self, session_id: str, timeout: Optional[float] = None) -> AsyncGenerator[str, None]:
+        """
+        Retrieve logs from a session-specific queue.
+        
+        Args:
+            session_id (str): The session ID to get logs for
+            timeout (Optional[float]): Maximum time to wait for new logs in seconds
+                                     None means wait indefinitely
+        
+        Yields:
+            str: Log messages for the specified session
+        """
+        if session_id not in self.session_queues:
+            if session_id not in self.session_queues:
+                self.session_queues[session_id] = AsyncQueue()
+            
+        queue = self.session_queues[session_id]
+        start_time = time.time()
+        
+        while True:
+            try:
+                if timeout is not None and time.time() - start_time > timeout:
+                    logger.debug(f"Timeout reached for session {session_id}")
+                    break
+                    
+                # Try to get log from the session queue
+                try:
+                    log: LogEntry = await asyncio.wait_for(
+                        queue.get(),
+                        timeout=0.1 if timeout is not None else None
+                    )
+                except asyncio.TimeoutError:
+                    continue
+                    
+                queue.task_done()
+                yield log.message
+                    
+            except asyncio.CancelledError:
+                logger.info(f"Session log retrieval cancelled for {session_id}")
+                break
+            except Exception as e:
+                logger.error(f"Error retrieving session logs: {str(e)}")
                 await asyncio.sleep(0.1)
 
     async def pop(self, session_id: str, poll_interval: float = 0.1):
