@@ -136,8 +136,7 @@ class Llm(BaseModel):
             sys_prompt = system_prompt or self.reasoner.system_prompt
             reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn)
             reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
-            prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
-            
+            prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)            
         return prefix_prompt
     
     def complete(self,
@@ -147,18 +146,25 @@ class Llm(BaseModel):
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
+        
+        """
+        msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
+        """
 
         sys_prompt = system_prompt or self.system_prompt
         prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path)
         return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream)
     
     async def acomplete(self,
-                 prompt :Union[str, BaseModel, RootModel],
+                 prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
                  system_prompt :Optional[Union[str, List[str]]]=None,
                  prefix_prompt :Optional[Union[str, List[str]]]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True)->Union[str, Dict]:
+        """
+        msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
+        """
          
         sys_prompt = system_prompt or self.system_prompt
         prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path)

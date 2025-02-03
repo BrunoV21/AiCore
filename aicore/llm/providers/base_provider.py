@@ -137,17 +137,53 @@ class LlmBaseProvider(BaseModel):
             message_body["prefix"] = True
         return message_body
 
-    def completion_args_template(self, prompt :str, system_prompt :Optional[Union[List[str], str]]=None, prefix_prompt :Optional[Union[List[str], str]]=None, img_b64_str :Optional[Union[str, List[str]]]=None, stream :bool=False)->Dict:
+    @staticmethod
+    def _validte_message_dict(message_dict :Dict[str, str])->bool:
+        assert message_dict.get("role") in ["user", "system", "assistant"], f"{message_dict} 'role' attribute must be one of ['user', 'system', 'assistant']"
+        assert message_dict.get("content") is not None, f"{message_dict} 'content' attribute is missing"
+        return True
+
+    def _map_multiple_prompts(self, prompt :Union[List[str], List[Dict[str, str]]])->List[str]:
+        next_role_maps = {
+            "assistant": "user",
+            "user": "assistant"
+        }
+        role = "user"
+        prompt_messages = []
+        for _prompt in prompt[::-1]:
+            if isinstance(_prompt, str):
+                _prompt = self._message_body(_prompt, role=role)
+            
+            elif isinstance(_prompt, dict):
+                self._validte_message_dict(_prompt)
+                role = _prompt.get("role")
+            
+            role = next_role_maps.get(role)
+            prompt_messages.append(_prompt)
+        
+        return prompt_messages[::-1]
+
+    def completion_args_template(self,
+                                 prompt :Union[str, List[str], List[Dict[str, str]]],
+                                 system_prompt :Optional[Union[List[str], str]]=None,
+                                 prefix_prompt :Optional[Union[List[str], str]]=None,
+                                 img_b64_str :Optional[Union[str, List[str]]]=None,
+                                 stream :bool=False)->Dict:
+        
         if img_b64_str and isinstance(img_b64_str, str):
             img_b64_str = [img_b64_str]
+        if isinstance(prompt, str):
+            prompt = [prompt]
 
         messages = []
         if system_prompt is not None:
             messages.append(self._message_body(system_prompt, role="system"))
-        messages.append(self._message_body(prompt, role="user"))
+
+        messages.extend(self._map_multiple_prompts(prompt))
+
         if prefix_prompt is not None:
             messages.append(self._message_body(prefix_prompt, role="assistant"))
-        
+
         args = dict(
             model=self.config.model,
             temperature=self.config.temperature,
@@ -155,16 +191,16 @@ class LlmBaseProvider(BaseModel):
             messages=messages,
             stream=stream
         )
-
+        
         if self.completion_args:
             if not stream:
                 self.completion_args.pop("stream_options", None)
             args.update(self.completion_args)
         
         return args
-    
+
     def _prepare_completion_args(self,
-                                 prompt :str, 
+                                 prompt :Union[str, List[str], List[Dict[str, str]]], 
                                  system_prompt :Optional[Union[List[str], str]]=None,
                                  prefix_prompt :Optional[Union[List[str], str]]=None,
                                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
@@ -234,7 +270,7 @@ class LlmBaseProvider(BaseModel):
             return output
 
     def complete(self,
-                 prompt :Union[str, BaseModel, RootModel], 
+                 prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel], 
                  system_prompt :Optional[Union[str, List[str]]]=None,
                  prefix_prompt :Optional[Union[str, List[str]]]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
@@ -259,7 +295,7 @@ class LlmBaseProvider(BaseModel):
         return output if not json_output else self.extract_json(output)
 
     async def acomplete(self,
-                        prompt :Union[str, BaseModel, RootModel],
+                        prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
                         system_prompt :Optional[Union[str, List[str]]]=None,
                         prefix_prompt :Optional[Union[str, List[str]]]=None,
                         img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
