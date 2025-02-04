@@ -18,7 +18,7 @@ install_requires = [
 ]
 
 setuptools.setup(
-    name="myaicore",
+    name="aicore",
     version="0.1.8",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
