@@ -128,12 +128,12 @@ class LlmBaseProvider(BaseModel):
         self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)
         self._is_reasoner = True
 
-    def _message_body(self, prompt :Union[List[str], str], role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None)->Dict:
+    def _message_body(self, prompt :Union[List[str], str], role :Literal["user", "system", "assistant"]="user", img_b64_str :Optional[List[str]]=None, _last :Optional[bool]=False)->Dict:
         message_body = {
             "role": role,
             "content": self._message_content(prompt, img_b64_str)
         }
-        if role == "assistant" and self.config.provider == "mistral":
+        if role == "assistant" and self.config.provider == "mistral" and _last:
             message_body["prefix"] = True
         return message_body
 
@@ -182,8 +182,8 @@ class LlmBaseProvider(BaseModel):
         messages.extend(self._map_multiple_prompts(prompt))
 
         if prefix_prompt is not None:
-            messages.append(self._message_body(prefix_prompt, role="assistant"))
-
+            messages.append(self._message_body(prefix_prompt, role="assistant", _last=True))
+        
         args = dict(
             model=self.config.model,
             temperature=self.config.temperature,
