@@ -54,6 +54,7 @@ llm:
 ```
 
 **Reasoner Augmented Config**
+
 To leverage the reasoning augmentation just introduce one of the supported llm configs into the reasoner field and AiCore handles the rest
 
 ```yaml
