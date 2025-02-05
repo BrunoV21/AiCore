@@ -20,6 +20,12 @@ A Hugging Face Space where you can chat with multiple reasoning augmented models
 
 **CodeGraph**
 A Graph representation of your codebase for effective retrieval at file/obj level *coming soon*
+
+## Quickstart
+```bash
+pip install git+https://github.com/BrunoV21/AiCore@0.1.8
+```
+
 ## Features
 **LLM Providers:**
 - OpenAI
