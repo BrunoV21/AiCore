@@ -32,8 +32,9 @@ class Logger:
 
         # Loguru setup
         log_file_path = os.path.join(self.logs_dir, "{time:YYYY-MM-DD}.log")
-        logger.remove()  # Remove default logging to stderr
-        logger.add(
+        self.logger = logger
+        self.logger.remove()  # Remove default logging to stderr
+        self.logger.add(
             log_file_path,
             format="{time} {level} {message}",
             rotation="00:00",
