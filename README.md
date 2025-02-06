@@ -20,6 +20,12 @@ A Hugging Face Space where you can chat with multiple reasoning augmented models
 
 **CodeGraph**
 A Graph representation of your codebase for effective retrieval at file/obj level *coming soon*
+
+## Quickstart
+```bash
+pip install git+https://github.com/BrunoV21/AiCore@0.1.8
+```
+
 ## Features
 **LLM Providers:**
 - OpenAI
@@ -54,6 +60,7 @@ llm:
 ```
 
 **Reasoner Augmented Config**
+
 To leverage the reasoning augmentation just introduce one of the supported llm configs into the reasoner field and AiCore handles the rest
 
 ```yaml
