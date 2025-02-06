@@ -7,6 +7,7 @@ from ulid import ulid
 
 from aicore.llm.config import LlmConfig
 from aicore.logger import _logger
+from aicore.utils import retry_on_rate_limit
 from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE, DEFAULT_SYSTEM_PROMPT, REASONER_DEFAULT_SYSTEM_PROMPT
 from aicore.llm.providers import (
@@ -139,6 +140,7 @@ class Llm(BaseModel):
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)            
         return prefix_prompt
     
+    @retry_on_rate_limit
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel],
                  system_prompt :Optional[Union[str, List[str]]]=None,
@@ -155,6 +157,7 @@ class Llm(BaseModel):
         prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path)
         return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream)
     
+    @retry_on_rate_limit
     async def acomplete(self,
                  prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
                  system_prompt :Optional[Union[str, List[str]]]=None,
