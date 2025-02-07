@@ -11,6 +11,7 @@ install_requires = [
     "loguru==0.7.3",
     # "mistral_common==1.5.1",
     "openai==1.56.1",
+    "tenacity==9.0.0",
     "tiktoken==0.8.0",
     "pydantic==2.10.3",
     "PyYAML==6.0.2",
