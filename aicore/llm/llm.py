@@ -21,12 +21,12 @@ from aicore.llm.providers import (
 )
 
 class Providers(Enum):
-    OPENAI = OpenAiLlm
-    OPENROUTER = OpenRouterLlm
-    MISTRAL = MistralLlm
-    NVIDIA = NvidiaLlm
-    GROQ = GroqLlm
-    GEMINI = GeminiLlm
+    OPENAI :OpenAiLlm=OpenAiLlm
+    OPENROUTER :OpenRouterLlm=OpenRouterLlm
+    MISTRAL :MistralLlm=MistralLlm
+    NVIDIA :NvidiaLlm=NvidiaLlm
+    GROQ :GroqLlm=GroqLlm
+    GEMINI :GeminiLlm=GeminiLlm
 
     def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
         """

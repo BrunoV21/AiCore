@@ -14,11 +14,11 @@ from aicore.embeddings.providers import (
 )
 
 class Providers(Enum):
-    OPENAI = OpenAiEmbeddings
-    NVIDIA = NvidiaEmbeddings
-    MISTRAL = MistralEmbeddings
-    GROQ = GroqEmbeddings
-    GEMINI = GeminiEmbeddings
+    OPENAI :OpenAiEmbeddings=OpenAiEmbeddings
+    NVIDIA :NvidiaEmbeddings=NvidiaEmbeddings
+    MISTRAL :MistralEmbeddings=MistralEmbeddings
+    GROQ :GroqEmbeddings=GroqEmbeddings
+    GEMINI :GeminiEmbeddings=GeminiEmbeddings
 
     def get_instance(self, config: EmbeddingsConfig) -> EmbeddingsBaseProvider:
         """
