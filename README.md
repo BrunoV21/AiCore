@@ -1,3 +1,4 @@
+
 # AiCore Project
 [![GitHub Stars](https://img.shields.io/github/stars/BrunoV21/AiCore?style=social)](https://github.com/BrunoV21/AiCore/stargazers)
 [![GitHub Downloads](https://img.shields.io/github/downloads/BrunoV21/AiCore/total?color=blue)](https://github.com/BrunoV21/AiCore/releases)
@@ -11,6 +12,30 @@ This can be usefull in multiple scenarios, such as:
 - ensure your agentic systems still work with the propmts you have crafted for your favourite llms while augmenting them with reasoning steps
 - direct control for how long you want your reasoner to reason (via max_tokens param) and how creative it can be (reasoning temperature decoupled from generation temperature) without compromising generation settings
 
+## New Feature: Observability Module
+
+AiCore now includes a comprehensive observability module that helps you track, analyze, and visualize your LLM operations:
+
+- **Data Collection**: Automatically captures detailed information about each LLM completion operation, including arguments, responses, token usage, and latency metrics.
+- **Interactive Dashboard**: A Dash/Plotly-based dashboard for visualizing operation history, performance trends, and usage patterns.
+- **Efficient Storage**: Uses Polars dataframes for high-performance data processing and storage in JSON format.
+- **Complete Integration**: Seamlessly integrated with the existing LLM provider system.
+
+To use the observability dashboard:
+
+```python
+from aicore.observability import ObservabilityDashboard, OperationStorage
+
+# Initialize dashboard with the operation storage
+storage = OperationStorage()
+dashboard = ObservabilityDashboard(storage=storage)
+
+# Run the dashboard server
+dashboard.run_server(debug=True, port=8050)
+```
+
+See the [Observability Configuration](#observability-configuration) section for more details.
+
 ## Built with AiCore
 
 **Reasoner4All**
@@ -23,7 +48,7 @@ A Graph representation of your codebase for effective retrieval at file/obj leve
 
 ## Quickstart
 ```bash
-pip install git+https://github.com/BrunoV21/AiCore@0.1.8
+pip install git+https://github.com/BrunoV21/AiCore@0.1.9
 ```
 
 ## Features
@@ -41,6 +66,12 @@ pip install git+https://github.com/BrunoV21/AiCore@0.1.8
 - Groq
 - Gemini
 - Nvidia
+
+**Observability Tools:**
+- Operation tracking and metrics collection
+- Interactive dashboard for visualization
+- Historical data analysis
+- Token usage and latency monitoring
 
 To configure the application for testing, you need to set up a `config.yml` file with the necessary API keys and model names for each provider you intend to use. The `CONFIG_PATH` environment variable should point to the location of this file. Here's an example of how to set up the `config.yml` file:
 
@@ -83,6 +114,35 @@ llm:
     temperature: 0.5
     max_tokens: 1024
 ```
+
+## Observability Configuration
+
+Enable and configure the observability module in your config file:
+
+```yaml
+# config.yml
+observability:
+  enabled: true
+  storage_dir: "observability_data"
+  storage_file: "llm_operations.json"
+  dashboard_enabled: true
+  dashboard_host: "127.0.0.1"
+  dashboard_port: 8050
+```
+
+You can also start the dashboard directly using the provided example:
+
+```bash
+python examples/observability_dashboard.py
+```
+
+The dashboard provides visualizations for:
+- Request volume over time
+- Latency distribution
+- Token usage by model
+- Provider and model distribution
+- Success rates
+- Detailed operation logs
 
 Mistral models such as small-latest and large-latest perform quite well with the r1 distilled llama, which is recommend for inference speed while the full R1 will give provide you with longer reasonings.
 
@@ -155,6 +215,35 @@ async def main():
 asyncio.run(main())
 ```
 
+### Observability
+
+You can access the observability tools to track and analyze your LLM operations:
+
+```python
+from aicore.observability import ObservabilityDashboard, OperationStorage
+
+# View operation history
+storage = OperationStorage()
+records = storage.get_all_records()
+
+# Query specific operations
+filtered_records = storage.query_records(
+    filters={"provider": "openai", "model": "gpt-4"},
+    start_date="2023-06-01T00:00:00",
+    end_date="2023-06-30T23:59:59"
+)
+
+# Launch the dashboard
+dashboard = ObservabilityDashboard(storage=storage)
+dashboard.run_server(debug=True)
+```
+
+The dashboard provides insights into:
+- Total request volume and distribution
+- Performance metrics like latency and token usage
+- Success rates and error patterns
+- Operation details and parameters
+
 ### Loading from a Config File
 
 To load configurations from a YAML file, set the `CONFIG_PATH` environment variable and use the `Config` class to load the configurations. Here is an example:
@@ -195,6 +284,12 @@ The class diagram for this project will focus on the core components and their r
    - `Providers` (Enum): Enumeration for instantiating LLM provider classes.
    - `LlmBaseProvider`: Base class for LLM providers, defining common methods for configuration, completion, and normalization.
    - `GroqLlm`, `MistralLlm`, `OpenAiLlm`, `GeminiLlm`, `NvidiaLlm`: Specific implementations of `LlmBaseProvider` for different LLM providers.
+
+4. **Observability Module**:
+   - `LlmOperationCollector`: Collects data about LLM operations, including inputs, outputs, and performance metrics.
+   - `OperationStorage`: Manages storage and retrieval of operation data using Polars dataframes.
+   - `ObservabilityDashboard`: Provides interactive visualization of LLM usage and performance metrics.
+   - `ObservabilityConfig`: Configuration settings for the observability module.
 
 ```mermaid
 classDiagram
@@ -409,7 +504,7 @@ The sequence diagram will illustrate the interactions between the core component
 5. **Embeddings Generation**: The `Embeddings` class manages embedding generation using the configured provider.
 6. **LLM Completion**: The `Llm` class manages interactions with LLM providers for synchronous and asynchronous completions.
 
-The diagram will use full module paths to ensure clarity and avoid ambiguity, highlighting the key messages and events critical to the system’s main functionalities.
+The diagram will use full module paths to ensure clarity and avoid ambiguity, highlighting the key messages and events critical to the system's main functionalities.
 
 ```mermaid
 sequenceDiagram

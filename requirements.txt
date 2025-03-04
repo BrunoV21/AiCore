@@ -1,3 +1,4 @@
+
 google-genai==0.6.0
 groq==0.13.1
 mistralai==1.2.3
@@ -12,3 +13,7 @@ pytest-asyncio==0.25.2
 PyYAML==6.0.2
 setuptools==75.6.0
 ulid==1.1
+dash==2.14.1
+plotly==5.18.0
+polars==0.19.16
+pandas==2.1.3

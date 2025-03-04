@@ -1,3 +1,4 @@
+
 import setuptools
 
 with open("README.md", "r") as fh:
@@ -5,7 +6,7 @@ with open("README.md", "r") as fh:
 
 
 install_requires = [
-    "google-genai== 0.6.0",
+    "google-genai==0.6.0",
     "groq==0.13.1",
     "mistralai==1.2.3",
     "loguru==0.7.3",
@@ -15,23 +16,29 @@ install_requires = [
     "tiktoken==0.8.0",
     "pydantic==2.10.3",
     "PyYAML==6.0.2",
-    "ulid==1.1"
+    "ulid==1.1",
+    "dash==2.14.1",
+    "plotly==5.18.0",
+    "polars==0.19.16",
+    "pandas==2.1.3"
 ]
 
 setuptools.setup(
     name="aicore",
-    version="0.1.8",
+    version="0.1.9",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
-    description="..",
+    description="A unified interface for interacting with various LLM and embedding providers, with observability tools.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/BrunoV21/AiCore",
     packages=setuptools.find_packages(),
     install_requires=install_requires,
     classifiers=(
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
-        "License :: OSI Approved :: Apache 2.0 License",
+        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ),
 )
