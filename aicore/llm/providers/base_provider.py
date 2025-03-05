@@ -304,9 +304,9 @@ class LlmBaseProvider(BaseModel):
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
-            # Try to extract token usage for tracking
-            if hasattr(chunk, "usage") and chunk.usage:
-                stream._tracked_token_usage = chunk.usage
+            # # Try to extract token usage for tracking
+            # if hasattr(chunk, "usage") and chunk.usage:
+            #     stream._tracked_token_usage = chunk.usage
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
                 await logger_fn(chunk_message)
@@ -384,20 +384,20 @@ class LlmBaseProvider(BaseModel):
                 input_tokens = getattr(output.usage, "prompt_tokens", None)
                 output_tokens = getattr(output.usage, "completion_tokens", None)
             
-            # Record the operation
-            if self.collector:
-                self.collector.record_operation(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    operation_type="completion",
-                    request_args=tracked_args,
-                    response=str(output)[:1000] if success else None,  # Limit response size
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    latency_ms=latency_ms,
-                    success=success,
-                    error_message=error_message
-                )
+            # # Record the operation
+            # if self.collector:
+            #     self.collector.record_operation(
+            #         provider=self.config.provider,
+            #         model=self.config.model,
+            #         operation_type="completion",
+            #         request_args=tracked_args,
+            #         response=str(output)[:1000] if success else None,  # Limit response size
+            #         input_tokens=input_tokens,
+            #         output_tokens=output_tokens,
+            #         latency_ms=latency_ms,
+            #         success=success,
+            #         error_message=error_message
+            #     )
 
         if not success:
             return None
@@ -464,19 +464,19 @@ class LlmBaseProvider(BaseModel):
                 output_tokens = getattr(tracked_token_usage, "completion_tokens", None)
             
             # Record the operation
-            if self.collector:
-                self.collector.record_operation(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    operation_type="acompletion",
-                    request_args=tracked_args,
-                    response=str(output)[:1000] if success else None,  # Limit response size
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    latency_ms=latency_ms,
-                    success=success,
-                    error_message=error_message
-                )
+            # if self.collector:
+            #     self.collector.record_operation(
+            #         provider=self.config.provider,
+            #         model=self.config.model,
+            #         operation_type="acompletion",
+            #         request_args=tracked_args,
+            #         response=str(output)[:1000] if success else None,  # Limit response size
+            #         input_tokens=input_tokens,
+            #         output_tokens=output_tokens,
+            #         latency_ms=latency_ms,
+            #         success=success,
+            #         error_message=error_message
+            #     )
         
         if not success:
             return None
