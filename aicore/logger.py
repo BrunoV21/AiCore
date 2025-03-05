@@ -1,10 +1,11 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, List, Self, AsyncGenerator
+from typing import Optional, List, Self, AsyncGenerator, Literal
 from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger
 import asyncio
 import time
+import sys
 import os
 
 from aicore.const import DEFAULT_LOGS_DIR, REASONING_STOP_TOKEN
@@ -13,6 +14,7 @@ class LogEntry(BaseModel):
     session_id: str = ""
     message: str
     timestamp: Optional[str] = None
+    log_type :Literal["chat", "log"] = "chat"
 
     @model_validator(mode="after")
     def init_timestamp(self) -> Self:
@@ -37,10 +39,19 @@ class Logger:
         self.logger.add(
             log_file_path,
             format="{time} {level} {message}",
+            colorize=True,
             rotation="00:00",
             retention="7 days",
             enqueue=True,
             serialize=False,
+        )
+
+        # Add stdout sink with colorization
+        self.logger.add(
+            sys.stdout,
+            format="\n<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+            colorize=True,
+            enqueue=True,
         )
 
         # Central log queue (now async)
