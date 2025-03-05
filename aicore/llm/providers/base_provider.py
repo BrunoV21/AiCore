@@ -365,6 +365,8 @@ class LlmBaseProvider(BaseModel):
             
             if stream:
                 output = self._stream(output, prefix_prompt)
+            _logger.logger.info(str(self.usage.latest_completion)) if self.usage.latest_completion else ...
+            _logger.logger.info(str(self.usage)) if self.usage else ...
             
         except Exception as e:
             success = False
@@ -439,8 +441,8 @@ class LlmBaseProvider(BaseModel):
             
             if stream:
                 output = await self._astream(output, stream_handler, prefix_prompt)
-                # Check if token usage was added during streaming
-                tracked_token_usage = getattr(output, "_tracked_token_usage", None)
+            _logger.logger.info(str(self.usage.latest_completion)) if self.usage.latest_completion else ...
+            _logger.logger.info(str(self.usage)) if self.usage else ...
             
         except Exception as e:
             success = False
