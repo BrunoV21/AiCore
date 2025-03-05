@@ -1,7 +1,9 @@
 
 from aicore.llm.config import LlmConfig
+from aicore.logger import _logger
 from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64, default_stream_handler
+from aicore.llm.usage import UsageInfo
 from aicore.observability.collector import LlmOperationCollector
 from aicore.observability.storage import OperationStorage
 from typing import Any, Dict, Optional, Literal, List, Union, Callable
@@ -23,6 +25,7 @@ class LlmBaseProvider(BaseModel):
     _normalize_fn: Any = None
     _tokenizer_fn: Any = None
     _is_reasoner: bool = False
+    _usage :Optional[UsageInfo]=None
     _collector: Optional[LlmOperationCollector] = None
 
     @classmethod
@@ -85,7 +88,17 @@ class LlmBaseProvider(BaseModel):
     
     @tokenizer_fn.setter
     def tokenizer_fn(self, tokenizer_fn: Any):
-        self._tokenizer_fn = tokenizer_fn    
+        self._tokenizer_fn = tokenizer_fn
+
+    @property
+    def usage(self) -> UsageInfo:
+        if self._usage is None:
+            self._usage = UsageInfo()
+        return self._usage
+    
+    @usage.setter
+    def usage(self, usage :UsageInfo):
+        self._usage = usage
     
     @property
     def collector(self) -> Optional[LlmOperationCollector]:
