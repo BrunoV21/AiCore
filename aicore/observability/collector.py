@@ -26,7 +26,7 @@ class LlmOperationRecord(BaseModel):
     success: bool = True
     error_message: Optional[str] = None
     request_args: Dict[str, Any]
-    response: Optional[Dict[str, Any]] = None
+    response: Optional[Union[Dict[str, Any], str]] = None
     
     class Config:
         arbitrary_types_allowed = True
