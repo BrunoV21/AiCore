@@ -162,11 +162,11 @@ class OperationStorage:
                     else:
                         result = result.filter(pl.col(col) == value)
         
-        # Apply date range filter
-        if start_date and 'date' in columns:
-            result = result.filter(pl.col('date') >= datetime.strptime(start_date))
-        if end_date and 'date' in columns:
-            result = result.filter(pl.col('date') <= datetime.strptime(end_date))
+        # # Apply date range filter
+        # if start_date and 'date' in columns:
+        #     result = result.filter(pl.col('date') >= datetime.strptime(start_date))
+        # if end_date and 'date' in columns:
+        #     result = result.filter(pl.col('date') <= datetime.strptime(end_date))
             
         # Apply limit
         if limit and limit > 0:
