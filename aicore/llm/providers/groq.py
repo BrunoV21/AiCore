@@ -1,7 +1,8 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from groq import Groq, AsyncGroq
-from typing import Self
+from groq.types.chat import ChatCompletion
+from typing import Self, Optional
 import tiktoken
 
 class GroqLlm(LlmBaseProvider):
@@ -31,5 +32,11 @@ class GroqLlm(LlmBaseProvider):
 
         return self
     
-    def normalize(self, chunk):
+    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
+        usage = chunk.usage
+        self.usage.record_completion(
+            prompt_tokens=usage.prompt_tokens,
+            response_tokens=usage.completion_tokens,
+            completion_id=completion_id or chunk.id
+        )
         return chunk.choices
