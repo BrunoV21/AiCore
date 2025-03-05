@@ -4,7 +4,7 @@ from aicore.const import STREAM_START_TOKEN, STREAM_END_TOKEN, REASONING_STOP_TO
 from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-from mistralai import Mistral
+from mistralai import Mistral, CompletionEvent, CompletionResponseStreamChoice
 from typing import Self, Optional, Union, List
 import tiktoken
 
@@ -29,8 +29,15 @@ class MistralLlm(LlmBaseProvider):
 
         return self
     
-    def normalize(self, chunk):
-        return chunk.data.choices
+    def normalize(self, chunk:CompletionEvent, completion_id :Optional[str]=None)->CompletionResponseStreamChoice:
+        data = chunk.data
+        if data.usage is not None:
+            self.usage.record_completion(
+                prompt_tokens=data.usage.prompt_tokens,
+                response_tokens=data.usage.completion_tokens,
+                completion_id=completion_id
+            )
+        return data.choices
     
     def _stream(self, stream, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
         message = []
