@@ -35,7 +35,7 @@ class MistralLlm(LlmBaseProvider):
             self.usage.record_completion(
                 prompt_tokens=data.usage.prompt_tokens,
                 response_tokens=data.usage.completion_tokens,
-                completion_id=completion_id
+                completion_id=completion_id or data.id
             )
         return data.choices
     
