@@ -37,6 +37,7 @@ class ObservabilityDashboard:
             title: Dashboard title
         """
         self.storage = storage or OperationStorage()
+        self.storage._process_for_dash()
         self.title = title
         self.app = dash.Dash(__name__, suppress_callback_exceptions=True)
         self._setup_layout()
@@ -80,10 +81,10 @@ class ObservabilityDashboard:
                         dcc.Graph(id='latency-histogram')
                     ], className="chart-container"),
                     
-                    html.Div([
-                        html.H3("Token Usage"),
-                        dcc.Graph(id='token-usage-chart')
-                    ], className="chart-container"),
+                    # html.Div([
+                    #     html.H3("Token Usage"),
+                    #     dcc.Graph(id='token-usage-chart')
+                    # ], className="chart-container"),
                     
                     html.Div([
                         html.H3("Provider/Model Distribution"),
@@ -123,13 +124,14 @@ class ObservabilityDashboard:
         def update_dropdowns(_):
             """Update dropdown options based on available data."""
             df = self.storage.get_all_records()
+            print("LAODED DF")
+            print(df)
             if df.is_empty():
                 return [], []
             
             # Convert to pandas for dropdown options formatting
-            pdf = df.to_pandas()
-            providers = pdf['provider'].unique()
-            models = pdf['model'].unique()
+            providers = df['provider'].unique()
+            models = df['model'].unique()
             
             provider_options = [{'label': p, 'value': p} for p in providers]
             model_options = [{'label': m, 'value': m} for m in models]
@@ -140,7 +142,7 @@ class ObservabilityDashboard:
             [Output('overview-metrics', 'children'),
              Output('requests-time-series', 'figure'),
              Output('latency-histogram', 'figure'),
-             Output('token-usage-chart', 'figure'),
+            #  Output('token-usage-chart', 'figure'),
              Output('provider-model-distribution', 'figure'),
              Output('operations-table', 'data'),
              Output('operations-table', 'columns')],
@@ -160,45 +162,37 @@ class ObservabilityDashboard:
                 filters['model'] = models
                 
             df = self.storage.query_records(filters, start_date, end_date)
-            
+
             if df.is_empty():
                 # Return empty visualizations if no data
                 return self._create_empty_dashboard()
             
-            # Convert to pandas for visualization
-            pdf = df.to_pandas()
-            
             # Create overview metrics
-            metrics = self._create_overview_metrics(pdf)
+            metrics = self._create_overview_metrics(df)
             
-            # Create time series of requests
-            pdf['date'] = pd.to_datetime(pdf['timestamp']).dt.date
-            requests_by_date = pdf.groupby('date').size().reset_index(name='count')
-            time_series_fig = px.line(requests_by_date, x='date', y='count', 
-                                      title='Requests Over Time')
+            # Create requests time series figure
+            requests_by_date = df.group_by("day").agg(pl.col("response").count().alias("count"))
+            # requests_by_date_pdf = requests_by_date.to_pandas()
+            time_series_fig = px.line(requests_by_date, x='day', y='count', 
+                                    title='Requests Over Time').to_dict()
             
             # Create latency histogram
-            latency_fig = px.histogram(pdf, x='latency_ms', title='Operation Latency (ms)')
-            
-            # Create token usage chart
-            token_fig = px.bar(pdf, x='model', y=['input_tokens', 'output_tokens'], 
-                              barmode='group', title='Token Usage by Model')
+            latency_fig = px.histogram(df, x='latency_ms', title='Operation Latency (ms)').to_dict()
             
             # Create provider/model distribution
-            distribution_fig = px.sunburst(pdf, path=['provider', 'model'], values='latency_ms',
-                                          title='Provider and Model Distribution')
+            distribution_fig = px.sunburst(df, path=['provider', 'model'], values='latency_ms',
+                                        title='Provider and Model Distribution').to_dict()
             
             # Prepare table data
-            table_data = pdf[['operation_id', 'timestamp', 'provider', 'model', 
-                             'operation_type', 'latency_ms', 'success']].to_dict('records')
-            table_columns = [{"name": i, "id": i} for i in pdf[['operation_id', 'timestamp', 
-                                                              'provider', 'model', 
-                                                              'operation_type', 'latency_ms', 
-                                                              'success']].columns]
+            table_columns = [{"name": i, "id": i} for i in ['operation_id', 'timestamp', 
+                                                            'provider', 'model', 
+                                                            'operation_type', 'latency_ms', 
+                                                            'success']]
+            table_data = df[table_columns[0]['name'].split(', ')].to_dicts()
             
-            return metrics, time_series_fig, latency_fig, token_fig, distribution_fig, table_data, table_columns
+            return metrics, time_series_fig, latency_fig, distribution_fig, table_data, table_columns
         
-    def _create_overview_metrics(self, df: pd.DataFrame) -> List[html.Div]:
+    def _create_overview_metrics(self, df: pl.DataFrame) -> List[html.Div]:
         """Create overview metrics from dataframe."""
         total_requests = len(df)
         success_rate = df['success'].mean() * 100

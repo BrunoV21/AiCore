@@ -93,6 +93,21 @@ class OperationStorage:
             print(f"Error loading operation data: {e}")
             self._dataframe = None
     
+    def _process_for_dash(self):
+        # Create time series of requests
+        self._dataframe  = self._dataframe.with_columns(
+            pl.col("timestamp").str.to_datetime().alias("date")
+        )
+        self._dataframe = self._dataframe.with_columns(
+            pl.col("date").dt.date().alias("day")
+        )
+        self._dataframe = self._dataframe.select([
+            'operation_id', 'timestamp', 'provider', 'model', 'operation_type',
+            # 'input_tokens', 'output_tokens',
+            'latency_ms', 'success', 'error_message', 'request_args',
+            'response', 'date', 'day'
+        ])
+    
     def _save_dataframe(self):
         """Save the dataframe to the storage file."""
         if self._dataframe is None:
@@ -113,7 +128,7 @@ class OperationStorage:
         if self._dataframe is None:
             self._load_dataframe()
         
-        return self._dataframe or pl.DataFrame()
+        return self._dataframe if not self._dataframe.is_empty() else pl.DataFrame()
     
     def query_records(self, filters: Dict[str, Any] = None, start_date: str = None, 
                      end_date: str = None, limit: int = None) -> pl.DataFrame:
@@ -136,21 +151,22 @@ class OperationStorage:
             return pl.DataFrame()
         
         result = self._dataframe
+        columns = result.columns
         
         # Apply filters
         if filters:
             for col, value in filters.items():
-                if col in result.columns:
+                if col in columns:
                     if isinstance(value, list):
                         result = result.filter(pl.col(col).is_in(value))
                     else:
                         result = result.filter(pl.col(col) == value)
         
         # Apply date range filter
-        if start_date and 'timestamp' in result.columns:
-            result = result.filter(pl.col('timestamp') >= start_date)
-        if end_date and 'timestamp' in result.columns:
-            result = result.filter(pl.col('timestamp') <= end_date)
+        if start_date and 'date' in columns:
+            result = result.filter(pl.col('date') >= datetime.strptime(start_date))
+        if end_date and 'date' in columns:
+            result = result.filter(pl.col('date') <= datetime.strptime(end_date))
             
         # Apply limit
         if limit and limit > 0:

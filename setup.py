@@ -19,8 +19,7 @@ install_requires = [
     "ulid==1.1",
     "dash==2.14.1",
     "plotly==5.18.0",
-    "polars==0.19.16",
-    "pandas==2.1.3"
+    "polars==1.24.0"
 ]
 
 setuptools.setup(
