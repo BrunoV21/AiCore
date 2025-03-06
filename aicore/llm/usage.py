@@ -30,7 +30,7 @@ class CompletionUsage(BaseModel):
     
     def __str__(self)->str:
         cost_prefix = f"Cost: ${self.cost} | " if self.cost else ""
-        return f"{cost_prefix}Total Tokens: {self.total_tokens} | Prompt: {self.prompt_tokens} | Response: {self.response_tokens}"
+        return f"{cost_prefix}Tokens: {self.total_tokens} | Prompt: {self.prompt_tokens} | Response: {self.response_tokens}"
 
 class UsageInfo(RootModel):
     root :List[CompletionUsage]=[]
@@ -109,5 +109,5 @@ class UsageInfo(RootModel):
         return sum([completion.cost for completion in self.completions])
     
     def __str__(self)->str:
-        cost_prefix = f"Total Cost: ${self.total_cost} | " if self.total_cost else ""
-        return f"{cost_prefix}Total Tokens: {self.total_tokens}"
+        cost_prefix = f"Cost: ${self.total_cost} | " if self.total_cost else ""
+        return f"Total |{cost_prefix} Tokens: {self.total_tokens}"
