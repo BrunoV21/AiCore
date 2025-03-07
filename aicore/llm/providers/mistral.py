@@ -56,10 +56,9 @@ class MistralLlm(LlmBaseProvider):
                     prefix_buffer.append(chunk_message)
                     if "".join(prefix_buffer) == prefix_prompt:
                         prefix_completed = True
-
-        default_stream_handler("\n")
+                
         if self._is_reasoner:
-            default_stream_handler(f"{REASONING_STOP_TOKEN}\n")
+            default_stream_handler(REASONING_STOP_TOKEN)
         response = "".join(message)
         return response
     
