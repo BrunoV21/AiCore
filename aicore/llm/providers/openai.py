@@ -36,9 +36,10 @@ class OpenAiLlm(LlmBaseProvider):
     
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         usage = chunk.usage
-        self.usage.record_completion(
-            prompt_tokens=usage.prompt_tokens,
-            response_tokens=usage.completion_tokens,
-            completion_id=completion_id or chunk.id
-        )
+        if usage is not None:
+            self.usage.record_completion(
+                prompt_tokens=usage.prompt_tokens,
+                response_tokens=usage.completion_tokens,
+                completion_id=completion_id or chunk.id
+            )
         return chunk.choices
