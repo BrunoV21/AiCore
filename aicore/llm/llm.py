@@ -1,14 +1,15 @@
-from pydantic import BaseModel, RootModel, model_validator
+from pydantic import BaseModel, RootModel, model_validator, computed_field
 from typing import Union, Optional, Callable, List, Dict, Self
 from functools import partial
 from pathlib import Path
 from enum import Enum
 from ulid import ulid
 
-from aicore.llm.config import LlmConfig
 from aicore.logger import _logger
 from aicore.utils import retry_on_rate_limit
 from aicore.const import REASONING_STOP_TOKEN
+from aicore.llm.usage import UsageInfo
+from aicore.llm.config import LlmConfig
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE, DEFAULT_SYSTEM_PROMPT, REASONER_DEFAULT_SYSTEM_PROMPT
 from aicore.llm.providers import (
     LlmBaseProvider,
@@ -103,6 +104,10 @@ class Llm(BaseModel):
     @property
     def tokenizer(self):
         return self.provider.tokenizer_fn
+    
+    @computed_field
+    def usage(self)->UsageInfo:
+        return self.provider.usage
     
     @staticmethod
     def _include_reasoning_as_prefix(prefix_prompt :Union[str, List[str], None], reasoning :str)->List[str]:
