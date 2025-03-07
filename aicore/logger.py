@@ -8,7 +8,25 @@ import time
 import sys
 import os
 
-from aicore.const import DEFAULT_LOGS_DIR, REASONING_STOP_TOKEN
+from aicore.const import (
+    DEFAULT_LOGS_DIR,
+    STREAM_START_TOKEN,
+    STREAM_END_TOKEN,
+    REASONING_START_TOKEN,
+    REASONING_STOP_TOKEN
+)
+
+SPECIAL_TOKENS = [
+    STREAM_START_TOKEN,
+    STREAM_END_TOKEN,
+    REASONING_START_TOKEN,
+    REASONING_STOP_TOKEN
+]
+
+SPECIAL_END_TOKENS = [
+    STREAM_END_TOKEN,
+    REASONING_STOP_TOKEN
+]
 
 class LogEntry(BaseModel):
     session_id: str = ""
@@ -49,7 +67,7 @@ class Logger:
         # Add stdout sink with colorization
         self.logger.add(
             sys.stdout,
-            format="\n<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
             colorize=True,
             enqueue=True,
         )
@@ -84,6 +102,10 @@ class Logger:
         )
         await self.queue.put(log_entry)
         self._temp_storage.append(log_entry)
+        if message in SPECIAL_TOKENS:
+            if message in SPECIAL_END_TOKENS:
+                print("\n")
+            return
         print(message, end="")
 
     def get_all_logs_in_queue(self) -> List[LogEntry]:
