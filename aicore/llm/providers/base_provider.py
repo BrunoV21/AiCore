@@ -291,10 +291,9 @@ class LlmBaseProvider(BaseModel):
                 chunk_message = _chunk[0].delta.content or ""
                 default_stream_handler(chunk_message)
                 message.append(chunk_message)
-
-        default_stream_handler("\n")
+        
         if self._is_reasoner:
-            default_stream_handler(f"{REASONING_STOP_TOKEN}\n")
+            default_stream_handler(REASONING_STOP_TOKEN)
         response = "".join(message)
         return response
     
