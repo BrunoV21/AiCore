@@ -93,7 +93,7 @@ class LlmBaseProvider(BaseModel):
     @property
     def usage(self) -> UsageInfo:
         if self._usage is None:
-            self._usage = UsageInfo()
+            self._usage = UsageInfo.from_pricing_config(self.config.pricing)
         return self._usage
     
     @usage.setter
