@@ -1,14 +1,9 @@
+from aicore.llm.pricing import PricingConfig
+
 from pydantic import BaseModel, RootModel, Field, computed_field
 from typing import Optional, List, Union
 from collections import defaultdict
 from ulid import ulid
-
-class PricingInfo(BaseModel):
-    """
-    pricing ($) per 1M tokens
-    """
-    input_price :float
-    output_price :float
 
 class CompletionUsage(BaseModel):
     completion_id :Optional[str]=Field(default_factory=ulid)
@@ -34,7 +29,7 @@ class CompletionUsage(BaseModel):
 
 class UsageInfo(RootModel):
     root :List[CompletionUsage]=[]
-    _pricing :Optional[PricingInfo]=None
+    _pricing :Optional[PricingConfig]=None
 
     def record_completion(self,
                 prompt_tokens :int,
@@ -51,15 +46,15 @@ class UsageInfo(RootModel):
         self.root.append(CompletionUsage(**kwargs))
 
     @computed_field
-    def pricing(self)->PricingInfo:
+    def pricing(self)->PricingConfig:
         return self._pricing
     
     @pricing.setter
-    def pricing(self, pricing_info :PricingInfo):
+    def pricing(self, pricing_info :PricingConfig):
         self._pricing = pricing_info
 
     def set_pricing(self, input_1m :float, output_1m :float):
-        self._pricing = PricingInfo(
+        self._pricing = PricingConfig(
             input_price=input_1m,
             output_price=output_1m
         )
@@ -97,7 +92,8 @@ class UsageInfo(RootModel):
                     cost=cost
                 )
             )
-        
+
+        self.root = result
         return result
     
     @computed_field
