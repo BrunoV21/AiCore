@@ -9,7 +9,7 @@ class CompletionUsage(BaseModel):
     completion_id :Optional[str]=Field(default_factory=ulid)
     prompt_tokens :int
     response_tokens :int
-    cost :Optional[int]=0
+    cost :Optional[float]=0
 
     @property
     def input_tokens(self)->int:
