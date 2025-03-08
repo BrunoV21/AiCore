@@ -31,6 +31,12 @@ class UsageInfo(RootModel):
     root :List[CompletionUsage]=[]
     _pricing :Optional[PricingConfig]=None
 
+    @classmethod
+    def from_pricing_config(cls, pricing :PricingConfig)->"UsageInfo":
+        cls = cls()
+        cls.pricing = pricing
+        return cls
+
     def record_completion(self,
                 prompt_tokens :int,
                 response_tokens :int,
@@ -55,8 +61,8 @@ class UsageInfo(RootModel):
 
     def set_pricing(self, input_1m :float, output_1m :float):
         self._pricing = PricingConfig(
-            input_price=input_1m,
-            output_price=output_1m
+            input=input_1m,
+            output=output_1m
         )
 
     @computed_field
@@ -78,8 +84,8 @@ class UsageInfo(RootModel):
         result = []
         for comp_id, tokens in aggregated.items():
             if self.pricing is not None:
-                cost = self.pricing.input_price * tokens["prompt_tokens"] \
-                     + self.pricing.output_price * tokens["response_tokens"]
+                cost = self.pricing.input * tokens["prompt_tokens"] \
+                     + self.pricing.output * tokens["response_tokens"]
                 cost *= 1e-6
             else:
                 cost = 0
