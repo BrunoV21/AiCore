@@ -2,7 +2,7 @@ from typing import Literal, Optional, Self
 from pydantic import BaseModel, field_validator, model_validator
 
 from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
-from aicore.llm.pricing import PricingConfig
+from aicore.pricing import PricingConfig
 
 class LlmConfig(BaseModel):
     provider :Literal["gemini", "groq", "mistral", "nvidia", "openai", "openrouter"]

@@ -1,4 +1,4 @@
-from aicore.llm.pricing import PricingConfig
+from aicore.pricing import PricingConfig
 
 from pydantic import BaseModel, RootModel, Field, computed_field
 from typing import Optional, List, Union
