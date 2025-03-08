@@ -29,7 +29,7 @@ class PricingConfig(BaseModel):
     pricing ($) per 1M tokens
     """
     input :float
-    output :float
+    output :float=0
 
     @classmethod
     def from_model_providers(cls, model :str, provider :str)->"PricingConfig":
