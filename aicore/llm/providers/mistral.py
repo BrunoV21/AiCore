@@ -1,5 +1,5 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
-from aicore.llm.utils import default_stream_handler
+from aicore.logger import default_stream_handler
 from aicore.const import STREAM_START_TOKEN, STREAM_END_TOKEN, REASONING_STOP_TOKEN
 from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage

@@ -27,6 +27,13 @@ SPECIAL_END_TOKENS = [
     STREAM_END_TOKEN,
     REASONING_STOP_TOKEN
 ]
+    
+def default_stream_handler(message :str)->str:
+    if message in SPECIAL_TOKENS:
+        if message in SPECIAL_END_TOKENS:
+            print("\n")
+        return
+    print(message, end="")
 
 class LogEntry(BaseModel):
     session_id: str = ""
@@ -102,11 +109,7 @@ class Logger:
         )
         await self.queue.put(log_entry)
         self._temp_storage.append(log_entry)
-        if message in SPECIAL_TOKENS:
-            if message in SPECIAL_END_TOKENS:
-                print("\n")
-            return
-        print(message, end="")
+        default_stream_handler(message)
 
     def get_all_logs_in_queue(self) -> List[LogEntry]:
         """
