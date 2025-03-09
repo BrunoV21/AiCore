@@ -24,6 +24,11 @@ extras_require = {
         "dash==2.14.1",
         "plotly==5.18.0",
         "pyarrow==19.0.1"
+    ],
+    "all": [
+        "dash==2.14.1",
+        "plotly==5.18.0",
+        "pyarrow==19.0.1"
     ]
 }
 
