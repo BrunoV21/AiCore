@@ -16,11 +16,16 @@ install_requires = [
     "tiktoken==0.8.0",
     "pydantic==2.10.3",
     "PyYAML==6.0.2",
-    "ulid==1.1",
-    "dash==2.14.1",
-    "plotly==5.18.0",
-    "polars==1.24.0"
+    "ulid==1.1"
 ]
+
+extras_require = {
+    "dashboard": [
+        "dash==2.14.1",
+        "plotly==5.18.0",
+        "pyarrow==19.0.1"
+    ]
+}
 
 setuptools.setup(
     name="aicore",
@@ -33,6 +38,7 @@ setuptools.setup(
     url="https://github.com/BrunoV21/AiCore",
     packages=setuptools.find_packages(),
     install_requires=install_requires,
+    extras_require=extras_require,
     classifiers=(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
