@@ -342,7 +342,7 @@ class LlmBaseProvider(BaseModel):
                     cost = self.usage.latest_completion.cost
                 _logger.logger.info(str(self.usage))
             
-            output if not json_output else self.extract_json(output)
+            output = output if not json_output else self.extract_json(output)
             error_message = None
 
         except Exception as e:
@@ -354,7 +354,7 @@ class LlmBaseProvider(BaseModel):
             end_time = time.time()
             latency_ms = (end_time - start_time) * 1000
             
-            if self.collector:                
+            if self.collector:
                 self.collector.record_completion(
                     provider=self.config.provider,
                     operation_type="completion",
@@ -410,7 +410,7 @@ class LlmBaseProvider(BaseModel):
                     cost = self.usage.latest_completion.cost
                 _logger.logger.info(str(self.usage))
             
-            output if not json_output else self.extract_json(output)
+            output = output if not json_output else self.extract_json(output)
             error_message = None
 
         except Exception as e:
@@ -422,7 +422,7 @@ class LlmBaseProvider(BaseModel):
             end_time = time.time()
             latency_ms = (end_time - start_time) * 1000
             
-            if self.collector:                
+            if self.collector:
                 self.collector.record_completion(
                     provider=self.config.provider,
                     operation_type="acompletion",

@@ -21,7 +21,7 @@ class LlmOperationRecord(BaseModel):
     latency_ms: float
     error_message: Optional[str] = None
     completion_args: Union[Dict[str, Any], str]
-    response: Optional[str] = None
+    response: Optional[Union[str, Dict, List]] = None
     
     class Config:
         arbitrary_types_allowed = True
@@ -31,7 +31,7 @@ class LlmOperationRecord(BaseModel):
     def json_dumps_response(cls, response :Union[None, str, Dict[str, str]])->Optional[str]:
         if isinstance(response, Union[str, None]):
             return response
-        elif isinstance(response, dict):
+        elif isinstance(response, Union[dict, list]):
             return json.dumps(response, indent=4)
         else:
             raise TypeError("response param must be [str] or [json serializable obj]")
@@ -95,6 +95,10 @@ class LlmOperationRecord(BaseModel):
                 self.user_prompt
             ]
         ], indent=4)
+    
+    @computed_field
+    def total_tokens(self)->int:
+        return self.input_tokens + self.output_tokens
 
     @computed_field
     def sucess(self)->bool:
