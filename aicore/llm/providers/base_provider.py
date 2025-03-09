@@ -5,18 +5,18 @@ from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_STA
 from aicore.llm.utils import parse_content, image_to_base64, default_stream_handler
 from aicore.llm.usage import UsageInfo
 from aicore.observability.collector import LlmOperationCollector
-from aicore.observability.storage import OperationStorage
 from typing import Any, Dict, Optional, Literal, List, Union, Callable
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, Field
 from functools import partial, wraps
 from pathlib import Path
 import tiktoken
 import json
 import time
-from copy import deepcopy
+import ulid
 
 class LlmBaseProvider(BaseModel):
     config: LlmConfig
+    session_id: str = Field(default_factory=ulid.ulid)
     _client: Any = None
     _aclient: Any = None
     _completion_args: Dict = {}
@@ -159,10 +159,11 @@ class LlmBaseProvider(BaseModel):
             return await func(*args, *inner_args, **kwargs, **inner_kwargs)
         return wrapped
     
-    def use_as_reasoner(self, stop_thinking_token: str = REASONING_STOP_TOKEN):
+    def use_as_reasoner(self, session_id :Optional[str]=None, stop_thinking_token: str = REASONING_STOP_TOKEN):
         """
         pass stop token to completion fn
         """
+        self.session_id = session_id
         self.completion_fn = partial(self.completion_fn, stop=stop_thinking_token)
         self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)
         self._is_reasoner = True

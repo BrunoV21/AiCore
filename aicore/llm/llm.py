@@ -46,7 +46,6 @@ class Llm(BaseModel):
     system_prompt :str=DEFAULT_SYSTEM_PROMPT
     _provider :Union[LlmBaseProvider, None]=None
     _logger_fn :Optional[Callable[[str], None]]=None
-    _session_id :Optional[str]=None
     _reasoner :Union["Llm", None]=None
     _is_reasoner :bool=False
     
@@ -58,9 +57,13 @@ class Llm(BaseModel):
     def provider(self, provider :LlmBaseProvider):
         self._provider = provider
 
-    @property
+    @computed_field
     def session_id(self)->str:
-        return self._session_id
+        return self.provider.session_id
+    
+    @session_id.setter
+    def session_id(self, value :str):
+        self.provider.session_id = value
     
     @session_id.setter
     def session_id(self, session_id):
@@ -86,9 +89,7 @@ class Llm(BaseModel):
     def reasoner(self, reasoning_llm :"Llm"):
         self._reasoner = reasoning_llm
         self._reasoner.system_prompt = REASONER_DEFAULT_SYSTEM_PROMPT
-        if self.session_id:
-            self._reasoner.session_id = self.session_id
-        self._reasoner.provider.use_as_reasoner()
+        self._reasoner.provider.use_as_reasoner(self.session_id)
     
     @model_validator(mode="after")
     def start_provider(self)->Self:
