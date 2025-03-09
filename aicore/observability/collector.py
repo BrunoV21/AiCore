@@ -28,8 +28,8 @@ class LlmOperationRecord(BaseModel):
     
     @field_validator("response")
     @classmethod
-    def json_dumps_response(cls, response :Union[str, Dict[str, str]])->str:
-        if isinstance(response, str):
+    def json_dumps_response(cls, response :Union[None, str, Dict[str, str]])->Optional[str]:
+        if isinstance(response, Union[str, None]):
             return response
         elif isinstance(response, dict):
             return json.dumps(response, indent=4)
@@ -45,7 +45,7 @@ class LlmOperationRecord(BaseModel):
         return self.completion_args.get("model")
     
     @computed_field
-    def temperature(self)->int:
+    def temperature(self)->float:
         return self.completion_args.get("temperature")
     
     @computed_field
@@ -144,7 +144,7 @@ class LlmOperationCollector(RootModel):
                records = LlmOperationCollector(root=json.loads(f.read()))            
             records.root.append(new_record)
         
-        records = records or self.root
+        records = records or self
 
         with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
             f.write(records.model_dump_json(indent=4))
