@@ -15,7 +15,6 @@ from aicore.logger import Logger, _logger
 # Export observability module components
 from aicore.observability import (
     LlmOperationCollector,
-    OperationStorage,
     ObservabilityDashboard
 )
 
@@ -27,7 +26,6 @@ __all__ = [
     "EmbeddingsConfig",
     "Logger",
     "LlmOperationCollector",
-    "OperationStorage",
     "ObservabilityDashboard"
 ]
 
