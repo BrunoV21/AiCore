@@ -1,6 +1,6 @@
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
 
-from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field, field_serializer
+from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field, field_serializer, model_serializer
 from typing import Dict, Any, Optional, Callable, List, Union, Literal
 from datetime import datetime
 from pathlib import Path
@@ -10,9 +10,10 @@ import os
 
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
-    session_id: Optional[str]=None
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
     operation_id: str = Field(default_factory=ulid.ulid)
-    timestamp: str = Field(default_factory=datetime.now().isoformat)
+    timestamp: Optional[str] = None
     operation_type: Literal["completion", "acompletion"]
     provider :str
     input_tokens: Optional[int] = 0
@@ -43,6 +44,13 @@ class LlmOperationRecord(BaseModel):
             return json.loads(args)
         elif isinstance(args, dict):
             return args
+        
+    @field_validator("timestamp")
+    @classmethod
+    def init_timestamp(cls, timestamp)->str:
+        if timestamp is None:
+            timestamp = datetime.now().isoformat()
+        return timestamp
         
     @field_serializer("completion_args", when_used='json')
     def json_dump_completion_args(self, completion_args: Dict[str, Any])->str:
@@ -101,8 +109,36 @@ class LlmOperationRecord(BaseModel):
         return self.input_tokens + self.output_tokens
 
     @computed_field
-    def sucess(self)->bool:
-        return bool(self.response)
+    def success(self)->bool:
+        return bool(self.response)    
+    
+    @model_serializer
+    def serialize_model(self) -> Dict[str, Any]:
+        """Ensure a cohesive field order during serialization."""
+        return {
+            "session_id": self.session_id,
+            "agent_id": self.agent_id,
+            "timestamp": self.timestamp,
+            "operation_id": self.operation_id,
+            "operation_type": self.operation_type,
+            "provider": self.provider,
+            "model": self.model,
+            "system_prompt": self.system_prompt,
+            "user_prompt": self.user_prompt,
+            "response": self.response,
+            "success": self.success, 
+            "assistant_message": self.assistant_message,
+            "history_messages": self.history_messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,  # Computed field included in order
+            "cost": self.cost,
+            "latency_ms": self.latency_ms,
+            "error_message": self.error_message,
+            "completion_args": self.completion_args
+        }
 
 class LlmOperationCollector(RootModel):
     root :List[LlmOperationRecord] = []
@@ -123,6 +159,7 @@ class LlmOperationCollector(RootModel):
             provider :str,
             response: Optional[Union[str, Dict[str, str]]] = None,
             session_id :Optional[str]=None,
+            agent_id: Optional[str]=None,
             input_tokens: Optional[int]=0,
             output_tokens: Optional[int]=0,
             cost :Optional[float]=0,
@@ -134,10 +171,12 @@ class LlmOperationCollector(RootModel):
         
         record = LlmOperationRecord(
             session_id=session_id,
+            agent_id=agent_id,
             provider=provider,
             operation_type=operation_type,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cost=cost,
             latency_ms=latency_ms or 0,
             error_message=error_message,
             completion_args=cleaned_args,
