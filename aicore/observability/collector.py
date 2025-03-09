@@ -1,7 +1,7 @@
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
 
-from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field, field_serializer, model_serializer
-from typing import Dict, Any, Optional, Callable, List, Union, Literal
+from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field, field_serializer, model_serializer, model_validator
+from typing import Dict, Any, Optional, Callable, List, Union, Literal, Self
 from datetime import datetime
 from pathlib import Path
 import ulid
@@ -45,12 +45,11 @@ class LlmOperationRecord(BaseModel):
         elif isinstance(args, dict):
             return args
         
-    @field_validator("timestamp")
-    @classmethod
-    def init_timestamp(cls, timestamp)->str:
-        if timestamp is None:
-            timestamp = datetime.now().isoformat()
-        return timestamp
+    @model_validator(mode="after")
+    def init_timestamp(self)->Self:
+        if self.timestamp is None:
+            self.timestamp = datetime.now().isoformat()
+        return self
         
     @field_serializer("completion_args", when_used='json')
     def json_dump_completion_args(self, completion_args: Dict[str, Any])->str:
@@ -184,7 +183,7 @@ class LlmOperationCollector(RootModel):
         )
 
         if self.storage_path:
-            self._store_to_file(record)        
+            self._store_to_file(record)
         
         self.root.append(record)
         
@@ -193,13 +192,11 @@ class LlmOperationCollector(RootModel):
     def _store_to_file(self, new_record :LlmOperationRecord) -> None:
         if not os.path.exists(self.storage_path):
             os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-            records = None
+            records = LlmOperationCollector()
         else:
             with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
-               records = LlmOperationCollector(root=json.loads(f.read()))            
-            records.root.append(new_record)
-        
-        records = records or self
+               records = LlmOperationCollector(root=json.loads(f.read()))
+        records.root.append(new_record)
 
         with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
             f.write(records.model_dump_json(indent=4))
@@ -219,7 +216,7 @@ class LlmOperationCollector(RootModel):
         if storage_path:
             cls.storage_path = storage_path
         elif env_path:
-            cls.storage_path = storage_path        
+            cls.storage_path = env_path
         else:
             cls.storage_path = Path(DEFAULT_OBSERVABILITY_DIR) / DEFAULT_OBSERVABILITY_FILE        
         return cls

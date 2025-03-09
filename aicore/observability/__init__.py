@@ -6,9 +6,9 @@ This module provides tools to collect, store, and visualize data about LLM opera
 including completion arguments, responses, and performance metrics.
 """
 
-from aicore.observability.collector import LlmOperationCollector
+from aicore.observability.collector import LlmOperationCollector, LlmOperationRecord
 from aicore.observability.dashboard import ObservabilityDashboard
 
 __all__ = [
-    "LlmOperationCollector", "ObservabilityDashboard"
+    "LlmOperationCollector", "LlmOperationRecord", "ObservabilityDashboard"
 ]
