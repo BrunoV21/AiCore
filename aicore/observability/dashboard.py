@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 
-from aicore.observability.storage import OperationStorage
+# from aicore.observability.storage import OperationStorage
 
 
 class ObservabilityDashboard:
@@ -28,7 +28,7 @@ class ObservabilityDashboard:
     model distribution, and other relevant analytics.
     """
     
-    def __init__(self, storage: Optional[OperationStorage] = None, title: str = "AI Core Observability Dashboard"):
+    def __init__(self, storage: Optional[Any] = None, title: str = "AI Core Observability Dashboard"):
         """
         Initialize the dashboard.
         
@@ -36,7 +36,7 @@ class ObservabilityDashboard:
             storage: OperationStorage instance for accessing operation data
             title: Dashboard title
         """
-        self.storage = storage or OperationStorage()
+        self.storage = storage
         self.storage._process_for_dash()
         self.title = title
         self.app = dash.Dash(__name__, suppress_callback_exceptions=True)
@@ -124,7 +124,6 @@ class ObservabilityDashboard:
         def update_dropdowns(_):
             """Update dropdown options based on available data."""
             df = self.storage.get_all_records()
-            print("LAODED DF")
             print(df)
             if df.is_empty():
                 return [], []
