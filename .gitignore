@@ -174,3 +174,4 @@ config/config.yml
 
 */storage/
 storage/
+observability_data/
