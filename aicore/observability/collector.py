@@ -1,6 +1,6 @@
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
 
-from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field
+from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field, field_serializer
 from typing import Dict, Any, Optional, Callable, List, Union, Literal
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +20,7 @@ class LlmOperationRecord(BaseModel):
     cost: Optional[float] = 0
     latency_ms: float
     error_message: Optional[str] = None
-    completion_args: Dict[str, Any]
+    completion_args: Union[Dict[str, Any], str]
     response: Optional[str] = None
     
     class Config:
@@ -35,7 +35,19 @@ class LlmOperationRecord(BaseModel):
             return json.dumps(response, indent=4)
         else:
             raise TypeError("response param must be [str] or [json serializable obj]")
-    
+        
+    @field_validator("completion_args")
+    @classmethod
+    def json_laods_response(cls, args :Union[str, Dict[str, Any]])->Dict[str, Any]:
+        if isinstance(args, str):
+            return json.loads(args)
+        elif isinstance(args, dict):
+            return args
+        
+    @field_serializer("completion_args", when_used='json')
+    def json_dump_completion_args(self, completion_args: Dict[str, Any])->str:
+        return json.dumps(completion_args, indent=4)
+
     @property
     def messages(self)->List[Dict[str, str]]:
         return self.completion_args.get("messages", [])
