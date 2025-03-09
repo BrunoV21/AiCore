@@ -1,23 +1,20 @@
-
-"""
-Dashboard module for visualizing LLM operation data.
-
-This module implements a Dash application for interactive visualization of LLM usage history,
-providing insights into operation patterns, performance metrics, and request details.
-"""
+from aicore.observability.collector import LlmOperationCollector
 
 import dash
 from dash import dcc, html, dash_table, callback, Input, Output, State
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
-import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 
-# from aicore.observability.storage import OperationStorage
+EXTERNAL_STYLESHEETS = [
+    "https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/darkly/bootstrap.min.css",
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+]
 
+TEMPLATE = "plotly_dark"
 
 class ObservabilityDashboard:
     """
@@ -28,7 +25,7 @@ class ObservabilityDashboard:
     model distribution, and other relevant analytics.
     """
     
-    def __init__(self, storage: Optional[Any] = None, title: str = "AI Core Observability Dashboard"):
+    def __init__(self, storage_path: Optional[Any] = None, title: str = "Ai Core Observability Dashboard"):
         """
         Initialize the dashboard.
         
@@ -36,12 +33,20 @@ class ObservabilityDashboard:
             storage: OperationStorage instance for accessing operation data
             title: Dashboard title
         """
-        self.storage = storage
-        self.storage._process_for_dash()
+        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(storage_path)
+        self.add_day_col()
         self.title = title
-        self.app = dash.Dash(__name__, suppress_callback_exceptions=True)
+        self.app = dash.Dash(
+            __name__, 
+            suppress_callback_exceptions=True,
+            external_stylesheets=EXTERNAL_STYLESHEETS
+        )
         self._setup_layout()
         self._register_callbacks()
+
+    def add_day_col(self):
+        self.df = self.df.with_columns(date=pl.col("timestamp").str.to_datetime())
+        self.df = self.df.with_columns(day=pl.col("date").dt.date())
         
     def _setup_layout(self):
         """Set up the dashboard layout."""
@@ -50,19 +55,22 @@ class ObservabilityDashboard:
             
             html.Div([
                 html.Div([
-                    html.H3("Filters"),
-                    html.Label("Date Range:"),
+                    html.H3("Filters", style={"color": "white"}),
+                    html.Label("Date Range:", style={"color": "white"}),
                     dcc.DatePickerRange(
                         id='date-picker-range',
                         start_date=(datetime.now() - timedelta(days=7)).date(),
                         end_date=datetime.now().date(),
-                        display_format='YYYY-MM-DD'
+                        display_format='YYYY-MM-DD',
+                        style={"background-color": "#333", "color": "white"}  # Dark background
                     ),
-                    html.Label("Provider:"),
-                    dcc.Dropdown(id='provider-dropdown', multi=True),
-                    html.Label("Model:"),
-                    dcc.Dropdown(id='model-dropdown', multi=True),
-                    html.Button('Apply Filters', id='apply-filters', n_clicks=0),
+                    html.Label("Provider:", style={"color": "white"}),
+                    dcc.Dropdown(id='provider-dropdown', multi=True, style={"background-color": "#333", "color": "white"}),
+                    html.Label("Model:", style={"color": "white"}),
+                    dcc.Dropdown(id='model-dropdown', multi=True, 
+                        style={"background-color": "#333", "color": "white"}),
+                    html.Button('Apply Filters', id='apply-filters', n_clicks=0,
+                        style={"background-color": "#444", "color": "white"}),
                 ], className="filter-panel"),
                 
                 html.Div([
@@ -81,10 +89,10 @@ class ObservabilityDashboard:
                         dcc.Graph(id='latency-histogram')
                     ], className="chart-container"),
                     
-                    # html.Div([
-                    #     html.H3("Token Usage"),
-                    #     dcc.Graph(id='token-usage-chart')
-                    # ], className="chart-container"),
+                    html.Div([
+                        html.H3("Token Usage"),
+                        dcc.Graph(id='token-usage-chart')
+                    ], className="chart-container"),
                     
                     html.Div([
                         html.H3("Provider/Model Distribution"),
@@ -94,23 +102,33 @@ class ObservabilityDashboard:
             ], className="dashboard-container"),
             
             html.Div([
-                html.H3("Operation Details"),
+                html.H3("Operation Details", style={"color": "white"}),  # White title
                 dash_table.DataTable(
                     id='operations-table',
                     page_size=10,
-                    style_table={'overflowX': 'auto'},
+                    style_table={'overflowX': 'auto'},  # Keep horizontal scroll
                     style_cell={
                         'textAlign': 'left',
                         'padding': '10px',
                         'minWidth': '100px', 'maxWidth': '300px',
-                        'whiteSpace': 'normal', 'textOverflow': 'ellipsis'
+                        'whiteSpace': 'normal',
+                        'textOverflow': 'ellipsis',
+                        'backgroundColor': '#333',  # Dark background for table cells
+                        'color': 'white'  # White text
                     },
                     style_header={
-                        'backgroundColor': 'rgb(230, 230, 230)',
-                        'fontWeight': 'bold'
-                    }
+                        'backgroundColor': '#444',  # Darker background for header
+                        'fontWeight': 'bold',
+                        'color': 'white'  # White text in header
+                    },
+                    style_data_conditional=[  # Optional: Add alternating row colors
+                        {
+                            'if': {'row_index': 'odd'},
+                            'backgroundColor': '#2a2a2a'
+                        }
+                    ]
                 )
-            ], className="operations-details")
+            ], className="operations-details", style={"background-color": "#222", "padding": "10px", "border-radius": "10px"})
         ], className="dashboard-wrapper")
         
     def _register_callbacks(self):
@@ -123,14 +141,11 @@ class ObservabilityDashboard:
         )
         def update_dropdowns(_):
             """Update dropdown options based on available data."""
-            df = self.storage.get_all_records()
-            print(df)
-            if df.is_empty():
+            if self.df.is_empty():
                 return [], []
             
-            # Convert to pandas for dropdown options formatting
-            providers = df['provider'].unique()
-            models = df['model'].unique()
+            providers = self.df['provider'].unique()
+            models = self.df['model'].unique()
             
             provider_options = [{'label': p, 'value': p} for p in providers]
             model_options = [{'label': m, 'value': m} for m in models]
@@ -141,7 +156,7 @@ class ObservabilityDashboard:
             [Output('overview-metrics', 'children'),
              Output('requests-time-series', 'figure'),
              Output('latency-histogram', 'figure'),
-            #  Output('token-usage-chart', 'figure'),
+             Output('token-usage-chart', 'figure'),
              Output('provider-model-distribution', 'figure'),
              Output('operations-table', 'data'),
              Output('operations-table', 'columns')],
@@ -159,43 +174,41 @@ class ObservabilityDashboard:
                 filters['provider'] = providers
             if models:
                 filters['model'] = models
-                
-            df = self.storage.query_records(filters, start_date, end_date)
 
-            if df.is_empty():
+            if self.df.is_empty():
                 # Return empty visualizations if no data
                 return self._create_empty_dashboard()
             
             # Create overview metrics
-            metrics = self._create_overview_metrics(df)
+            metrics = self._create_overview_metrics()
             
             # Create requests time series figure
-            requests_by_date = df.group_by("day").agg(pl.col("response").count().alias("count"))
+            requests_by_date = self.df.group_by("day").agg(pl.col("response").count().alias("count"))
             # requests_by_date_pdf = requests_by_date.to_pandas()
-            time_series_fig = px.line(requests_by_date, x='day', y='count', 
+            time_series_fig = px.line(requests_by_date, x='day', y='count', template=TEMPLATE,
                                     title='Requests Over Time').to_dict()
             
             # Create latency histogram
-            latency_fig = px.histogram(df, x='latency_ms', title='Operation Latency (ms)').to_dict()
+            latency_fig = px.histogram(self.df, x='latency_ms', template=TEMPLATE, title='Operation Latency (ms)').to_dict()
+
+             # Create token usage chart
+            token_fig = px.bar(self.df, x='model', y=['input_tokens', 'output_tokens'], 
+                              barmode='group', template=TEMPLATE, title='Token Usage by Model')            
             
             # Create provider/model distribution
-            distribution_fig = px.sunburst(df, path=['provider', 'model'], values='latency_ms',
+            distribution_fig = px.sunburst(self.df, path=['provider', 'model'], values='latency_ms', template=TEMPLATE,
                                         title='Provider and Model Distribution').to_dict()
             
-            # Prepare table data
-            table_columns = [{"name": i, "id": i} for i in ['operation_id', 'timestamp', 
-                                                            'provider', 'model', 
-                                                            'operation_type', 'latency_ms', 
-                                                            'success']]
-            table_data = df[table_columns[0]['name'].split(', ')].to_dicts()
+            table_data = self.df.to_dicts()
+            table_columns = [{"name": i, "id": i} for i in self.df.columns]
             
-            return metrics, time_series_fig, latency_fig, distribution_fig, table_data, table_columns
+            return metrics, time_series_fig, latency_fig, token_fig, distribution_fig, table_data, table_columns
         
-    def _create_overview_metrics(self, df: pl.DataFrame) -> List[html.Div]:
+    def _create_overview_metrics(self) -> List[html.Div]:
         """Create overview metrics from dataframe."""
-        total_requests = len(df)
-        success_rate = df['success'].mean() * 100
-        avg_latency = df['latency_ms'].mean()
+        total_requests = len(self.df)
+        success_rate = self.df['success'].mean() * 100
+        avg_latency = self.df['latency_ms'].mean()
         
         return [
             html.Div([html.H4("Total Requests"), html.P(total_requests)], className="metric-card"),
