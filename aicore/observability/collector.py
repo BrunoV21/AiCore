@@ -4,7 +4,6 @@ from pydantic import BaseModel,  RootModel, Field, field_validator, computed_fie
 from typing import Dict, Any, Optional, Callable, List, Union, Literal, Self
 from datetime import datetime
 from pathlib import Path
-import polars as pl
 import ulid
 import json
 import os
@@ -230,9 +229,14 @@ class LlmOperationCollector(RootModel):
         return cls
     
     @classmethod
-    def polars_from_file(cls, storage_path:  Optional[str] = None)->pl.DataFrame:
+    def polars_from_file(cls, storage_path:  Optional[str] = None)->"pl.DataFrame": # noqa: F821
         obj = cls.fom_observable_storage_path(storage_path)
         if os.path.exists(obj.storage_path):
             with open(obj.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
                 obj = cls(root=json.loads(f.read()))
-        return pl.from_dicts(obj.model_dump())
+        try:
+            import polars as pl
+            return pl.from_dicts(obj.model_dump())
+        except ModuleNotFoundError:
+            print("pip install -r requirements-dashboard.txt")
+            return None
