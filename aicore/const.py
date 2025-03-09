@@ -1,3 +1,4 @@
+
 DEFAULT_CONFIG_PATH = "./config/config.yml"
 
 DEFAULT_LOGS_DIR = "logs"
@@ -19,3 +20,9 @@ STREAM_START_TOKEN = "<start>"
 STREAM_END_TOKEN = "</end>"
 
 DEFAULT_ENCODING = "utf8"
+
+# Observability constants
+DEFAULT_OBSERVABILITY_DIR = "observability_data"
+DEFAULT_OBSERVABILITY_FILE = "llm_operations.json"
+DEFAULT_DASHBOARD_PORT = 8050
+DEFAULT_DASHBOARD_HOST = "127.0.0.1"

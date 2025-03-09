@@ -31,13 +31,15 @@ class MockMistralResponse:
 class MockChunk:
     def __init__(self, chunk_content):
         self.choices = [MockChoices(chunk_content)]
+        self.usage = None
 class MockMistralChunk:
     def __init__(self, data):
         self.data = MockData(data)
 
 class MockData:
     def __init__(self, choices):
-        self.choices = [MockChoices(choices)]
+        self.choices = [MockChoices(choices)]       
+        self.usage = None
 class MockChoices:
     def __init__(self, delta):
         self.delta = MockDelta(delta)

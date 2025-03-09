@@ -1,18 +1,45 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, List, Self, AsyncGenerator
+from typing import Optional, List, Self, AsyncGenerator, Literal
 from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger
 import asyncio
 import time
+import sys
 import os
 
-from aicore.const import DEFAULT_LOGS_DIR, REASONING_STOP_TOKEN
+from aicore.const import (
+    DEFAULT_LOGS_DIR,
+    STREAM_START_TOKEN,
+    STREAM_END_TOKEN,
+    REASONING_START_TOKEN,
+    REASONING_STOP_TOKEN
+)
+
+SPECIAL_TOKENS = [
+    STREAM_START_TOKEN,
+    STREAM_END_TOKEN,
+    REASONING_START_TOKEN,
+    REASONING_STOP_TOKEN
+]
+
+SPECIAL_END_TOKENS = [
+    STREAM_END_TOKEN,
+    REASONING_STOP_TOKEN
+]
+    
+def default_stream_handler(message :str)->str:
+    if message in SPECIAL_TOKENS:
+        if message in SPECIAL_END_TOKENS:
+            print("\n")
+        return
+    print(message, end="")
 
 class LogEntry(BaseModel):
     session_id: str = ""
     message: str
     timestamp: Optional[str] = None
+    log_type :Literal["chat", "log"] = "chat"
 
     @model_validator(mode="after")
     def init_timestamp(self) -> Self:
@@ -37,10 +64,19 @@ class Logger:
         self.logger.add(
             log_file_path,
             format="{time} {level} {message}",
+            colorize=True,
             rotation="00:00",
             retention="7 days",
             enqueue=True,
             serialize=False,
+        )
+
+        # Add stdout sink with colorization
+        self.logger.add(
+            sys.stdout,
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+            colorize=True,
+            enqueue=True,
         )
 
         # Central log queue (now async)
@@ -73,7 +109,7 @@ class Logger:
         )
         await self.queue.put(log_entry)
         self._temp_storage.append(log_entry)
-        print(message, end="")
+        default_stream_handler(message)
 
     def get_all_logs_in_queue(self) -> List[LogEntry]:
         """

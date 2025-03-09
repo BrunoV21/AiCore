@@ -2,7 +2,8 @@ from aicore.llm.providers.openai import OpenAiLlm
 from pydantic import model_validator
 from google.genai import Client
 from functools import partial
-from typing import List, Self
+from openai.types.chat import ChatCompletion
+from typing import List, Self, Optional
 
 class GeminiLlm(OpenAiLlm):
     base_url :str="https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -27,3 +28,9 @@ class GeminiLlm(OpenAiLlm):
         )
 
         return self
+
+    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):        
+        usage = chunk.usage
+        if usage is not None and usage.completion_tokens:
+            return super().normalize(chunk, completion_id)
+        return chunk.choices

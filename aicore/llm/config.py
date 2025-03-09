@@ -1,7 +1,8 @@
-from typing import Literal, Optional, Union
-from pydantic import BaseModel, field_validator
+from typing import Literal, Optional, Self
+from pydantic import BaseModel, field_validator, model_validator
 
 from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
+from aicore.pricing import PricingConfig
 
 class LlmConfig(BaseModel):
     provider :Literal["gemini", "groq", "mistral", "nvidia", "openai", "openrouter"]
@@ -10,7 +11,8 @@ class LlmConfig(BaseModel):
     base_url :Optional[str]=None
     temperature :float=0
     max_tokens :int=12000
-    reasoner :Union["LlmConfig", None]=None
+    reasoner :Optional["LlmConfig"]=None
+    pricing :Optional[PricingConfig]=None
 
     @field_validator("temperature")
     @classmethod
@@ -24,3 +26,9 @@ class LlmConfig(BaseModel):
         assert reasoner.provider in SUPPORTED_REASONER_PROVIDERS, f"{reasoner.provider} is not supported as a reasoner provider. Supported providers are {SUPPORTED_REASONER_PROVIDERS}"
         assert reasoner.model in SUPPORTED_REASONER_MODELS, f"{reasoner.model} is not supported as a reasoner model. Supported models are {SUPPORTED_REASONER_MODELS}"
         return reasoner
+    
+    @model_validator(mode="after")
+    def initialize_pricing_from_defaults(self)->Self:
+        if self.pricing is None:
+            self.pricing = PricingConfig.from_model_providers(self.model, self.provider)
+        return self

@@ -1,0 +1,39 @@
+
+# Example configuration with observability features enabled
+# This configuration demonstrates how to enable and configure observability
+# features in aicore to track and visualize LLM completions
+
+embeddings:
+  provider: "openai"
+  api_key: "YOUR_SUPER_SECRET_OPENAI_API_KEY"
+  model: "text-embedding-3-small"
+
+llm:
+  provider: "openai"
+  api_key: "YOUR_SUPER_SECRET_OPENAI_API_KEY"
+  model: "gpt-4o"
+  temperature: 0.7
+  max_tokens: 8192
+
+# Observability configuration controls the tracking and visualization of LLM completions
+observability:
+  # Enable or disable observability features
+  enabled: true
+  
+  # Directory to store observability data
+  storage_dir: "observability_data"
+  
+  # Filename for the JSON data store
+  storage_file: "llm_operations.json"
+  
+  # Dashboard configuration
+  dashboard_enabled: true
+  
+  # Dashboard host - use 0.0.0.0 to make accessible on your network
+  dashboard_host: "127.0.0.1"
+  
+  # Dashboard port
+  dashboard_port: 8050
+  
+  # No need to modify this config file to start the dashboard
+  # Run the example with: python examples/observability_dashboard.py
