@@ -104,11 +104,7 @@ class LlmBaseProvider(BaseModel):
     def collector(self) -> Optional[LlmOperationCollector]:
         """Get the operation collector instance."""
         if self._collector is None:
-            # Initialize collector with storage
-            storage = OperationStorage()
-            self._collector = LlmOperationCollector(
-                storage_callback=storage.store_record
-            )
+            self._collector = LlmOperationCollector.fom_observable_storage_path()
         return self._collector
     
     @collector.setter
@@ -247,14 +243,7 @@ class LlmBaseProvider(BaseModel):
                                 stream: bool = True) -> Dict:
         if img_path and not isinstance(img_path, list):
             img_path = [img_path]
-
-        # Store original request args for observability
-        request_args = {
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "img_path": str(img_path) if img_path else None,
-            "stream": stream
-        }
+        
         img_b64_str = [
             image_to_base64(img)
             for img in img_path
@@ -267,19 +256,6 @@ class LlmBaseProvider(BaseModel):
             img_b64_str=img_b64_str,
             stream=stream
         )
-        
-        # Add completion args to request_args for tracking
-        tracked_args = deepcopy(request_args)
-        # Remove potentially large message contents
-        if "messages" in completion_args:
-            tracked_args["message_count"] = len(completion_args["messages"])
-        tracked_args["model"] = completion_args.get("model", self.config.model)
-        tracked_args["temperature"] = completion_args.get("temperature", self.config.temperature)
-        tracked_args["max_tokens"] = completion_args.get("max_tokens", self.config.max_tokens)
-        
-        # Store the prepared args in the completion_args for access in complete methods
-        completion_args["_tracked_args"] = tracked_args
-
         return completion_args
     
 
@@ -304,9 +280,6 @@ class LlmBaseProvider(BaseModel):
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
-            # # Try to extract token usage for tracking
-            # if hasattr(chunk, "usage") and chunk.usage:
-            #     stream._tracked_token_usage = chunk.usage
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
                 await logger_fn(chunk_message)
@@ -344,6 +317,9 @@ class LlmBaseProvider(BaseModel):
         
         # Start tracking operation time
         start_time = time.time()
+        input_tokens = 0
+        output_tokens = 0
+        cost = 0
         
         completion_args = self._prepare_completion_args(
             prompt=prompt,
@@ -353,56 +329,46 @@ class LlmBaseProvider(BaseModel):
             stream=stream
         )
         
-        # Extract tracked args before removing them from completion_args
-        tracked_args = completion_args.pop("_tracked_args", {})
-        
-        success = True
-        error_message = None
-        output = None
-        
         try:
             output = self.completion_fn(**completion_args)
             
             if stream:
                 output = self._stream(output, prefix_prompt)
-            _logger.logger.info(str(self.usage.latest_completion)) if self.usage.latest_completion else ...
-            _logger.logger.info(str(self.usage)) if self.usage else ...
+            if self.usage:
+                if self.usage.latest_completion:
+                    _logger.logger.info(str(self.usage.latest_completion))
+                    input_tokens = self.usage.latest_completion.prompt_tokens
+                    output_tokens = self.usage.latest_completion.response_tokens
+                    cost = self.usage.latest_completion.cost
+                _logger.logger.info(str(self.usage))
             
+            output if not json_output else self.extract_json(output)
+            error_message = None
+
         except Exception as e:
-            success = False
             error_message = str(e)
-            raise
+            output = None
+            raise e
+        
         finally:
-            # Calculate operation time
             end_time = time.time()
             latency_ms = (end_time - start_time) * 1000
             
-            # Attempt to extract token information
-            input_tokens = None
-            output_tokens = None
-            if hasattr(output, "usage"):
-                input_tokens = getattr(output.usage, "prompt_tokens", None)
-                output_tokens = getattr(output.usage, "completion_tokens", None)
+            if self.collector:                
+                self.collector.record_completion(
+                    provider=self.config.provider,
+                    operation_type="completion",
+                    completion_args=completion_args,
+                    response=output,
+                    session_id=self.session_id,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost=cost,
+                    latency_ms=latency_ms,
+                    error_message=error_message
+                )
             
-            # # Record the operation
-            # if self.collector:
-            #     self.collector.record_operation(
-            #         provider=self.config.provider,
-            #         model=self.config.model,
-            #         operation_type="completion",
-            #         request_args=tracked_args,
-            #         response=str(output)[:1000] if success else None,  # Limit response size
-            #         input_tokens=input_tokens,
-            #         output_tokens=output_tokens,
-            #         latency_ms=latency_ms,
-            #         success=success,
-            #         error_message=error_message
-            #     )
-
-        if not success:
-            return None
-
-        return output if not json_output else self.extract_json(output)
+        return output
 
     async def acomplete(
                         self,
@@ -419,6 +385,9 @@ class LlmBaseProvider(BaseModel):
         
         # Start tracking operation time
         start_time = time.time()
+        input_tokens = 0
+        output_tokens = 0
+        cost = 0
         
         completion_args = self._prepare_completion_args(
             prompt=prompt,
@@ -427,58 +396,44 @@ class LlmBaseProvider(BaseModel):
             img_path=img_path,
             stream=stream
         )
-        
-        # Extract tracked args before removing them from completion_args
-        tracked_args = completion_args.pop("_tracked_args", {})
-        
-        success = True
-        error_message = None
-        output = None
-        tracked_token_usage = None
-        
+
         try:
             output = await self.acompletion_fn(**completion_args)
             
             if stream:
                 output = await self._astream(output, stream_handler, prefix_prompt)
-            _logger.logger.info(str(self.usage.latest_completion)) if self.usage.latest_completion else ...
-            _logger.logger.info(str(self.usage)) if self.usage else ...
+            if self.usage:
+                if self.usage.latest_completion:
+                    _logger.logger.info(str(self.usage.latest_completion))
+                    input_tokens = self.usage.latest_completion.prompt_tokens
+                    output_tokens = self.usage.latest_completion.response_tokens
+                    cost = self.usage.latest_completion.cost
+                _logger.logger.info(str(self.usage))
             
+            output if not json_output else self.extract_json(output)
+            error_message = None
+
         except Exception as e:
-            success = False
             error_message = str(e)
-            raise
+            output = None
+            raise e
+        
         finally:
-            # Calculate operation time
             end_time = time.time()
             latency_ms = (end_time - start_time) * 1000
             
-            # Attempt to extract token information
-            input_tokens = None
-            output_tokens = None
-            if hasattr(output, "usage"):
-                input_tokens = getattr(output.usage, "prompt_tokens", None)
-                output_tokens = getattr(output.usage, "completion_tokens", None)
-            elif tracked_token_usage:
-                input_tokens = getattr(tracked_token_usage, "prompt_tokens", None)
-                output_tokens = getattr(tracked_token_usage, "completion_tokens", None)
+            if self.collector:                
+                self.collector.record_completion(
+                    provider=self.config.provider,
+                    operation_type="acompletion",
+                    completion_args=completion_args,
+                    response=output,
+                    session_id=self.session_id,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost=cost,
+                    latency_ms=latency_ms,
+                    error_message=error_message
+                )
             
-            # Record the operation
-            # if self.collector:
-            #     self.collector.record_operation(
-            #         provider=self.config.provider,
-            #         model=self.config.model,
-            #         operation_type="acompletion",
-            #         request_args=tracked_args,
-            #         response=str(output)[:1000] if success else None,  # Limit response size
-            #         input_tokens=input_tokens,
-            #         output_tokens=output_tokens,
-            #         latency_ms=latency_ms,
-            #         success=success,
-            #         error_message=error_message
-            #     )
-        
-        if not success:
-            return None
-            
-        return output if not json_output else self.extract_json(output)
+        return output

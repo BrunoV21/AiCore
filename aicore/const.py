@@ -26,10 +26,3 @@ DEFAULT_OBSERVABILITY_DIR = "observability_data"
 DEFAULT_OBSERVABILITY_FILE = "llm_operations.json"
 DEFAULT_DASHBOARD_PORT = 8050
 DEFAULT_DASHBOARD_HOST = "127.0.0.1"
-
-# Operation types for tracking
-OPERATION_TYPE_COMPLETION = "completion"
-OPERATION_TYPE_ACOMPLETION = "acompletion"
-
-# Maximum length for stored response text
-MAX_STORED_RESPONSE_LENGTH = 1000
