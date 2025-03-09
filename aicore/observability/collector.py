@@ -1,114 +1,170 @@
+from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
 
-"""
-Collector module for capturing LLM completion operations.
-
-This module implements the data collection logic to capture LLM completion arguments
-and outputs, providing comprehensive tracking of LLM operations.
-"""
-
-import uuid
-import time
-import asyncio
+from pydantic import BaseModel,  RootModel, Field, field_validator, computed_field
+from typing import Dict, Any, Optional, Callable, List, Union, Literal
 from datetime import datetime
-from typing import Dict, Any, Optional, Callable, List, Union
-from pydantic import BaseModel, Field
+from pathlib import Path
+import ulid
+import json
+import os
 
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
-    operation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
-    provider: str
-    model: str
-    operation_type: str  # "completion" or "acompletion"
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
+    session_id: Optional[str]=None
+    operation_id: str = Field(default_factory=ulid.ulid)
+    timestamp: str = Field(default_factory=datetime.now().isoformat)
+    operation_type: Literal["completion", "acompletion"]
+    provider :str
+    input_tokens: Optional[int] = 0
+    output_tokens: Optional[int] = 0
+    cost: Optional[float] = 0
     latency_ms: float
-    success: bool = True
     error_message: Optional[str] = None
-    request_args: Dict[str, Any]
-    response: Optional[Union[Dict[str, Any], str]] = None
+    completion_args: Dict[str, Any]
+    response: Optional[str] = None
     
     class Config:
         arbitrary_types_allowed = True
-
-class LlmOperationCollector:
-    """
-    Collects data about LLM operations.
     
-    This class provides methods to capture information about LLM completion
-    operations, including input arguments, responses, token counts, and latency.
-    """
-    
-    def __init__(self, storage_callback: Optional[Callable[[LlmOperationRecord], None]] = None):
-        """
-        Initialize the collector.
-        
-        Args:
-            storage_callback: Optional callback function to store operation records
-        """
-        self.storage_callback = storage_callback
-        self._is_enabled = True
+    @field_validator("response")
+    @classmethod
+    def json_dumps_response(cls, response :Union[str, Dict[str, str]])->str:
+        if isinstance(response, str):
+            return response
+        elif isinstance(response, dict):
+            return json.dumps(response, indent=4)
+        else:
+            raise TypeError("response param must be [str] or [json serializable obj]")
     
     @property
-    def is_enabled(self) -> bool:
-        """Whether collection is enabled."""
-        return self._is_enabled
+    def messages(self)->List[Dict[str, str]]:
+        return self.completion_args.get("messages", [])
     
-    @is_enabled.setter
-    def is_enabled(self, value: bool):
-        """Set whether collection is enabled."""
-        self._is_enabled = value
+    @computed_field
+    def model(self)->str:
+        return self.completion_args.get("model")
     
-    def record_operation(self, provider: str, model: str, operation_type: str, 
-                        request_args: Dict[str, Any], response: Any = None, 
-                        input_tokens: Optional[int] = None, output_tokens: Optional[int] = None, 
-                        latency_ms: Optional[float] = None, success: bool = True,
-                        error_message: Optional[str] = None) -> LlmOperationRecord:
-        """
-        Record information about an LLM operation.
-        
-        Args:
-            provider: LLM provider name (e.g., "openai", "mistral")
-            model: Model name used for the operation
-            operation_type: Type of operation ("completion" or "acompletion")
-            request_args: Arguments provided to the completion method
-            response: Response from the LLM provider
-            input_tokens: Number of input tokens (if available)
-            output_tokens: Number of output tokens (if available)
-            latency_ms: Operation latency in milliseconds
-            success: Whether the operation was successful
-            error_message: Error message if the operation failed
-            
-        Returns:
-            LlmOperationRecord: Record of the operation
-        """
-        if not self.is_enabled:
-            return None
-            
+    @computed_field
+    def temperature(self)->int:
+        return self.completion_args.get("temperature")
+    
+    @computed_field
+    def max_tokens(self)->int:
+        return self.completion_args.get("max_tokens")
+    
+    @computed_field
+    def system_prompt(self)->Optional[str]:
+        for msg in self.messages:
+            if msg.get("role") == "system": #or dev open ai o -series?
+                return msg.get("content")
+        return None
+
+    @computed_field
+    def assistant_message(self)->Optional[str]:
+        for msg in self.messages[::-1]:
+            if msg.get("role") == "assistant": #or dev open ai o -series?
+                return msg.get("content")
+        return None
+
+    @computed_field
+    def user_prompt(self)->Optional[str]:
+        for msg in self.messages[::-1]:
+            if msg.get("role") == "user": #or dev open ai o -series?
+                return msg.get("content")
+        return None
+    
+    @computed_field
+    def history_messages(self)->Optional[str]:
+        return json.dumps([
+            msg for msg in self.messages
+            if msg.get("content") not in [
+                self.system_prompt,
+                self.assistant_message,
+                self.user_prompt
+            ]
+        ], indent=4)
+
+    @computed_field
+    def sucess(self)->bool:
+        return bool(self.response)
+
+class LlmOperationCollector(RootModel):
+    root :List[LlmOperationRecord] = []
+    _storage_path :Optional[Union[str, Path]]=None
+
+    @property
+    def storage_path(self)->Optional[Union[str, Path]]:
+        return self._storage_path
+    
+    @storage_path.setter
+    def storage_path(self, value :Union[str, Path]):
+        self._storage_path = value
+    
+    def record_completion(
+            self,
+            completion_args: Dict[str, Any],
+            operation_type: Literal["completion", "acompletion"],
+            provider :str,
+            response: Optional[Union[str, Dict[str, str]]] = None,
+            session_id :Optional[str]=None,
+            input_tokens: Optional[int]=0,
+            output_tokens: Optional[int]=0,
+            cost :Optional[float]=0,
+            latency_ms: Optional[float] = None, success: bool = True,
+            error_message: Optional[str] = None) -> LlmOperationRecord:
+
         # Clean request args to remove potentially sensitive or large objects
-        cleaned_args = self._clean_request_args(request_args)
+        cleaned_args = self._clean_completion_args(completion_args)
         
         record = LlmOperationRecord(
+            session_id=session_id,
             provider=provider,
-            model=model,
             operation_type=operation_type,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             latency_ms=latency_ms or 0,
-            success=success,
             error_message=error_message,
-            request_args=cleaned_args,
+            completion_args=cleaned_args,
             response=response
         )
+
+        if self.storage_path:
+            self._store_to_file(record)        
         
-        if self.storage_callback:
-            self.storage_callback(record)
-            
+        self.root.append(record)
+        
         return record
+
+    def _store_to_file(self, new_record :LlmOperationRecord) -> None:
+        if not os.path.exists(self.storage_path):
+            os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+            records = None
+        else:
+            with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
+               records = LlmOperationCollector(root=json.loads(f.read()))            
+            records.root.append(new_record)
+        
+        records = records or self.root
+
+        with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
+            f.write(records.model_dump_json(indent=4))
     
-    def _clean_request_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _clean_completion_args(args: Dict[str, Any]) -> Dict[str, Any]:
         """Clean request arguments to remove sensitive information."""
         cleaned = args.copy()
         # Remove potentially sensitive information like API keys
         cleaned.pop("api_key", None)
         return cleaned
+
+    @classmethod
+    def fom_observable_storage_path(cls, storage_path: Optional[str] = None)->"LlmOperationCollector":
+        cls = cls()        
+        env_path = os.environ.get("OBSERVABILITY_DATA_DEFAULT_FILE")
+        if storage_path:
+            cls.storage_path = storage_path
+        elif env_path:
+            cls.storage_path = storage_path        
+        else:
+            cls.storage_path = Path(DEFAULT_OBSERVABILITY_DIR) / DEFAULT_OBSERVABILITY_FILE        
+        return cls
