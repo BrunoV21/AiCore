@@ -123,11 +123,12 @@ class Llm(BaseModel):
             prompt :Union[str, BaseModel, RootModel],
             system_prompt :Optional[Union[str, List[str]]]=None,
             prefix_prompt :Optional[Union[str, List[str]]]=None,
-            img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,stream :bool=True)->List[str]:
+            img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
+            stream :bool=True, agent_id: Optional[str]=None)->List[str]:
         
         if self.reasoner:
             system_prompt = system_prompt or self.reasoner.system_prompt
-            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream)
+            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream, agent_id)
             reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
             
@@ -137,11 +138,12 @@ class Llm(BaseModel):
         prompt :Union[str, BaseModel, RootModel],
         system_prompt :Optional[Union[str, List[str]]]=None,
         prefix_prompt :Optional[Union[str, List[str]]]=None,
-        img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,stream :bool=True)->List[str]:
+        img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
+        stream :bool=True, agent_id: Optional[str]=None)->List[str]:
         
         if self.reasoner:
             sys_prompt = system_prompt or self.reasoner.system_prompt
-            reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn)
+            reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn, agent_id)
             reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)            
         return prefix_prompt
@@ -153,15 +155,16 @@ class Llm(BaseModel):
                  prefix_prompt :Optional[Union[str, List[str]]]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
-                 stream :bool=True)->Union[str, Dict]:
+                 stream :bool=True,
+                 agent_id: Optional[str]=None)->Union[str, Dict]:
         
         """
         msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
         """
 
         sys_prompt = system_prompt or self.system_prompt
-        prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path)
-        return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream)
+        prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path, stream, agent_id)
+        return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id)
     
     @retry_on_rate_limit
     async def acomplete(self,
@@ -170,11 +173,12 @@ class Llm(BaseModel):
                  prefix_prompt :Optional[Union[str, List[str]]]=None,
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
-                 stream :bool=True)->Union[str, Dict]:
+                 stream :bool=True,
+                 agent_id: Optional[str]=None)->Union[str, Dict]:
         """
         msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
         """
          
         sys_prompt = system_prompt or self.system_prompt
-        prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path)
-        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn)
+        prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path, stream, agent_id)
+        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id)

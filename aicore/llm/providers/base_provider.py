@@ -17,6 +17,7 @@ import ulid
 class LlmBaseProvider(BaseModel):
     config: LlmConfig
     session_id: str = Field(default_factory=ulid.ulid)
+    agent_id: Optional[str]=None
     _client: Any = None
     _aclient: Any = None
     _completion_args: Dict = {}
@@ -310,7 +311,8 @@ class LlmBaseProvider(BaseModel):
                 prefix_prompt: Optional[Union[str, List[str]]] = None,
                 img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
                 json_output: bool = False,
-                stream: bool = True) -> Union[str, Dict]:
+                stream: bool = True,
+                agent_id: Optional[str]=None,) -> Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -361,6 +363,7 @@ class LlmBaseProvider(BaseModel):
                     completion_args=completion_args,
                     response=output,
                     session_id=self.session_id,
+                    agent_id=agent_id or self.agent_id,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cost=cost,
@@ -378,7 +381,9 @@ class LlmBaseProvider(BaseModel):
                         img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
                         json_output: bool = False,
                         stream: bool = True,
-                        stream_handler: Optional[Callable[[str], None]] = default_stream_handler) -> Union[str, Dict]:
+                        stream_handler: Optional[Callable[[str], None]] = default_stream_handler,
+                        agent_id: Optional[str]=None,
+                        ) -> Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -429,6 +434,7 @@ class LlmBaseProvider(BaseModel):
                     completion_args=completion_args,
                     response=output,
                     session_id=self.session_id,
+                    agent_id=agent_id or self.agent_id,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cost=cost,
