@@ -816,7 +816,7 @@ class ObservabilityDashboard:
     def filter_data(self, start_date, end_date, providers, models, agents):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
-        
+        #TODO implement filter in polars
         # Column order for better analysis
         # if not filtered_df.is_empty():
         #     filtered_df = filtered_df.select(["timestamp", "operation_id", "session_id", "agent_id", "provider", "model", "operation_type", "success", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "cost", "error_message", "system_prompt", "user_prompt", "response"])
