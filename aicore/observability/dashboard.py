@@ -132,7 +132,12 @@ class ObservabilityDashboard:
 
                                         html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
                                     ],
-                                    title="Additional Filters"
+                                    title="Additional Filters", style={
+                                        "backgroundColor": "#333",
+                                        "color": "white",
+                                        "fontSize": "0.85rem",
+                                        "padding": "10px"
+                                    }
                                 )
                             ],
                             start_collapsed=True,
@@ -877,62 +882,84 @@ class ObservabilityDashboard:
         return filtered_df
         
     def _create_overview_metrics(self, df):
-        """Create overview metrics from dataframe."""
+        """Create dynamic overview metrics from dataframe."""
         total_requests = len(df)
-        
-        success_rate = len([_ for _ in df["success"] if _]) / total_requests * 100 if len(df) > 0 else 0
-        avg_latency = df["latency_ms"].mean() if len(df) > 0 else 0
-        
-        # Count unique values
+        successful_count = len([_ for _ in df["success"] if _])
+        success_rate = successful_count / total_requests * 100 if total_requests > 0 else 0
+        avg_latency = df["latency_ms"].mean() if total_requests > 0 else 0
+
         unique_providers = len(df["provider"].unique())
         unique_models = len(df["model"].unique())
         unique_agents = len([a for a in df["agent_id"].unique() if a])  # Filter empty values
-        
-        # Tokens and cost (if available)
+
         total_tokens = df["total_tokens"].sum() if 'total_tokens' in df.columns else 0
         total_cost = df["cost"].sum() if 'cost' in df.columns else 0
-        
-        return [
+
+        card_style = {
+            "backgroundColor": "#1E1E2F",
+            "padding": "20px",
+            "borderRadius": "10px",
+            "margin": "10px",
+            "flex": "1",
+            "minWidth": "250px",
+            "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+            "textAlign": "center"
+        }
+
+        return html.Div([
+            # First row: Total Requests, Success Rate, and Avg. Latency
             html.Div([
-                html.H4("Total Requests"), 
-                html.P(f"{total_requests:,}")
-            ], className="metric-card"),
-            
+                html.Div([
+                    html.H4("📊 Total Requests", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{total_requests:,}", style={"color": "#007bff"}),
+                    html.P("Requests processed", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("✅ Success Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{success_rate:.1f}%", style={"color": "#28a745"}),
+                    html.P(f"{successful_count} of {total_requests} succeeded", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("⏱️ Avg. Latency", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{avg_latency:.2f} ms", style={"color": "#17a2b8"}),
+                    html.P("Average response time", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
+
+            # Second row: Providers, Models, and Agents
             html.Div([
-                html.H4("Success Rate"), 
-                html.P(f"{success_rate:.1f}%")
-            ], className="metric-card"),
-            
+                html.Div([
+                    html.H4("🏢 Providers", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{unique_providers}", style={"color": "#6f42c1"}),
+                    html.P("Unique providers", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("🤖 Models", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{unique_models}", style={"color": "#fd7e14"}),
+                    html.P("Different AI models", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("👤 Agents", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{unique_agents}", style={"color": "#dc3545"}),
+                    html.P("Active agents", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
+
+            # Third row: Total Tokens and Total Cost
             html.Div([
-                html.H4("Avg. Latency"), 
-                html.P(f"{avg_latency:.2f} ms")
-            ], className="metric-card"),
-            
-            html.Div([
-                html.H4("Providers"), 
-                html.P(f"{unique_providers}")
-            ], className="metric-card"),
-            
-            html.Div([
-                html.H4("Models"), 
-                html.P(f"{unique_models}")
-            ], className="metric-card"),
-            
-            html.Div([
-                html.H4("Agents"), 
-                html.P(f"{unique_agents}")
-            ], className="metric-card"),
-            
-            html.Div([
-                html.H4("Total Tokens"), 
-                html.P(f"{int(total_tokens):,}")
-            ], className="metric-card"),
-            
-            html.Div([
-                html.H4("Total Cost"), 
-                html.P(f"${total_cost:.4f}")
-            ], className="metric-card"),
-        ]
+                html.Div([
+                    html.H4("💬 Total Tokens", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{int(total_tokens):,}", style={"color": "#20c997"}),
+                    html.P("Tokens processed", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("💰 Total Cost", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"${total_cost:.4f}", style={"color": "#ffc107"}),
+                    html.P("Total expenditure", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
+        ], style={"display": "flex", "flexDirection": "column"})
+
     
     def _create_empty_dashboard(self):
         """Create empty dashboard components when no data is available."""
