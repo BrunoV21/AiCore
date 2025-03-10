@@ -33,7 +33,7 @@ class ObservabilityDashboard:
             storage: OperationStorage instance for accessing operation data
             title: Dashboard title
         """
-        self.df = LlmOperationCollector.polars_from_file(storage_path)
+        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(storage_path)
         self.add_day_col()
         self.title = title
         self.app = dash.Dash(
@@ -47,12 +47,12 @@ class ObservabilityDashboard:
     def add_day_col(self):
         """Add date columns for time-based analysis"""
         self.df = self.df.with_columns(date=pl.col("timestamp").str.to_datetime())
-        self.df = self.df.with_columns(day=pl.col("date").dt.date())
         self.df = self.df.with_columns(
+            day=pl.col("date").dt.date(),
             hour=pl.col("date").dt.hour(),
             minute=pl.col("date").dt.minute()
         )
-        
+    
     def _setup_layout(self):
         """Set up the dashboard layout with tabs."""
         self.app.layout = html.Div([
@@ -72,152 +72,192 @@ class ObservabilityDashboard:
                                 style={"background-color": "#333", "color": "white"}
                             ),
                         ], style={"margin-bottom": "10px"}),
-                        
                         html.Div([
                             html.Label("Provider:", style={"color": "white"}),
-                            dcc.Dropdown(id='provider-dropdown', multi=True, 
-                                style={"background-color": "#333", "color": "white"}),
+                            dcc.Dropdown(
+                                id='provider-dropdown',
+                                multi=True,
+                                style={"background-color": "#333", "color": "white"}
+                            ),
                         ], style={"margin-bottom": "10px"}),
-                        
+                        html.Div([
+                            html.Button('Refresh Data', id='refresh-data', n_clicks=0, className="btn btn-secondary btn-sm")
+                        ], style={"margin-bottom": "5px"}),
                         html.Div([
                             html.Label("Model:", style={"color": "white"}),
-                            dcc.Dropdown(id='model-dropdown', multi=True, 
-                                style={"background-color": "#333", "color": "white"}),
+                            dcc.Dropdown(
+                                id='model-dropdown',
+                                multi=True,
+                                style={"background-color": "#333", "color": "white"}
+                            ),
                         ], style={"margin-bottom": "10px"}),
-                        
                         html.Div([
                             html.Label("Agent:", style={"color": "white"}),
-                            dcc.Dropdown(id='agent-dropdown', multi=True, 
-                                style={"background-color": "#333", "color": "white"}),
+                            dcc.Dropdown(
+                                id='agent-dropdown',
+                                multi=True,
+                                style={"background-color": "#333", "color": "white"}
+                            ),
                         ], style={"margin-bottom": "15px"}),
-                        
                         html.Button('Apply Filters', id='apply-filters', n_clicks=0,
-                            className="btn btn-primary btn-block"),
+                                    className="btn btn-primary btn-block"),
                     ], className="filter-panel"),
                 ], className="filter-container"),
             ], className="dashboard-header"),
-            
+
             # Tabs container
             html.Div([
                 dcc.Tabs(id="dashboard-tabs", value='overview-tab', className="custom-tabs", children=[
+
                     # Overview Tab
                     dcc.Tab(label='Overview', value='overview-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div(id='overview-metrics', className="metrics-container"),
-                            
+
                             html.Div([
                                 html.Div([
                                     html.H3("Request Volume Over Time"),
                                     dcc.Graph(id='requests-time-series')
-                                ], className="chart-box"),
-                                
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Success Rate by Provider"),
                                     dcc.Graph(id='success-rate-chart')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                            
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+
                             html.Div([
                                 html.Div([
-                                    html.H3("Provider Distribution"),
-                                    dcc.Graph(id='provider-distribution')
-                                ], className="chart-box"),
-                                
+                                    html.H3("Provider-Model Distribution"),
+                                    dcc.Graph(id='provider-model-sunburst')
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Model Distribution"),
                                     dcc.Graph(id='model-distribution')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
+                                ], style={'flex': '1', 'padding': '10px'}),
+                                html.Div([
+                                    html.H3("Operation Type Distribution"),
+                                    dcc.Graph(id='operation-type-distribution')
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
                         ], className="tab-content")
                     ]),
-                    
+
                     # Performance Tab
                     dcc.Tab(label='Performance', value='performance-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
+                            # Row 1: Overall latency stats
                             html.Div([
                                 html.Div([
                                     html.H3("Latency Distribution"),
                                     dcc.Graph(id='latency-histogram')
-                                ], className="chart-box"),
-                                
-                                html.Div([
-                                    html.H3("Latency by Provider"),
-                                    dcc.Graph(id='latency-by-provider')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                            
-                            html.Div([
-                                html.Div([
-                                    html.H3("Latency by Model"),
-                                    dcc.Graph(id='latency-by-model')
-                                ], className="chart-box"),
-                                
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Latency Timeline"),
                                     dcc.Graph(id='latency-timeline')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+                            
+                            # Row 2: Latency comparisons
+                            html.Div([
+                                html.Div([
+                                    html.H3("Latency by Provider"),
+                                    dcc.Graph(id='latency-by-provider')
+                                ], style={'flex': '1', 'padding': '10px'}),
+                                html.Div([
+                                    html.H3("Latency by Model"),
+                                    dcc.Graph(id='latency-by-model')
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
-                    
+
                     # Token Usage Tab
                     dcc.Tab(label='Token Usage', value='token-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
+                            # Row 1: Token efficiency and usage
                             html.Div([
                                 html.Div([
-                                    html.H3("Token Usage by Provider"),
-                                    dcc.Graph(id='token-by-provider')
-                                ], className="chart-box"),
-                                
+                                    html.H3("Token Efficiency"),
+                                    dcc.Graph(id='token-efficiency-chart')
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Token Usage by Model"),
                                     dcc.Graph(id='token-by-model')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
                             
+                            # Row 2: Token distribution and cost analysis
                             html.Div([
                                 html.Div([
                                     html.H3("Input vs Output Tokens"),
                                     dcc.Graph(id='token-distribution')
-                                ], className="chart-box"),
-                                
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Cost Analysis"),
                                     dcc.Graph(id='cost-analysis')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
-                    
+
+                    # Cost Analysis Tab
+                    dcc.Tab(label='Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                        html.Div([
+                            # Row 1: Cost breakdown and cost per token
+                            html.Div([
+                                html.Div([
+                                    html.H3("Cost by Provider & Model"),
+                                    dcc.Graph(id='cost-breakdown-sunburst')
+                                ], style={'flex': '1', 'padding': '10px'}),
+                                html.Div([
+                                    html.H3("Cost per Token"),
+                                    dcc.Graph(id='cost-per-token')
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
+                    ]),
+
                     # Agent Analysis Tab
                     dcc.Tab(label='Agent Analysis', value='agent-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
+                            # Row 1: Overall agent usage and performance
                             html.Div([
                                 html.Div([
                                     html.H3("Agent Usage Distribution"),
                                     dcc.Graph(id='agent-distribution')
-                                ], className="chart-box"),
-                                
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Agent Performance"),
                                     dcc.Graph(id='agent-performance')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                            
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+
+                            # Row 2: Agent preferences
                             html.Div([
                                 html.Div([
                                     html.H3("Agent Model Preference"),
                                     dcc.Graph(id='agent-model-preference')
-                                ], className="chart-box"),
-                                
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Agent Provider Preference"),
                                     dcc.Graph(id='agent-provider-preference')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+
+                            # Row 3: Token and cost consumption by agent
+                            html.Div([
+                                html.Div([
+                                    html.H3("Total Tokens by Agent"),
+                                    dcc.Graph(id='agent-tokens')
+                                ], style={'flex': '1', 'padding': '10px'}),
+                                html.Div([
+                                    html.H3("Total Cost by Agent"),
+                                    dcc.Graph(id='agent-cost')
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
-                    
+
                     # Operations Tab
                     dcc.Tab(label='Operations Data', value='operations-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
@@ -231,10 +271,13 @@ class ObservabilityDashboard:
                                         'textAlign': 'left',
                                         'padding': '10px',
                                         'minWidth': '100px', 'maxWidth': '300px',
-                                        'whiteSpace': 'normal',
-                                        'textOverflow': 'ellipsis',
+                                        'whiteSpace': 'nowrap',  # Prevents wrapping
+                                        'overflow': 'hidden',  # Hides overflow text
+                                        'textOverflow': 'ellipsis',  # Shows ellipsis for overflow text
                                         'backgroundColor': '#333',
-                                        'color': 'white'
+                                        'color': 'white',
+                                        'height': '24px',  # Defines row height (adjust based on font size)
+                                        'cursor': 'pointer'  # Indicates clickability
                                     },
                                     style_header={
                                         'backgroundColor': '#444',
@@ -242,15 +285,9 @@ class ObservabilityDashboard:
                                         'color': 'white'
                                     },
                                     style_data_conditional=[
-                                        {
-                                            'if': {'row_index': 'odd'},
-                                            'backgroundColor': '#2a2a2a'
-                                        },
-                                        {
-                                            'if': {'filter_query': '{success} = false', 'column_id': 'success'},
-                                            'backgroundColor': '#5c1e1e',
-                                            'color': 'white'
-                                        }
+                                        {'if': {'row_index': 'odd'}, 'backgroundColor': '#2a2a2a'},
+                                        {'if': {'filter_query': '{success} = false', 'column_id': 'success'},
+                                        'backgroundColor': '#5c1e1e', 'color': 'white'}
                                     ],
                                     filter_action="native",
                                     sort_action="native",
@@ -258,7 +295,7 @@ class ObservabilityDashboard:
                                 )
                             ], className="table-container")
                         ], className="tab-content")
-                    ]),
+                    ])
                 ]),
             ], className="tabs-container"),
         ], className="dashboard-wrapper")
@@ -277,13 +314,15 @@ class ObservabilityDashboard:
             if self.df.is_empty():
                 return [], [], []
             
-            providers = self.df['provider'].unique().to_list()
-            models = self.df['model'].unique().to_list()
-            agents = [a for a in self.df['agent_id'].unique().to_list() if a]  # Filter empty agent IDs
+            providers = self.df["provider"].unique().to_list()
+            models = self.df["model"].unique().to_list()
+            agents = [a for a in self.df["agent_id"].unique().to_list() if a]  # Filter empty agent IDs
             
             provider_options = [{'label': p, 'value': p} for p in providers]
             model_options = [{'label': m, 'value': m} for m in models]
-            agent_options = [{'label': a if a else 'No Agent', 'value': a} for a in agents]
+            agent_options = []
+            for a in agents:
+                agent_options.append({'label': a} if a else {'No Agent: value': a})
             
             return provider_options, model_options, agent_options
         
@@ -293,7 +332,7 @@ class ObservabilityDashboard:
                 Output('overview-metrics', 'children'),
                 Output('requests-time-series', 'figure'),
                 Output('success-rate-chart', 'figure'),
-                Output('provider-distribution', 'figure'),
+                Output('provider-model-sunburst', 'figure'),
                 Output('model-distribution', 'figure'),
                 
                 # Performance Tab
@@ -303,35 +342,60 @@ class ObservabilityDashboard:
                 Output('latency-timeline', 'figure'),
                 
                 # Token Usage Tab
-                Output('token-by-provider', 'figure'),
+                Output('token-efficiency-chart', 'figure'),
                 Output('token-by-model', 'figure'),
                 Output('token-distribution', 'figure'),
                 Output('cost-analysis', 'figure'),
+                
+                # Cost Analysis Tab
+                Output('cost-breakdown-sunburst', 'figure'),
+                Output('cost-per-token', 'figure'),
                 
                 # Agent Analysis Tab
                 Output('agent-distribution', 'figure'),
                 Output('agent-performance', 'figure'),
                 Output('agent-model-preference', 'figure'),
                 Output('agent-provider-preference', 'figure'),
+                # New outputs for tokens and cost by agent:
+                Output('agent-tokens', 'figure'),
+                Output('agent-cost', 'figure'),
+                
+                # Additional Observability Plot
+                Output('operation-type-distribution', 'figure'),
                 
                 # Operations Tab
                 Output('operations-table', 'data'),
                 Output('operations-table', 'columns')
             ],
-            [Input('apply-filters', 'n_clicks')],
+            [Input('apply-filters', 'n_clicks'), Input('refresh-data', 'n_clicks')],
             [State('date-picker-range', 'start_date'),
-             State('date-picker-range', 'end_date'),
-             State('provider-dropdown', 'value'),
-             State('model-dropdown', 'value'),
-             State('agent-dropdown', 'value')]
+            State('date-picker-range', 'end_date'),
+            State('provider-dropdown', 'value'),
+            State('model-dropdown', 'value'),
+            State('agent-dropdown', 'value')]
         )
-        def update_dashboard(n_clicks, start_date, end_date, providers, models, agents):
+        def update_dashboard(n_clicks, refresh_clicks, start_date, end_date, providers, models, agents):
             """Update dashboard visualizations based on filters."""
             filtered_df = self.filter_data(start_date, end_date, providers, models, agents)
             
             if filtered_df.is_empty():
                 # Return empty visualizations if no data
                 empty_outputs = self._create_empty_dashboard()
+                # Append an empty pie chart for the additional observability plot
+                empty_outputs += (px.pie({"operation_type": ["No data"], "count": [1]},
+                                        names='operation_type',
+                                        values='count',
+                                        template=TEMPLATE,
+                                        title="Operation Type Distribution"),)
+                # Also append empty figures for the new agent tokens and cost plots
+                empty_outputs += (px.bar({"agent_id": ["No data"], "total_tokens": [0]},
+                                        x="agent_id", y="total_tokens",
+                                        template=TEMPLATE,
+                                        title="Total Tokens by Agent"),
+                                px.bar({"agent_id": ["No data"], "total_cost": [0]},
+                                        x="agent_id", y="total_cost",
+                                        template=TEMPLATE,
+                                        title="Total Cost by Agent"))
                 return empty_outputs
             
             # Overview Tab
@@ -365,14 +429,16 @@ class ObservabilityDashboard:
             success_rate_fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
             success_rate_fig.update_layout(yaxis_title="Success Rate (%)")
             
-            # Provider distribution pie chart
-            provider_dist = filtered_df.group_by("provider").agg(pl.len().alias("count"))
-            provider_fig = px.pie(
-                provider_dist, 
-                names='provider', 
+            # Provider-Model Sunburst chart (fixed with hierarchical path)
+            provider_model = filtered_df.group_by(["provider", "model"]).agg(
+                pl.len().alias("count")
+            )
+            sunburst_fig = px.sunburst(
+                provider_model, 
+                path=['provider', 'model'],
                 values='count',
-                hole=0.4,
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Provider-Model Distribution"
             )
             
             # Model distribution pie chart
@@ -382,7 +448,8 @@ class ObservabilityDashboard:
                 names='model', 
                 values='count',
                 hole=0.4,
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Model Distribution"
             )
             
             # Performance Tab
@@ -391,7 +458,6 @@ class ObservabilityDashboard:
                 filtered_df, 
                 x='latency_ms', 
                 nbins=30,
-                color_discrete_sequence=['#636EFA'],
                 template=TEMPLATE
             )
             latency_fig.update_layout(xaxis_title="Latency (ms)", yaxis_title="Count")
@@ -409,7 +475,8 @@ class ObservabilityDashboard:
                 y='avg_latency',
                 error_y=latency_by_provider["max_latency"] - latency_by_provider["avg_latency"],
                 error_y_minus=latency_by_provider["avg_latency"] - latency_by_provider["min_latency"],
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Average Latency by Provider"
             )
             latency_provider_fig.update_layout(yaxis_title="Latency (ms)")
             
@@ -421,7 +488,8 @@ class ObservabilityDashboard:
                 latency_by_model.sort("avg_latency", descending=True), 
                 x='model', 
                 y='avg_latency',
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Average Latency by Model"
             )
             latency_model_fig.update_layout(yaxis_title="Avg Latency (ms)")
             
@@ -431,27 +499,29 @@ class ObservabilityDashboard:
                 x='timestamp',
                 y='latency_ms',
                 color='provider',
-                hover_data=['model', 'success'],
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Latency Timeline"
             )
             latency_timeline_fig.update_layout(yaxis_title="Latency (ms)")
             
             # Token Usage Tab
-            # Token usage by provider
-            token_by_provider = filtered_df.filter(
-                (pl.col("input_tokens") > 0) | (pl.col("output_tokens") > 0)
+            # Token efficiency chart (tokens per ms)
+            token_efficiency = filtered_df.filter(
+                (pl.col("total_tokens") > 0) & (pl.col("latency_ms") > 0)
+            ).with_columns(
+                efficiency=pl.col("total_tokens") / pl.col("latency_ms")
             ).group_by("provider").agg(
-                pl.col("input_tokens").sum().alias("input_tokens"),
-                pl.col("output_tokens").sum().alias("output_tokens"),
-                pl.col("total_tokens").sum().alias("total_tokens")
+                pl.col("efficiency").mean().alias("tokens_per_ms")
             )
-            token_provider_fig = px.bar(
-                token_by_provider,
-                x='provider',
-                y=['input_tokens', 'output_tokens'],
-                barmode='group',
-                template=TEMPLATE
+            token_efficiency_fig = px.bar(
+                token_efficiency.sort("tokens_per_ms", descending=True),
+                x="provider",
+                y="tokens_per_ms",
+                color="tokens_per_ms",
+                template=TEMPLATE,
+                title="Token Efficiency by Provider"
             )
+            token_efficiency_fig.update_layout(yaxis_title="Tokens per millisecond")
             
             # Token usage by model
             token_by_model = filtered_df.filter(
@@ -466,7 +536,8 @@ class ObservabilityDashboard:
                 x='model',
                 y='total_tokens',
                 color='model',
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Token Usage by Model"
             )
             token_model_fig.update_layout(yaxis_title="Total Tokens")
             
@@ -477,8 +548,6 @@ class ObservabilityDashboard:
                 pl.col("input_tokens").sum().alias("Input"),
                 pl.col("output_tokens").sum().alias("Output")
             )
-            
-            # Convert to format suitable for pie chart
             token_dist_data = {
                 "category": ["Input Tokens", "Output Tokens"],
                 "value": [token_dist_data[0,0], token_dist_data[0,1]]
@@ -487,8 +556,8 @@ class ObservabilityDashboard:
                 token_dist_data,
                 names='category',
                 values='value',
-                color_discrete_sequence=['#1f77b4', '#ff7f0e'],
-                template=TEMPLATE
+                template=TEMPLATE,
+                title="Input vs Output Tokens"
             )
             
             # Cost analysis
@@ -502,7 +571,8 @@ class ObservabilityDashboard:
                     cost_by_model.sort("total_cost", descending=True),
                     x='model',
                     y='total_cost',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="Cost Analysis by Model"
                 )
                 cost_fig.update_layout(yaxis_title="Total Cost")
             else:
@@ -510,9 +580,50 @@ class ObservabilityDashboard:
                     {"model": ["No cost data"], "total_cost": [0]},
                     x='model',
                     y='total_cost',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="No cost data available"
                 )
-                cost_fig.update_layout(title="No cost data available")
+                cost_fig.update_layout(yaxis_title="Total Cost")
+            
+            # Cost breakdown sunburst
+            cost_breakdown = filtered_df.filter(
+                pl.col("cost") > 0
+            ).group_by(["provider", "model"]).agg(
+                pl.col("cost").sum().alias("total_cost")
+            )
+            if cost_breakdown.height > 0:
+                cost_sunburst_fig = px.sunburst(
+                    cost_breakdown,
+                    path=['provider', 'model'],
+                    values='total_cost',
+                    template=TEMPLATE,
+                    title="Cost Breakdown by Provider and Model"
+                )
+            else:
+                cost_sunburst_fig = px.sunburst(
+                    {"provider": ["No cost data"], "model": ["No cost data"], "total_cost": [0]},
+                    path=['provider', 'model'],
+                    values='total_cost',
+                    template=TEMPLATE,
+                    title="No cost data available"
+                )
+            
+            # Cost per token
+            cost_per_token = filtered_df.filter(
+                (pl.col("cost") > 0) & (pl.col("total_tokens") > 0)
+            ).with_columns(
+                cost_per_token=(pl.col("cost") / pl.col("total_tokens")) * 1000
+            ).group_by("model").agg(
+                pl.col("cost_per_token").mean().alias("avg_cost_per_1k")
+            )
+            cost_per_token_fig = px.bar(
+                cost_per_token, 
+                x="model", 
+                y="avg_cost_per_1k", 
+                template=TEMPLATE,
+                title="Cost per 1K Tokens by Model"
+            )
+            cost_per_token_fig.update_layout(yaxis_title="Cost per 1K Tokens ($)")
             
             # Agent Analysis Tab
             # Agent distribution
@@ -523,16 +634,17 @@ class ObservabilityDashboard:
                     agent_dist,
                     names='agent_id',
                     values='count',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="Agent Distribution"
                 )
             else:
                 agent_dist_fig = px.pie(
                     {"agent_id": ["No agent data"], "count": [1]},
                     names='agent_id',
                     values='count',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="No agent data available"
                 )
-                agent_dist_fig.update_layout(title="No agent data available")
             
             # Agent performance (success rate)
             if agent_data.height > 0:
@@ -548,7 +660,8 @@ class ObservabilityDashboard:
                     size='count',
                     hover_name='agent_id',
                     color='agent_id',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="Agent Performance"
                 )
                 agent_perf_fig.update_layout(
                     xaxis_title="Success Rate (%)",
@@ -561,9 +674,9 @@ class ObservabilityDashboard:
                     y='avg_latency',
                     size='count',
                     hover_name='agent_id',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="No agent data available"
                 )
-                agent_perf_fig.update_layout(title="No agent data available")
             
             # Agent model preference
             if agent_data.height > 0:
@@ -576,7 +689,8 @@ class ObservabilityDashboard:
                     y='count',
                     color='model',
                     barmode='stack',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="Agent Model Preference"
                 )
             else:
                 agent_model_fig = px.bar(
@@ -584,9 +698,9 @@ class ObservabilityDashboard:
                     x='agent_id',
                     y='count',
                     color='model',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="No agent data available"
                 )
-                agent_model_fig.update_layout(title="No agent data available")
             
             # Agent provider preference
             if agent_data.height > 0:
@@ -599,7 +713,8 @@ class ObservabilityDashboard:
                     y='count',
                     color='provider',
                     barmode='stack',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="Agent Provider Preference"
                 )
             else:
                 agent_provider_fig = px.bar(
@@ -607,76 +722,118 @@ class ObservabilityDashboard:
                     x='agent_id',
                     y='count',
                     color='provider',
-                    template=TEMPLATE
+                    template=TEMPLATE,
+                    title="No agent data available"
                 )
-                agent_provider_fig.update_layout(title="No agent data available")
+            
+            # New: Tokens consumed by agent
+            if agent_data.height > 0:
+                tokens_by_agent = agent_data.group_by("agent_id").agg(
+                    pl.col("total_tokens").sum().alias("total_tokens")
+                )
+                agent_tokens_fig = px.bar(
+                    tokens_by_agent.sort("total_tokens", descending=True),
+                    x="agent_id",
+                    y="total_tokens",
+                    template=TEMPLATE,
+                    title="Total Tokens by Agent"
+                )
+                agent_tokens_fig.update_layout(yaxis_title="Total Tokens")
+            else:
+                agent_tokens_fig = px.bar(
+                    {"agent_id": ["No agent data"], "total_tokens": [0]},
+                    x="agent_id",
+                    y="total_tokens",
+                    template=TEMPLATE,
+                    title="No token data available"
+                )
+            
+            # New: Cost incurred by agent
+            if agent_data.height > 0:
+                cost_by_agent = agent_data.filter(pl.col("cost") > 0).group_by("agent_id").agg(
+                    pl.col("cost").sum().alias("total_cost")
+                )
+                agent_cost_fig = px.bar(
+                    cost_by_agent.sort("total_cost", descending=True),
+                    x="agent_id",
+                    y="total_cost",
+                    template=TEMPLATE,
+                    title="Total Cost by Agent"
+                )
+                agent_cost_fig.update_layout(yaxis_title="Total Cost ($)")
+            else:
+                agent_cost_fig = px.bar(
+                    {"agent_id": ["No agent data"], "total_cost": [0]},
+                    x="agent_id",
+                    y="total_cost",
+                    template=TEMPLATE,
+                    title="No cost data available"
+                )
+            
+            # Additional Observability Plot: Operation Type Distribution
+            op_type_data = filtered_df.group_by("operation_type").agg(pl.len().alias("count"))
+            op_type_fig = px.pie(
+                op_type_data,
+                names='operation_type',
+                values='count',
+                template=TEMPLATE,
+                title="Operation Type Distribution"
+            )
             
             # Operations Data Tab
-            # Table data - select relevant columns
-            display_columns = [
-                "timestamp", "agent_id", "provider", "model", 
-                "latency_ms", "input_tokens", "output_tokens", "total_tokens",
-                "success", "cost", "operation_id", "session_id"
-            ]
+            display_columns = filtered_df.columns
             table_data = filtered_df.select(display_columns).to_dicts()
             table_columns = [{"name": i, "id": i} for i in display_columns]
             
             return (
                 # Overview Tab
-                metrics, requests_ts_fig, success_rate_fig, provider_fig, model_fig,
+                metrics, requests_ts_fig, success_rate_fig, sunburst_fig, model_fig,
                 
                 # Performance Tab
                 latency_fig, latency_provider_fig, latency_model_fig, latency_timeline_fig,
                 
                 # Token Usage Tab
-                token_provider_fig, token_model_fig, token_dist_fig, cost_fig,
+                token_efficiency_fig, token_model_fig, token_dist_fig, cost_fig,
+                
+                # Cost Analysis Tab
+                cost_sunburst_fig, cost_per_token_fig,
                 
                 # Agent Analysis Tab
                 agent_dist_fig, agent_perf_fig, agent_model_fig, agent_provider_fig,
+                agent_tokens_fig, agent_cost_fig,
+                
+                # Additional Observability Plot
+                op_type_fig,
                 
                 # Operations Data Tab
                 table_data, table_columns
             )
-        
+    
     def filter_data(self, start_date, end_date, providers, models, agents):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
-        
-        # # Apply date filter
-        # if start_date and end_date:
-        #     filtered_df = filtered_df.filter(
-        #         (pl.col("day") >= start_date) & 
-        #         (pl.col("day") <= end_date)
-        #     )
-        
-        # # Apply provider filter
-        # if providers and len(providers) > 0:
-        #     filtered_df = filtered_df.filter(pl.col("provider").is_in(providers))
-        
-        # # Apply model filter
-        # if models and len(models) > 0:
-        #     filtered_df = filtered_df.filter(pl.col("model").is_in(models))
-        
-        # # Apply agent filter
-        # if agents and len(agents) > 0:
-        #    filtered_df = filtered_df.filter(pl.col("agent_id").is_in(agents))
+        #TODO implement filter in polars
+        # Column order for better analysis
+        # if not filtered_df.is_empty():
+        #     filtered_df = filtered_df.select(["timestamp", "operation_id", "session_id", "agent_id", "provider", "model", "operation_type", "success", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "cost", "error_message", "system_prompt", "user_prompt", "response"])
         
         return filtered_df
         
     def _create_overview_metrics(self, df):
         """Create overview metrics from dataframe."""
         total_requests = len(df)
-        success_rate = df['success'].mean() * 100 if len(df) > 0 else 0
-        avg_latency = df['latency_ms'].mean() if len(df) > 0 else 0
+        
+        success_rate = len([_ for _ in df["success"] if _]) / total_requests * 100 if len(df) > 0 else 0
+        avg_latency = df["latency_ms"].mean() if len(df) > 0 else 0
         
         # Count unique values
-        unique_providers = len(df['provider'].unique())
-        unique_models = len(df['model'].unique())
-        unique_agents = len([a for a in df['agent_id'].unique() if a])  # Filter empty values
+        unique_providers = len(df["provider"].unique())
+        unique_models = len(df["model"].unique())
+        unique_agents = len([a for a in df["agent_id"].unique() if a])  # Filter empty values
         
         # Tokens and cost (if available)
-        total_tokens = df['total_tokens'].sum() if 'total_tokens' in df.columns else 0
-        total_cost = df['cost'].sum() if 'cost' in df.columns else 0
+        total_tokens = df["total_tokens"].sum() if 'total_tokens' in df.columns else 0
+        total_cost = df["cost"].sum() if 'cost' in df.columns else 0
         
         return [
             html.Div([
@@ -737,6 +894,9 @@ class ObservabilityDashboard:
             
             # Token Usage Tab
             empty_fig, empty_fig, empty_fig, empty_fig,
+            
+            # Cost Analysis Tab
+            empty_fig, empty_fig,
             
             # Agent Analysis Tab
             empty_fig, empty_fig, empty_fig, empty_fig,
