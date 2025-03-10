@@ -57,7 +57,7 @@ class LlmOperationRecord(BaseModel):
     def init_workspace_and_timestamp(self)->Self:
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
-        self.workspace = self.workspace or os.environ.get("WORKSPACE")
+        self.workspace = self.workspace or os.environ.get("WORKSPACE", "")
         return self
         
     @field_serializer("completion_args", when_used='json')
