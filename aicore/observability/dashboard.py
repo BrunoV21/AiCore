@@ -1,12 +1,12 @@
 from aicore.observability.collector import LlmOperationCollector
 
 import dash
-from dash import dcc, html, dash_table, callback, Input, Output, State
+from dash import dcc, html, dash_table, Input, Output, State
+import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Optional, Any
 from datetime import datetime, timedelta
 
 EXTERNAL_STYLESHEETS = [
@@ -62,60 +62,82 @@ class ObservabilityDashboard:
                 html.Div([
                     html.Div([
                         html.H3("Global Filters", style={"color": "white", "margin-bottom": "15px"}),
+                        # Workspace and Session in the same row
                         html.Div([
-                            html.Label("Workspace:", style={"color": "white"}),
-                            dcc.Dropdown(
-                                id='workspace-dropdown',
-                                multi=True,
-                                style={"background-color": "#333", "color": "white"}
-                            ),
-                        ], style={"margin-bottom": "10px"}),
-                        html.Div([
-                            html.Label("Session:", style={"color": "white"}),
-                            dcc.Dropdown(
-                                id='session-dropdown',
-                                multi=True,
-                                style={"background-color": "#333", "color": "white"}
-                            ),
-                        ], style={"margin-bottom": "10px"}),
-                        html.Div([
-                            html.Label("Date Range:", style={"color": "white"}),
-                            dcc.DatePickerRange(
-                                id='date-picker-range',
-                                start_date=(datetime.now() - timedelta(days=7)).date(),
-                                end_date=datetime.now().date(),
-                                display_format='YYYY-MM-DD',
-                                style={"background-color": "#333", "color": "white"}
-                            ),
-                        ], style={"margin-bottom": "10px"}),
-                        html.Div([
-                            html.Label("Provider:", style={"color": "white"}),
-                            dcc.Dropdown(
-                                id='provider-dropdown',
-                                multi=True,
-                                style={"background-color": "#333", "color": "white"}
-                            ),
-                        ], style={"margin-bottom": "10px"}),
-                        html.Div([
-                            html.Button('Refresh Data', id='refresh-data', n_clicks=0, className="btn btn-secondary btn-sm")
-                        ], style={"margin-bottom": "5px"}),
-                        html.Div([
-                            html.Label("Model:", style={"color": "white"}),
-                            dcc.Dropdown(
-                                id='model-dropdown',
-                                multi=True,
-                                style={"background-color": "#333", "color": "white"}
-                            ),
-                        ], style={"margin-bottom": "10px"}),
-                        html.Div([
-                            html.Label("Agent:", style={"color": "white"}),
-                            dcc.Dropdown(
-                                id='agent-dropdown',
-                                multi=True,
-                                style={"background-color": "#333", "color": "white"}
-                            ),
-                        ], style={"margin-bottom": "10px"}),
-                        html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
+                            html.Div([
+                                html.Label("Workspace:", style={"color": "white"}),
+                                dcc.Dropdown(
+                                    id='workspace-dropdown',
+                                    multi=True,
+                                    style={"background-color": "#333", "color": "white"}
+                                ),
+                            ], style={"flex": "1", "margin-right": "10px"}),
+
+                            html.Div([
+                                html.Label("Session:", style={"color": "white"}),
+                                dcc.Dropdown(
+                                    id='session-dropdown',
+                                    multi=True,
+                                    style={"background-color": "#333", "color": "white"}
+                                ),
+                            ], style={"flex": "1", "margin-left": "10px"}),
+                        ], style={"display": "flex", "margin-bottom": "10px"}),
+
+                        # Additional filters hidden inside an accordion
+                        dbc.Accordion(
+                            [
+                                dbc.AccordionItem(
+                                    [
+                                        html.Div([
+                                            html.Label("Date Range:", style={"color": "white"}),
+                                            dcc.DatePickerRange(
+                                                id='date-picker-range',
+                                                start_date=(datetime.now() - timedelta(days=7)).date(),
+                                                end_date=datetime.now().date(),
+                                                display_format='YYYY-MM-DD',
+                                                style={"background-color": "#333", "color": "white"}
+                                            ),
+                                        ], style={"margin-bottom": "10px"}),
+
+                                        html.Div([
+                                            html.Label("Provider:", style={"color": "white"}),
+                                            dcc.Dropdown(
+                                                id='provider-dropdown',
+                                                multi=True,
+                                                style={"background-color": "#333", "color": "white"}
+                                            ),
+                                        ], style={"margin-bottom": "10px"}),
+
+                                        html.Div([
+                                            html.Button('Refresh Data', id='refresh-data', n_clicks=0, className="btn btn-secondary btn-sm")
+                                        ], style={"margin-bottom": "5px"}),
+
+                                        html.Div([
+                                            html.Label("Model:", style={"color": "white"}),
+                                            dcc.Dropdown(
+                                                id='model-dropdown',
+                                                multi=True,
+                                                style={"background-color": "#333", "color": "white"}
+                                            ),
+                                        ], style={"margin-bottom": "10px"}),
+
+                                        html.Div([
+                                            html.Label("Agent:", style={"color": "white"}),
+                                            dcc.Dropdown(
+                                                id='agent-dropdown',
+                                                multi=True,
+                                                style={"background-color": "#333", "color": "white"}
+                                            ),
+                                        ], style={"margin-bottom": "10px"}),
+
+                                        html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
+                                    ],
+                                    title="Additional Filters"
+                                )
+                            ],
+                            start_collapsed=True,
+                            flush=True
+                        )
                     ], className="filter-panel"),
                 ], className="filter-container"),
             ], className="dashboard-header"),
