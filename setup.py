@@ -21,14 +21,14 @@ install_requires = [
 
 extras_require = {
     "dashboard": [
-        "dash==2.14.1",
+        "dash==2.18.2",
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
         "pyarrow==19.0.1"
     ],
     "all": [
-        "dash==2.14.1",
+        "dash==2.18.2",
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
