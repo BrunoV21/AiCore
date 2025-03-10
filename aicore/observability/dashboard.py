@@ -271,10 +271,13 @@ class ObservabilityDashboard:
                                         'textAlign': 'left',
                                         'padding': '10px',
                                         'minWidth': '100px', 'maxWidth': '300px',
-                                        'whiteSpace': 'normal',
-                                        'textOverflow': 'ellipsis',
+                                        'whiteSpace': 'nowrap',  # Prevents wrapping
+                                        'overflow': 'hidden',  # Hides overflow text
+                                        'textOverflow': 'ellipsis',  # Shows ellipsis for overflow text
                                         'backgroundColor': '#333',
-                                        'color': 'white'
+                                        'color': 'white',
+                                        'height': '24px',  # Defines row height (adjust based on font size)
+                                        'cursor': 'pointer'  # Indicates clickability
                                     },
                                     style_header={
                                         'backgroundColor': '#444',
