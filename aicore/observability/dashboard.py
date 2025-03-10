@@ -63,6 +63,22 @@ class ObservabilityDashboard:
                     html.Div([
                         html.H3("Global Filters", style={"color": "white", "margin-bottom": "15px"}),
                         html.Div([
+                            html.Label("Workspace:", style={"color": "white"}),
+                            dcc.Dropdown(
+                                id='workspace-dropdown',
+                                multi=True,
+                                style={"background-color": "#333", "color": "white"}
+                            ),
+                        ], style={"margin-bottom": "10px"}),
+                        html.Div([
+                            html.Label("Session:", style={"color": "white"}),
+                            dcc.Dropdown(
+                                id='session-dropdown',
+                                multi=True,
+                                style={"background-color": "#333", "color": "white"}
+                            ),
+                        ], style={"margin-bottom": "10px"}),
+                        html.Div([
                             html.Label("Date Range:", style={"color": "white"}),
                             dcc.DatePickerRange(
                                 id='date-picker-range',
@@ -98,9 +114,8 @@ class ObservabilityDashboard:
                                 multi=True,
                                 style={"background-color": "#333", "color": "white"}
                             ),
-                        ], style={"margin-bottom": "15px"}),
-                        html.Button('Apply Filters', id='apply-filters', n_clicks=0,
-                                    className="btn btn-primary btn-block"),
+                        ], style={"margin-bottom": "10px"}),
+                        html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
                     ], className="filter-panel"),
                 ], className="filter-container"),
             ], className="dashboard-header"),
@@ -305,27 +320,40 @@ class ObservabilityDashboard:
         
         @self.app.callback(
             [Output('provider-dropdown', 'options'),
-             Output('model-dropdown', 'options'),
-             Output('agent-dropdown', 'options')],
-            [Input('apply-filters', 'n_clicks')]
+            Output('model-dropdown', 'options'),
+            Output('agent-dropdown', 'options'),
+            Output('session-dropdown', 'options'),
+            Output('workspace-dropdown', 'options')],
+            [Input('apply-filters', 'n_clicks'),
+            Input('workspace-dropdown', 'value')]
         )
-        def update_dropdowns(_):
-            """Update dropdown options based on available data."""
+        def update_dropdowns(n_clicks, selected_workspaces):
+            """Update dropdown options based on available data, filtering by workspace if provided."""
             if self.df.is_empty():
-                return [], [], []
+                return [], [], [], [], []
             
-            providers = self.df["provider"].unique().to_list()
-            models = self.df["model"].unique().to_list()
-            agents = [a for a in self.df["agent_id"].unique().to_list() if a]  # Filter empty agent IDs
+            # Compute workspace options from the full dataframe
+            workspaces = self.df["workspace"].unique().to_list()
+            workspace_options = [{'label': w, 'value': w} for w in workspaces]
+            
+            # If a workspace filter is applied, filter the dataframe accordingly
+            df_filtered = self.df
+            if selected_workspaces:
+                df_filtered = self.df.filter(pl.col("workspace").is_in(selected_workspaces))
+            
+            # Compute other dropdown options from the filtered dataframe
+            providers = df_filtered["provider"].unique().to_list()
+            models = df_filtered["model"].unique().to_list()
+            sessions = df_filtered["session_id"].unique().to_list()
+            agents = [a for a in df_filtered["agent_id"].unique().to_list() if a]  # Filter empty agent IDs
             
             provider_options = [{'label': p, 'value': p} for p in providers]
             model_options = [{'label': m, 'value': m} for m in models]
-            agent_options = []
-            for a in agents:
-                agent_options.append({'label': a} if a else {'No Agent: value': a})
+            session_options = [{'label': s, 'value': s} for s in sessions]
+            agent_options = [{'label': a, 'value': a} for a in agents]
             
-            return provider_options, model_options, agent_options
-        
+            return provider_options, model_options, agent_options, session_options, workspace_options
+
         @self.app.callback(
             [
                 # Overview Tab
@@ -370,13 +398,15 @@ class ObservabilityDashboard:
             [Input('apply-filters', 'n_clicks'), Input('refresh-data', 'n_clicks')],
             [State('date-picker-range', 'start_date'),
             State('date-picker-range', 'end_date'),
+            State('session-dropdown', 'value'),
+            State('workspace-dropdown', 'value'),
             State('provider-dropdown', 'value'),
             State('model-dropdown', 'value'),
             State('agent-dropdown', 'value')]
         )
-        def update_dashboard(n_clicks, refresh_clicks, start_date, end_date, providers, models, agents):
+        def update_dashboard(n_clicks, refresh_clicks, start_date, end_date, session_id, workspace, providers, models, agents):
             """Update dashboard visualizations based on filters."""
-            filtered_df = self.filter_data(start_date, end_date, providers, models, agents)
+            filtered_df = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
             
             if filtered_df.is_empty():
                 # Return empty visualizations if no data
@@ -814,7 +844,7 @@ class ObservabilityDashboard:
                 table_data, table_columns
             )
     
-    def filter_data(self, start_date, end_date, providers, models, agents):
+    def filter_data(self, start_date, end_date, session_id, workspace, providers, models, agents):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
         #TODO implement filter in polars
