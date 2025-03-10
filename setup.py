@@ -22,6 +22,7 @@ install_requires = [
 extras_require = {
     "dashboard": [
         "dash==2.18.2",
+        "dash_bootstrap_components==1.7.1",
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
@@ -29,6 +30,7 @@ extras_require = {
     ],
     "all": [
         "dash==2.18.2",
+        "dash_bootstrap_components==1.7.1",
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
