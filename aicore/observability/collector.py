@@ -245,3 +245,5 @@ class LlmOperationCollector(RootModel):
         except ModuleNotFoundError:
             print("pip install -r requirements-dashboard.txt")
             return None
+        
+#TODO add pg integration via env var

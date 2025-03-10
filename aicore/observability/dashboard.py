@@ -994,6 +994,10 @@ class ObservabilityDashboard:
         self.app.run_server(debug=debug, port=port, host=host)
 
 if __name__ == "__main__":
+    #TODO add apply_fitlers to global filters
+    #TODO fix css for dropdowns and co
+    #TODO add overview like indicators for the remaining tabs
+    #TODO add cross workspace abaysis by integrating workspaces into tokens and cost
     od = ObservabilityDashboard()
     print(od.df)
     od.run_server()
