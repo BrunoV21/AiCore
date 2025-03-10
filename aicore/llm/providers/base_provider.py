@@ -17,6 +17,7 @@ import ulid
 class LlmBaseProvider(BaseModel):
     config: LlmConfig
     session_id: str = Field(default_factory=ulid.ulid)
+    worspace: Optional[str]=None
     agent_id: Optional[str]=None
     _client: Any = None
     _aclient: Any = None
@@ -156,11 +157,15 @@ class LlmBaseProvider(BaseModel):
             return await func(*args, *inner_args, **kwargs, **inner_kwargs)
         return wrapped
     
-    def use_as_reasoner(self, session_id :Optional[str]=None, stop_thinking_token: str = REASONING_STOP_TOKEN):
+    def use_as_reasoner(self, 
+                        session_id :Optional[str]=None,
+                        workspace :Optional[str]=None,
+                        stop_thinking_token: str = REASONING_STOP_TOKEN):
         """
         pass stop token to completion fn
         """
         self.session_id = session_id
+        self.worspace = workspace
         self.completion_fn = partial(self.completion_fn, stop=stop_thinking_token)
         self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)
         self._is_reasoner = True
@@ -363,6 +368,7 @@ class LlmBaseProvider(BaseModel):
                     completion_args=completion_args,
                     response=output,
                     session_id=self.session_id,
+                    workspace=self.worspace,
                     agent_id=agent_id or self.agent_id,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
@@ -434,6 +440,7 @@ class LlmBaseProvider(BaseModel):
                     completion_args=completion_args,
                     response=output,
                     session_id=self.session_id,
+                    workspace=self.worspace,
                     agent_id=agent_id or self.agent_id,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,

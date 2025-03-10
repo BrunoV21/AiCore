@@ -64,10 +64,14 @@ class Llm(BaseModel):
     @session_id.setter
     def session_id(self, value :str):
         self.provider.session_id = value
+
+    @computed_field
+    def workspace(self)->Optional[str]:
+        return self.provider.worspace
     
-    @session_id.setter
-    def session_id(self, session_id):
-        self._session_id = session_id
+    @workspace.setter
+    def workspace(self, workspace):
+        self.provider.workspace = workspace
 
     @property
     def logger_fn(self)->Callable[[str], None]:
@@ -89,7 +93,7 @@ class Llm(BaseModel):
     def reasoner(self, reasoning_llm :"Llm"):
         self._reasoner = reasoning_llm
         self._reasoner.system_prompt = REASONER_DEFAULT_SYSTEM_PROMPT
-        self._reasoner.provider.use_as_reasoner(self.session_id)
+        self._reasoner.provider.use_as_reasoner(self.session_id, self.workspace)
     
     @model_validator(mode="after")
     def start_provider(self)->Self:

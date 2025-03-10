@@ -11,6 +11,7 @@ import os
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
     session_id: Optional[str] = ""
+    workspace: Optional[str] = ""
     agent_id: Optional[str] = ""
     operation_id: str = Field(default_factory=ulid.ulid)
     timestamp: Optional[str] = ""
@@ -27,7 +28,7 @@ class LlmOperationRecord(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    @field_validator(*["session_id", "agent_id", "timestamp", "error_message", "response"])
+    @field_validator(*["session_id", "workspace", "agent_id", "timestamp", "error_message", "response"])
     @classmethod
     def ensure_non_nulls(cls, value :Optional[str]=None)->str:
         if value is None:
@@ -53,9 +54,10 @@ class LlmOperationRecord(BaseModel):
             return args
         
     @model_validator(mode="after")
-    def init_timestamp(self)->Self:
+    def init_workspace_and_timestamp(self)->Self:
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
+        self.workspace = self.workspace or os.environ.get("WORKSPACE", "")
         return self
         
     @field_serializer("completion_args", when_used='json')
@@ -123,6 +125,7 @@ class LlmOperationRecord(BaseModel):
         """Ensure a cohesive field order during serialization."""
         return {
             "session_id": self.session_id,
+            "workspace": self.workspace,
             "agent_id": self.agent_id,
             "timestamp": self.timestamp,
             "operation_id": self.operation_id,
@@ -165,6 +168,7 @@ class LlmOperationCollector(RootModel):
             provider :str,
             response: Optional[Union[str, Dict[str, str]]] = None,
             session_id :Optional[str]=None,
+            workspace :Optional[str]=None,
             agent_id: Optional[str]=None,
             input_tokens: Optional[int]=0,
             output_tokens: Optional[int]=0,
@@ -178,6 +182,7 @@ class LlmOperationCollector(RootModel):
         record = LlmOperationRecord(
             session_id=session_id,
             agent_id=agent_id,
+            workspace=workspace,
             provider=provider,
             operation_type=operation_type,
             input_tokens=input_tokens,
@@ -240,3 +245,5 @@ class LlmOperationCollector(RootModel):
         except ModuleNotFoundError:
             print("pip install -r requirements-dashboard.txt")
             return None
+        
+#TODO add pg integration via env var
