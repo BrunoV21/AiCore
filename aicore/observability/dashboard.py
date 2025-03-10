@@ -52,7 +52,7 @@ class ObservabilityDashboard:
             hour=pl.col("date").dt.hour(),
             minute=pl.col("date").dt.minute()
         )
-        
+    
     def _setup_layout(self):
         """Set up the dashboard layout with tabs."""
         self.app.layout = html.Div([
@@ -76,7 +76,7 @@ class ObservabilityDashboard:
                             html.Label("Provider:", style={"color": "white"}),
                             dcc.Dropdown(
                                 id='provider-dropdown',
-                                multi=True, 
+                                multi=True,
                                 style={"background-color": "#333", "color": "white"}
                             ),
                         ], style={"margin-bottom": "10px"}),
@@ -87,7 +87,7 @@ class ObservabilityDashboard:
                             html.Label("Model:", style={"color": "white"}),
                             dcc.Dropdown(
                                 id='model-dropdown',
-                                multi=True, 
+                                multi=True,
                                 style={"background-color": "#333", "color": "white"}
                             ),
                         ], style={"margin-bottom": "10px"}),
@@ -95,7 +95,7 @@ class ObservabilityDashboard:
                             html.Label("Agent:", style={"color": "white"}),
                             dcc.Dropdown(
                                 id='agent-dropdown',
-                                multi=True, 
+                                multi=True,
                                 style={"background-color": "#333", "color": "white"}
                             ),
                         ], style={"margin-bottom": "15px"}),
@@ -130,7 +130,7 @@ class ObservabilityDashboard:
                                 ], className="chart-box"),
                             ], className="chart-row"),
 
-                            # Row 2: Two charts (with an optional empty placeholder for layout consistency)
+                            # Row 2: Two charts (with a placeholder)
                             html.Div([
                                 html.Div([
                                     html.H3("Model Distribution"),
@@ -140,7 +140,7 @@ class ObservabilityDashboard:
                                     html.H3("Operation Type Distribution"),
                                     dcc.Graph(id='operation-type-distribution')
                                 ], className="chart-box"),
-                                html.Div([], className="chart-box")  # empty placeholder if needed
+                                html.Div([], className="chart-box")
                             ], className="chart-row"),
                         ], className="tab-content")
                     ]),
@@ -163,7 +163,7 @@ class ObservabilityDashboard:
                                     dcc.Graph(id='latency-by-model')
                                 ], className="chart-box"),
                             ], className="chart-row"),
-                            # Row 2: Single chart (or add placeholders)
+                            # Row 2: Single chart with placeholders
                             html.Div([
                                 html.Div([
                                     html.H3("Latency Timeline"),
@@ -193,7 +193,7 @@ class ObservabilityDashboard:
                                     dcc.Graph(id='token-distribution')
                                 ], className="chart-box"),
                             ], className="chart-row"),
-                            # Row 2: Single chart
+                            # Row 2: Single chart with placeholders
                             html.Div([
                                 html.Div([
                                     html.H3("Cost Analysis"),
@@ -208,7 +208,7 @@ class ObservabilityDashboard:
                     # Cost Analysis Tab
                     dcc.Tab(label='Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
-                            # Row with two charts and a placeholder
+                            # Row: Two charts and a placeholder
                             html.Div([
                                 html.Div([
                                     html.H3("Cost by Provider & Model"),
@@ -241,13 +241,25 @@ class ObservabilityDashboard:
                                     dcc.Graph(id='agent-model-preference')
                                 ], className="chart-box"),
                             ], className="chart-row"),
-                            # Row 2: Single chart
+                            # Row 2: Single chart with placeholders
                             html.Div([
                                 html.Div([
                                     html.H3("Agent Provider Preference"),
                                     dcc.Graph(id='agent-provider-preference')
                                 ], className="chart-box"),
                                 html.Div([], className="chart-box"),
+                                html.Div([], className="chart-box")
+                            ], className="chart-row"),
+                            # Row 3: Two new charts and a placeholder
+                            html.Div([
+                                html.Div([
+                                    html.H3("Total Tokens by Agent"),
+                                    dcc.Graph(id='agent-tokens')
+                                ], className="chart-box"),
+                                html.Div([
+                                    html.H3("Total Cost by Agent"),
+                                    dcc.Graph(id='agent-cost')
+                                ], className="chart-box"),
                                 html.Div([], className="chart-box")
                             ], className="chart-row"),
                         ], className="tab-content")
@@ -348,6 +360,9 @@ class ObservabilityDashboard:
                 Output('agent-performance', 'figure'),
                 Output('agent-model-preference', 'figure'),
                 Output('agent-provider-preference', 'figure'),
+                # New outputs for tokens and cost by agent:
+                Output('agent-tokens', 'figure'),
+                Output('agent-cost', 'figure'),
                 
                 # Additional Observability Plot
                 Output('operation-type-distribution', 'figure'),
@@ -376,6 +391,15 @@ class ObservabilityDashboard:
                                         values='count',
                                         template=TEMPLATE,
                                         title="Operation Type Distribution"),)
+                # Also append empty figures for the new agent tokens and cost plots
+                empty_outputs += (px.bar({"agent_id": ["No data"], "total_tokens": [0]},
+                                        x="agent_id", y="total_tokens",
+                                        template=TEMPLATE,
+                                        title="Total Tokens by Agent"),
+                                px.bar({"agent_id": ["No data"], "total_cost": [0]},
+                                        x="agent_id", y="total_cost",
+                                        template=TEMPLATE,
+                                        title="Total Cost by Agent"))
                 return empty_outputs
             
             # Overview Tab
@@ -493,7 +517,6 @@ class ObservabilityDashboard:
             ).group_by("provider").agg(
                 pl.col("efficiency").mean().alias("tokens_per_ms")
             )
-            
             token_efficiency_fig = px.bar(
                 token_efficiency.sort("tokens_per_ms", descending=True),
                 x="provider",
@@ -707,6 +730,50 @@ class ObservabilityDashboard:
                     title="No agent data available"
                 )
             
+            # New: Tokens consumed by agent
+            if agent_data.height > 0:
+                tokens_by_agent = agent_data.group_by("agent_id").agg(
+                    pl.col("total_tokens").sum().alias("total_tokens")
+                )
+                agent_tokens_fig = px.bar(
+                    tokens_by_agent.sort("total_tokens", descending=True),
+                    x="agent_id",
+                    y="total_tokens",
+                    template=TEMPLATE,
+                    title="Total Tokens by Agent"
+                )
+                agent_tokens_fig.update_layout(yaxis_title="Total Tokens")
+            else:
+                agent_tokens_fig = px.bar(
+                    {"agent_id": ["No agent data"], "total_tokens": [0]},
+                    x="agent_id",
+                    y="total_tokens",
+                    template=TEMPLATE,
+                    title="No token data available"
+                )
+            
+            # New: Cost incurred by agent
+            if agent_data.height > 0:
+                cost_by_agent = agent_data.filter(pl.col("cost") > 0).group_by("agent_id").agg(
+                    pl.col("cost").sum().alias("total_cost")
+                )
+                agent_cost_fig = px.bar(
+                    cost_by_agent.sort("total_cost", descending=True),
+                    x="agent_id",
+                    y="total_cost",
+                    template=TEMPLATE,
+                    title="Total Cost by Agent"
+                )
+                agent_cost_fig.update_layout(yaxis_title="Total Cost ($)")
+            else:
+                agent_cost_fig = px.bar(
+                    {"agent_id": ["No agent data"], "total_cost": [0]},
+                    x="agent_id",
+                    y="total_cost",
+                    template=TEMPLATE,
+                    title="No cost data available"
+                )
+            
             # Additional Observability Plot: Operation Type Distribution
             op_type_data = filtered_df.group_by("operation_type").agg(pl.len().alias("count"))
             op_type_fig = px.pie(
@@ -718,11 +785,7 @@ class ObservabilityDashboard:
             )
             
             # Operations Data Tab
-            display_columns = [
-                "timestamp", "operation_id", "session_id", "agent_id", "provider", 
-                "model", "operation_type", "success", "latency_ms", "input_tokens", 
-                "output_tokens", "total_tokens", "cost", "error_message"
-            ]
+            display_columns = filtered_df.columns
             table_data = filtered_df.select(display_columns).to_dicts()
             table_columns = [{"name": i, "id": i} for i in display_columns]
             
@@ -741,6 +804,7 @@ class ObservabilityDashboard:
                 
                 # Agent Analysis Tab
                 agent_dist_fig, agent_perf_fig, agent_model_fig, agent_provider_fig,
+                agent_tokens_fig, agent_cost_fig,
                 
                 # Additional Observability Plot
                 op_type_fig,
@@ -748,7 +812,7 @@ class ObservabilityDashboard:
                 # Operations Data Tab
                 table_data, table_columns
             )
-            
+    
     def filter_data(self, start_date, end_date, providers, models, agents):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
