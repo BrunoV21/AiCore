@@ -729,16 +729,21 @@ class ObservabilityDashboard:
             # New: Tokens consumed by agent
             if agent_data.height > 0:
                 tokens_by_agent = agent_data.group_by("agent_id").agg(
-                    pl.col("total_tokens").sum().alias("total_tokens")
+                    pl.col("total_tokens").sum().alias("total_tokens"),
+                    pl.col("input_tokens").sum().alias("input_tokens"),
+                    pl.col("output_tokens").sum().alias("output_tokens")
                 )
                 agent_tokens_fig = px.bar(
                     tokens_by_agent.sort("total_tokens", descending=True),
                     x="agent_id",
-                    y="total_tokens",
+                    y=["total_tokens", "input_tokens", "output_tokens"],
                     template=TEMPLATE,
-                    title="Total Tokens by Agent"
+                    title="Tokens by Agent"
                 )
-                agent_tokens_fig.update_layout(yaxis_title="Total Tokens")
+                agent_tokens_fig.update_layout(
+                    yaxis_title="Tokens",
+                    barmode="group"
+                )
             else:
                 agent_tokens_fig = px.bar(
                     {"agent_id": ["No agent data"], "total_tokens": [0]},
