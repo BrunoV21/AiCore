@@ -108,161 +108,154 @@ class ObservabilityDashboard:
             # Tabs container
             html.Div([
                 dcc.Tabs(id="dashboard-tabs", value='overview-tab', className="custom-tabs", children=[
+
                     # Overview Tab
                     dcc.Tab(label='Overview', value='overview-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
-                            # Full-width metrics at the top
                             html.Div(id='overview-metrics', className="metrics-container"),
 
-                            # Row 1: Three charts side by side
                             html.Div([
                                 html.Div([
                                     html.H3("Request Volume Over Time"),
                                     dcc.Graph(id='requests-time-series')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Success Rate by Provider"),
                                     dcc.Graph(id='success-rate-chart')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+
+                            html.Div([
                                 html.Div([
                                     html.H3("Provider-Model Distribution"),
                                     dcc.Graph(id='provider-model-sunburst')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-
-                            # Row 2: Two charts (with a placeholder)
-                            html.Div([
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Model Distribution"),
                                     dcc.Graph(id='model-distribution')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Operation Type Distribution"),
                                     dcc.Graph(id='operation-type-distribution')
-                                ], className="chart-box"),
-                                html.Div([], className="chart-box")
-                            ], className="chart-row"),
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
                         ], className="tab-content")
                     ]),
 
                     # Performance Tab
                     dcc.Tab(label='Performance', value='performance-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
-                            # Row 1: Three charts
+                            # Row 1: Overall latency stats
                             html.Div([
                                 html.Div([
                                     html.H3("Latency Distribution"),
                                     dcc.Graph(id='latency-histogram')
-                                ], className="chart-box"),
-                                html.Div([
-                                    html.H3("Latency by Provider"),
-                                    dcc.Graph(id='latency-by-provider')
-                                ], className="chart-box"),
-                                html.Div([
-                                    html.H3("Latency by Model"),
-                                    dcc.Graph(id='latency-by-model')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                            # Row 2: Single chart with placeholders
-                            html.Div([
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Latency Timeline"),
                                     dcc.Graph(id='latency-timeline')
-                                ], className="chart-box"),
-                                html.Div([], className="chart-box"),
-                                html.Div([], className="chart-box")
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+                            
+                            # Row 2: Latency comparisons
+                            html.Div([
+                                html.Div([
+                                    html.H3("Latency by Provider"),
+                                    dcc.Graph(id='latency-by-provider')
+                                ], style={'flex': '1', 'padding': '10px'}),
+                                html.Div([
+                                    html.H3("Latency by Model"),
+                                    dcc.Graph(id='latency-by-model')
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
 
                     # Token Usage Tab
                     dcc.Tab(label='Token Usage', value='token-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
-                            # Row 1: Three charts
+                            # Row 1: Token efficiency and usage
                             html.Div([
                                 html.Div([
                                     html.H3("Token Efficiency"),
                                     dcc.Graph(id='token-efficiency-chart')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Token Usage by Model"),
                                     dcc.Graph(id='token-by-model')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+                            
+                            # Row 2: Token distribution and cost analysis
+                            html.Div([
                                 html.Div([
                                     html.H3("Input vs Output Tokens"),
                                     dcc.Graph(id='token-distribution')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                            # Row 2: Single chart with placeholders
-                            html.Div([
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Cost Analysis"),
                                     dcc.Graph(id='cost-analysis')
-                                ], className="chart-box"),
-                                html.Div([], className="chart-box"),
-                                html.Div([], className="chart-box")
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
 
                     # Cost Analysis Tab
                     dcc.Tab(label='Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
-                            # Row: Two charts and a placeholder
+                            # Row 1: Cost breakdown and cost per token
                             html.Div([
                                 html.Div([
                                     html.H3("Cost by Provider & Model"),
                                     dcc.Graph(id='cost-breakdown-sunburst')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Cost per Token"),
                                     dcc.Graph(id='cost-per-token')
-                                ], className="chart-box"),
-                                html.Div([], className="chart-box")
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
 
                     # Agent Analysis Tab
                     dcc.Tab(label='Agent Analysis', value='agent-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
-                            # Row 1: Three charts
+                            # Row 1: Overall agent usage and performance
                             html.Div([
                                 html.Div([
                                     html.H3("Agent Usage Distribution"),
                                     dcc.Graph(id='agent-distribution')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Agent Performance"),
                                     dcc.Graph(id='agent-performance')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+
+                            # Row 2: Agent preferences
+                            html.Div([
                                 html.Div([
                                     html.H3("Agent Model Preference"),
                                     dcc.Graph(id='agent-model-preference')
-                                ], className="chart-box"),
-                            ], className="chart-row"),
-                            # Row 2: Single chart with placeholders
-                            html.Div([
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Agent Provider Preference"),
                                     dcc.Graph(id='agent-provider-preference')
-                                ], className="chart-box"),
-                                html.Div([], className="chart-box"),
-                                html.Div([], className="chart-box")
-                            ], className="chart-row"),
-                            # Row 3: Two new charts and a placeholder
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'}),
+
+                            # Row 3: Token and cost consumption by agent
                             html.Div([
                                 html.Div([
                                     html.H3("Total Tokens by Agent"),
                                     dcc.Graph(id='agent-tokens')
-                                ], className="chart-box"),
+                                ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
                                     html.H3("Total Cost by Agent"),
                                     dcc.Graph(id='agent-cost')
-                                ], className="chart-box"),
-                                html.Div([], className="chart-box")
-                            ], className="chart-row"),
-                        ], className="tab-content")
+                                ], style={'flex': '1', 'padding': '10px'})
+                            ], style={'display': 'flex'})
+                        ], style={'padding': '10px'})
                     ]),
 
                     # Operations Tab
@@ -299,7 +292,7 @@ class ObservabilityDashboard:
                                 )
                             ], className="table-container")
                         ], className="tab-content")
-                    ]),
+                    ])
                 ]),
             ], className="tabs-container"),
         ], className="dashboard-wrapper")
