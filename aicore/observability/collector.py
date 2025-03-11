@@ -179,6 +179,7 @@ class LlmOperationCollector(RootModel):
             try:
                 self.db_conn = psycopg2.connect(pg_conn_str)
                 self._init_db_table()
+                self._db_init_called = True
             except Exception as e:
                 # Logging of error can be added here if desired.
                 self.db_conn = None
@@ -323,6 +324,7 @@ class LlmOperationCollector(RootModel):
         cur.execute(create_table_sql)
         self.db_conn.commit()
         cur.close()
+        self._table_initialized = True
 
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """
@@ -346,3 +348,4 @@ class LlmOperationCollector(RootModel):
         cur.execute(insert_sql, data)
         self.db_conn.commit()
         cur.close()
+        self._last_inserted_record = record.operation_id
