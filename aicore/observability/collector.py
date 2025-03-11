@@ -351,7 +351,8 @@ class LlmOperationCollector(RootModel):
             %(error_message)s, %(completion_args)s
         )
         """
-        data = record.model_dump()
+        # Use the custom serializer to ensure computed fields are included
+        data = record.serialize_model()
         cur = self.db_conn.cursor()
         cur.execute(insert_sql, data)
         self.db_conn.commit()
