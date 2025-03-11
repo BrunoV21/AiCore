@@ -34,7 +34,8 @@ extras_require = {
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
-        "pyarrow==19.0.1"
+        "pyarrow==19.0.1",
+        "psycopg2"
     ]
 }
 
