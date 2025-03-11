@@ -168,7 +168,7 @@ class LlmOperationRecord(BaseModel):
 class LlmOperationCollector(RootModel):
     root: List[LlmOperationRecord] = []
     _storage_path: Optional[Union[str, Path]] = None
-    db_conn: Optional[psycopg2.extensions.connection] = None
+    _db_conn: Optional[psycopg2.extensions.connection] = None
 
     def __init__(self, **data: Any):
         super().__init__(**data)
@@ -189,6 +189,14 @@ class LlmOperationCollector(RootModel):
     @property
     def storage_path(self) -> Optional[Union[str, Path]]:
         return self._storage_path
+
+    @property
+    def db_conn(self)->Optional[psycopg2.extensions.connection]:
+        return self._db_conn
+
+    @db_conn.setter    
+    def db_conn(self, connection :Optional[psycopg2.extensions.connection]):
+        self._db_conn = connection
 
     @storage_path.setter
     def storage_path(self, value: Union[str, Path]):
