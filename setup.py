@@ -35,7 +35,8 @@ extras_require = {
         "plotly==5.18.0",
         "polars==1.24.0",
         "pyarrow==19.0.1",
-        "psycopg2"
+        "psycopg2",
+        "python-dotenv"
     ]
 }
 
