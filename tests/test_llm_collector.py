@@ -38,11 +38,6 @@ class FakeConn:
     def commit(self):
         pass
 
-
-# ===========================
-# Original Tests
-# ===========================
-
 class TestLlmOperationRecord:
     def test_init_with_minimal_args(self):
         """Test initializing with only required fields."""
@@ -124,7 +119,6 @@ class TestLlmOperationRecord:
         # Test with response
         record.response = "Test response"
         assert record.success is True
-
 
 class TestLlmOperationCollectorFileStorage:
     def test_init(self):
@@ -260,11 +254,6 @@ class TestIntegrationFileStorage:
             assert data[1]["model"] == "gpt-3.5-turbo"
             assert data[1]["response"] == "I'm fine, thank you!"
 
-
-# ===========================
-# V2: PostgreSQL Integration Tests
-# ===========================
-
 class TestLlmOperationCollectorPostgres:
     def test_db_connection_established(self, monkeypatch):
         """
@@ -304,17 +293,24 @@ class TestLlmOperationCollectorPostgres:
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         executed_queries = []
-
+        
         class FakeCursorForInsert(FakeCursor):
-            def execute(self, query, params):
+            def execute(self, query, params=None):
                 executed_queries.append(query)
-
+        
         class FakeConnForInsert(FakeConn):
             def cursor(self):
                 return FakeCursorForInsert(executed_queries)
-
-        monkeypatch.setattr(psycopg2, "connect", lambda conn_str: FakeConnForInsert())
+        
+        # Create a single connection instance to be reused
+        fake_conn = FakeConnForInsert()
+        monkeypatch.setattr(psycopg2, "connect", lambda conn_str: fake_conn)
+        
         collector = LlmOperationCollector()
+        
+        # Clear the queries after initialization
+        executed_queries.clear()
+        
         record = collector.record_completion(
             completion_args={"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]},
             operation_type="completion",
@@ -324,6 +320,10 @@ class TestLlmOperationCollectorPostgres:
             output_tokens=5,
             latency_ms=150.0
         )
+        
+        # Print for debugging
+        print(f"Executed queries: {executed_queries}")
+        
         insertion_queries = [q for q in executed_queries if "INSERT INTO observability" in q]
         assert len(insertion_queries) == 1, "Record insertion SQL was not executed properly."
 
@@ -345,11 +345,6 @@ class TestLlmOperationCollectorPostgres:
         monkeypatch.setattr(psycopg2, "connect", lambda conn_str: (_ for _ in ()).throw(Exception("Connection failed")))
         collector = LlmOperationCollector()
         assert collector.db_conn is None, "Database connection should be None after a connection failure."
-
-
-# ===========================
-# V2: Integration Test for File Storage
-# ===========================
 
 class TestIntegrationStorage:
     """
