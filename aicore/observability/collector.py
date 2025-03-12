@@ -1,12 +1,3 @@
-
-"""
-Observability module for tracking LLM completion operations.
-
-This module provides tools to collect, store, and visualize data about LLM operations,
-including completion arguments, responses, and performance metrics.
-"""
-
-from dotenv import load_dotenv
 import os
 import json
 from datetime import datetime
@@ -14,14 +5,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Union, Literal, Self
 
 import ulid
-import psycopg2
-import psycopg2.extensions
-
 from pydantic import BaseModel, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
 
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
-# (Other imports used by legacy code remain unchanged)
-
 
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
@@ -168,34 +154,36 @@ class LlmOperationRecord(BaseModel):
 class LlmOperationCollector(RootModel):
     root: List[LlmOperationRecord] = []
     _storage_path: Optional[Union[str, Path]] = None
-    _db_conn: Optional[psycopg2.extensions.connection] = None
+    _db_conn: Optional["psycopg2.extensions.connection"] = None # noqa: F821
 
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-        # Load environment variables from .env file so that PG_CONNECTION_STRING (and others) are available
-        load_dotenv()
-        pg_conn_str = os.getenv("PG_CONNECTION_STRING")
-        if pg_conn_str:
-            try:
-                self.db_conn = psycopg2.connect(pg_conn_str)
-                self._init_db_table()
-                self._db_init_called = True
-            except Exception as e:
-                # Logging of error can be added here if desired.
-                self.db_conn = None
-        else:
-            self.db_conn = None
+    @model_validator(mode="after")
+    def init_db_conn(self)->Self:
+        try:
+            import psycopg2
+            import psycopg2.extensions
+            conn_str = os.environ.get("PG_CONNECTION_STRING")
+            if conn_str:
+                try:
+                    self.db_conn = psycopg2.connect(conn_str)
+                    self._init_db_table()
+                except Exception as e:
+                    print(f"Database connection failed: {str(e)}")
+                    self._db_conn = None
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError("pip install aicore[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
+
+        return self
 
     @property
     def storage_path(self) -> Optional[Union[str, Path]]:
         return self._storage_path
 
     @property
-    def db_conn(self)->Optional[psycopg2.extensions.connection]:
+    def db_conn(self)->Optional["psycopg2.extensions.connection"]: # noqa: F821
         return self._db_conn
 
     @db_conn.setter    
-    def db_conn(self, connection :Optional[psycopg2.extensions.connection]):
+    def db_conn(self, connection :Optional["psycopg2.extensions.connection"]): # noqa: F821
         self._db_conn = connection
 
     @storage_path.setter
@@ -260,11 +248,10 @@ class LlmOperationCollector(RootModel):
         output_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
-        success: bool = True,
         error_message: Optional[str] = None
     ) -> LlmOperationRecord:
 
-        # Clean request args to remove potentially sensitive or large objects
+        # Clean request argjs to remove potentially sensitive or large objects
         cleaned_args = self._clean_completion_args(completion_args)
 
         record = LlmOperationRecord(
