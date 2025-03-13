@@ -28,13 +28,19 @@ extras_require = {
         "polars==1.24.0",
         "pyarrow==19.0.1"
     ],
+    "pg": [
+        "psycopg2==2.9.10",
+        "python-dotenv==1.0.1"
+    ],
     "all": [
         "dash==2.18.2",
         "dash_bootstrap_components==1.7.1",
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
-        "pyarrow==19.0.1"
+        "pyarrow==19.0.1",      
+        "psycopg2==2.9.10",
+        "python-dotenv==1.0.1"
     ]
 }
 
