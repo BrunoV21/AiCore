@@ -345,3 +345,292 @@ class LlmOperationCollector(RootModel):
         self.db_conn.commit()
         cur.close()
         self._last_inserted_record = record.operation_id
+
+    @classmethod
+    def polars_from_pg(cls, 
+                    provider: Optional[str] = None,
+                    model: Optional[str] = None, 
+                    agent_id: Optional[str] = None,
+                    session_id: Optional[str] = None,
+                    workspace: Optional[str] = None,
+                    start_date: Optional[str] = None,
+                    end_date: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+        """
+        Query the PostgreSQL database and return results as a Polars DataFrame.
+        
+        Parameters:
+        - provider: Filter by LLM provider (e.g., 'groq', 'gemini')
+        - model: Filter by model name
+        - agent_id: Filter by agent ID
+        - session_id: Filter by session ID
+        - workspace: Filter by workspace
+        - start_date: Filter by start date (ISO format: YYYY-MM-DDThh:mm:ss)
+        - end_date: Filter by end date (ISO format: YYYY-MM-DDThh:mm:ss)
+        
+        Returns:
+        - Polars DataFrame containing the filtered records
+        """
+        try:
+            import polars as pl
+            import psycopg2
+            import psycopg2.extras
+        except ModuleNotFoundError:
+            print("pip install aicore[pg,dashboard] for PostgreSQL and Polars integration")
+            return None
+        
+        obj = cls()
+        conn_str = os.environ.get("PG_CONNECTION_STRING")
+        if not conn_str:
+            print("PostgreSQL connection string not found in environment variables")
+            return None
+        
+        try:
+            conn = psycopg2.connect(conn_str)
+        except Exception as e:
+            print(f"Database connection failed: {str(e)}")
+            return None
+        
+        # Build query with parameterized filters
+        query = "SELECT * FROM observability WHERE 1=1"
+        params = {}
+        
+        if provider:
+            query += " AND provider = %(provider)s"
+            params['provider'] = provider
+        
+        if model:
+            query += " AND model = %(model)s"
+            params['model'] = model
+        
+        if agent_id:
+            query += " AND agent_id = %(agent_id)s"
+            params['agent_id'] = agent_id
+        
+        if session_id:
+            query += " AND session_id = %(session_id)s"
+            params['session_id'] = session_id
+        
+        if workspace:
+            query += " AND workspace = %(workspace)s"
+            params['workspace'] = workspace
+        
+        if start_date:
+            query += " AND timestamp >= %(start_date)s"
+            params['start_date'] = start_date
+        
+        if end_date:
+            query += " AND timestamp <= %(end_date)s"
+            params['end_date'] = end_date
+        
+        # Add sorting to ensure consistent results
+        query += " ORDER BY timestamp DESC"
+        
+        try:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            if not results:
+                return pl.DataFrame()
+            
+            # Convert results to a list of dictionaries
+            records = [dict(row) for row in results]
+            return pl.from_dicts(records)
+        
+        except Exception as e:
+            print(f"Error executing database query: {str(e)}")
+            if conn:
+                conn.close()
+            return None
+
+    @classmethod
+    def get_filter_options(cls) -> Dict[str, List[str]]:
+        """
+        Query the database to get unique values for each filter field.
+        
+        Returns:
+        - Dictionary with filter names as keys and lists of unique values as values
+        """
+        try:
+            import psycopg2
+            import psycopg2.extras
+        except ModuleNotFoundError:
+            print("pip install aicore[pg] for PostgreSQL integration")
+            return {}
+        
+        conn_str = os.environ.get("PG_CONNECTION_STRING")
+        if not conn_str:
+            print("PostgreSQL connection string not found in environment variables")
+            return {}
+        
+        try:
+            conn = psycopg2.connect(conn_str)
+        except Exception as e:
+            print(f"Database connection failed: {str(e)}")
+            return {}
+        
+        # Define the fields to get unique values for
+        filter_fields = {
+            'provider': 'provider',
+            'model': 'model',
+            'agent_id': 'agent_id',
+            'session_id': 'session_id',
+            'workspace': 'workspace'
+        }
+        
+        filter_options = {}
+        cursor = conn.cursor()
+        
+        try:
+            for key, field in filter_fields.items():
+                query = f"SELECT DISTINCT {field} FROM observability WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}"
+                cursor.execute(query)
+                results = cursor.fetchall()
+                # Use a helper expression to safely get the value
+                filter_options[key] = [
+                    (row[0] if isinstance(row, (list, tuple)) else row)
+                    for row in results
+                    if (row[0] if isinstance(row, (list, tuple)) else row)
+                ]
+            
+            # Get min and max dates for date range filters
+            cursor.execute("SELECT MIN(timestamp), MAX(timestamp) FROM observability")
+            date_range = cursor.fetchone()
+            if date_range and date_range[0] and date_range[1]:
+                filter_options['date_range'] = [date_range[0], date_range[1]]
+            else:
+                filter_options['date_range'] = []
+                
+        except Exception as e:
+            print(f"Error retrieving filter options: {str(e)}")
+        finally:
+            cursor.close()
+            conn.close()
+        
+        return filter_options
+
+
+    @classmethod
+    def get_metrics_summary(cls, 
+                            provider: Optional[str] = None,
+                            model: Optional[str] = None, 
+                            agent_id: Optional[str] = None,
+                            session_id: Optional[str] = None,
+                            workspace: Optional[str] = None,
+                            start_date: Optional[str] = None,
+                            end_date: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Retrieve summary metrics from the database based on filters.
+        
+        Returns:
+        - Dictionary with summary metrics
+        """
+        try:
+            import psycopg2
+            import psycopg2.extras
+        except ModuleNotFoundError:
+            print("pip install aicore[pg] for PostgreSQL integration")
+            return {}
+        
+        conn_str = os.environ.get("PG_CONNECTION_STRING")
+        if not conn_str:
+            print("PostgreSQL connection string not found in environment variables")
+            return {}
+        
+        try:
+            conn = psycopg2.connect(conn_str)
+        except Exception as e:
+            print(f"Database connection failed: {str(e)}")
+            return {}
+        
+        # Build query with parameterized filters
+        where_clause = "WHERE 1=1"
+        params = {}
+        
+        if provider:
+            where_clause += " AND provider = %(provider)s"
+            params['provider'] = provider
+        
+        if model:
+            where_clause += " AND model = %(model)s"
+            params['model'] = model
+        
+        if agent_id:
+            where_clause += " AND agent_id = %(agent_id)s"
+            params['agent_id'] = agent_id
+        
+        if session_id:
+            where_clause += " AND session_id = %(session_id)s"
+            params['session_id'] = session_id
+        
+        if workspace:
+            where_clause += " AND workspace = %(workspace)s"
+            params['workspace'] = workspace
+        
+        if start_date:
+            where_clause += " AND timestamp >= %(start_date)s"
+            params['start_date'] = start_date
+        
+        if end_date:
+            where_clause += " AND timestamp <= %(end_date)s"
+            params['end_date'] = end_date
+        
+        query = f"""
+        SELECT 
+            COUNT(*) as total_operations,
+            SUM(CASE WHEN success = true THEN 1 ELSE 0 END) as successful_operations,
+            SUM(CASE WHEN success = false THEN 1 ELSE 0 END) as failed_operations,
+            AVG(latency_ms) as avg_latency_ms,
+            SUM(input_tokens) as total_input_tokens,
+            SUM(output_tokens) as total_output_tokens,
+            SUM(total_tokens) as total_tokens,
+            SUM(cost) as total_cost,
+            COUNT(DISTINCT provider) as provider_count,
+            COUNT(DISTINCT model) as model_count,
+            COUNT(DISTINCT session_id) as session_count
+        FROM observability
+        {where_clause}
+        """
+        
+        try:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute(query, params)
+            result = dict(cursor.fetchone())
+            
+            # Get provider distribution
+            provider_query = f"""
+            SELECT provider, COUNT(*) as count
+            FROM observability
+            {where_clause}
+            GROUP BY provider
+            ORDER BY count DESC
+            """
+            cursor.execute(provider_query, params)
+            result['provider_distribution'] = {row['provider']: row['count'] for row in cursor.fetchall()}
+            
+            # Get model distribution
+            model_query = f"""
+            SELECT model, COUNT(*) as count
+            FROM observability
+            {where_clause}
+            GROUP BY model
+            ORDER BY count DESC
+            """
+            cursor.execute(model_query, params)
+            result['model_distribution'] = {row['model']: row['count'] for row in cursor.fetchall()}
+            
+            cursor.close()
+            conn.close()
+            return result
+            
+        except Exception as e:
+            print(f"Error executing metrics query: {str(e)}")
+            if conn:
+                conn.close()
+            return {}
+
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
