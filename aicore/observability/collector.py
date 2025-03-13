@@ -311,6 +311,7 @@ class LlmOperationCollector(RootModel):
         metrics_table_sql = """
         CREATE TABLE IF NOT EXISTS metrics (
             operation_id VARCHAR PRIMARY KEY REFERENCES messages(operation_id),
+            operation_type VARCHAR,
             provider VARCHAR,
             model VARCHAR,
             success BOOL,
@@ -356,9 +357,9 @@ class LlmOperationCollector(RootModel):
         # Insert metrics
         insert_metrics_sql = """
         INSERT INTO metrics (
-            operation_id, provider, model, success, temperature, max_tokens, input_tokens, output_tokens, total_tokens, cost, latency_ms
+            operation_id, operation_type, provider, model, success, temperature, max_tokens, input_tokens, output_tokens, total_tokens, cost, latency_ms
         ) VALUES (
-            %(operation_id)s, %(provider)s, %(model)s, %(success)s, %(temperature)s, %(max_tokens)s, %(input_tokens)s, %(output_tokens)s,
+            %(operation_id)s, %(operation_type)s, %(provider)s, %(model)s, %(success)s, %(temperature)s, %(max_tokens)s, %(input_tokens)s, %(output_tokens)s,
             %(total_tokens)s, %(cost)s, %(latency_ms)s
         );
         """
@@ -388,6 +389,7 @@ class LlmOperationCollector(RootModel):
         # Insert metrics record
         cur.execute(insert_metrics_sql, {
             'operation_id': data.get('operation_id'),
+            'operation_type': data.get('operation_type'),
             'provider': data.get('provider'),
             'model': data.get('model'),
             'success': data.get('success'),
@@ -439,7 +441,7 @@ class LlmOperationCollector(RootModel):
             s.session_id, s.workspace, s.agent_id,
             m.operation_id, m.timestamp, m.system_prompt, m.user_prompt, m.response,
             m.assistant_message, m.history_messages, m.completion_args, m.error_messages,
-            met.provider, met.model, met.success, met.temperature, met.max_tokens, met.input_tokens, met.output_tokens, met.total_tokens,
+            met.operation_type, met.provider, met.model, met.success, met.temperature, met.max_tokens, met.input_tokens, met.output_tokens, met.total_tokens,
             met.cost, met.latency_ms
         FROM sessions s
         JOIN messages m ON s.session_id = m.session_id
