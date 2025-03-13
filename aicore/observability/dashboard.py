@@ -25,7 +25,10 @@ class ObservabilityDashboard:
     model distribution, and other relevant analytics.
     """
     
-    def __init__(self, storage_path: Optional[Any] = None, title: str = "AI Core Observability Dashboard"):
+    def __init__(self,
+            storage_path: Optional[Any] = None,
+            from_local_records_only :bool=False,
+            title: str = "AI Core Observability Dashboard"):
         """
         Initialize the dashboard.
         
@@ -33,7 +36,7 @@ class ObservabilityDashboard:
             storage: OperationStorage instance for accessing operation data
             title: Dashboard title
         """
-        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(storage_path)
+        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(storage_path) if from_local_records_only else LlmOperationCollector.polars_from_pg()
         self.add_day_col()
         self.title = title
         self.app = dash.Dash(
