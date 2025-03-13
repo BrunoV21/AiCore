@@ -161,6 +161,8 @@ class LlmOperationCollector(RootModel):
         try:
             import psycopg2
             import psycopg2.extensions
+            from dotenv import load_dotenv
+            load_dotenv()
             conn_str = os.environ.get("PG_CONNECTION_STRING")
             if conn_str:
                 try:
@@ -632,5 +634,5 @@ class LlmOperationCollector(RootModel):
             return {}
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
+    LlmOperationCollector()
+    print(LlmOperationCollector.polars_from_pg())
