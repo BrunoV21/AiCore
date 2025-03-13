@@ -298,17 +298,22 @@ class LlmOperationCollector(RootModel):
         CREATE TABLE IF NOT EXISTS messages (
             operation_id VARCHAR PRIMARY KEY,
             session_id VARCHAR REFERENCES sessions(session_id),
+            timestamp VARCHAR,
             system_prompt TEXT,
             user_prompt TEXT,
             response TEXT,
             assistant_message TEXT,
             history_messages TEXT,
-            completion_args TEXT
+            completion_args TEXT,
+            error_messages TEXT
         );
         """
         metrics_table_sql = """
         CREATE TABLE IF NOT EXISTS metrics (
             operation_id VARCHAR PRIMARY KEY REFERENCES messages(operation_id),
+            provider VARCHAR,
+            model VARCHAR,
+            success BOOL,
             temperature VARCHAR,
             max_tokens INTEGER,
             input_tokens INTEGER,
@@ -340,20 +345,20 @@ class LlmOperationCollector(RootModel):
         # Insert message
         insert_message_sql = """
         INSERT INTO messages (
-            operation_id, session_id, system_prompt, user_prompt, response,
-            assistant_message, history_messages, completion_args
+            operation_id, session_id, timestamp, system_prompt, user_prompt, response,
+            assistant_message, history_messages, completion_args, error_messages
         ) VALUES (
-            %(operation_id)s, %(session_id)s, %(system_prompt)s, %(user_prompt)s, %(response)s,
-            %(assistant_message)s, %(history_messages)s, %(completion_args)s
+            %(operation_id)s, %(session_id)s, %(timestamp)s, %(system_prompt)s, %(user_prompt)s, %(response)s,
+            %(assistant_message)s, %(history_messages)s, %(completion_args)s, %(error_messages)s
         );
         """
 
         # Insert metrics
         insert_metrics_sql = """
         INSERT INTO metrics (
-            operation_id, temperature, max_tokens, input_tokens, output_tokens, total_tokens, cost, latency_ms
+            operation_id, provider, model, success, temperature, max_tokens, input_tokens, output_tokens, total_tokens, cost, latency_ms
         ) VALUES (
-            %(operation_id)s, %(temperature)s, %(max_tokens)s, %(input_tokens)s, %(output_tokens)s,
+            %(operation_id)s, %(provider)s, %(model)s, %(success)s, %(temperature)s, %(max_tokens)s, %(input_tokens)s, %(output_tokens)s,
             %(total_tokens)s, %(cost)s, %(latency_ms)s
         );
         """
@@ -371,16 +376,21 @@ class LlmOperationCollector(RootModel):
         cur.execute(insert_message_sql, {
             'operation_id': data.get('operation_id'),
             'session_id': data.get('session_id'),
+            'timestamp': data.get('timestamp'),
             'system_prompt': data.get('system_prompt'),
             'user_prompt': data.get('user_prompt'),
             'response': data.get('response'),
             'assistant_message': data.get('assistant_message'),
             'history_messages': data.get('history_messages'),
-            'completion_args': data.get('completion_args')
+            'completion_args': data.get('completion_args'),
+            'error_messages': data.get('error_messages')
         })
         # Insert metrics record
         cur.execute(insert_metrics_sql, {
             'operation_id': data.get('operation_id'),
+            'provider': data.get('provider'),
+            'model': data.get('model'),
+            'success': data.get('success'),
             'temperature': data.get('temperature'),
             'max_tokens': data.get('max_tokens'),
             'input_tokens': data.get('input_tokens'),
@@ -427,9 +437,9 @@ class LlmOperationCollector(RootModel):
         query = """
         SELECT 
             s.session_id, s.workspace, s.agent_id,
-            m.operation_id, m.system_prompt, m.user_prompt, m.response,
-            m.assistant_message, m.history_messages, m.completion_args,
-            met.temperature, met.max_tokens, met.input_tokens, met.output_tokens, met.total_tokens,
+            m.operation_id, m.timestamp, m.system_prompt, m.user_prompt, m.response,
+            m.assistant_message, m.history_messages, m.completion_args, m.error_messages,
+            met.provider, met.model, met.success, met.temperature, met.max_tokens, met.input_tokens, met.output_tokens, met.total_tokens,
             met.cost, met.latency_ms
         FROM sessions s
         JOIN messages m ON s.session_id = m.session_id
