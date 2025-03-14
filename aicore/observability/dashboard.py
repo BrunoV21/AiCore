@@ -1226,8 +1226,8 @@ class ObservabilityDashboard:
 if __name__ == "__main__":
     #TODO add apply_fitlers to global filters
     #TODO fix css for dropdowns and co
-    #TODO add overview like indicators for the remaining tabs
-    #TODO add cross workspace abaysis by integrating workspaces into tokens and cost
+    #TODO add input and output tokens and costs into sql schema and dashbaprds
+    #TODO add cross workspace anaçysis by integrating workspaces into tokens and cost
     od = ObservabilityDashboard(from_local_records_only=True)
     print(od.df)
     od.run_server()
