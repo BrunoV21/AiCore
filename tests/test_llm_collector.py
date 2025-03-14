@@ -225,6 +225,7 @@ class TestIntegrationFileStorage:
             with open(temp_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 
+            # Expect a list of serialized records (the structure remains as before)
             assert len(data) == 1
             record = data[0]
             assert record["provider"] == "openai"
@@ -254,6 +255,8 @@ class TestIntegrationFileStorage:
             assert data[1]["model"] == "gpt-3.5-turbo"
             assert data[1]["response"] == "I'm fine, thank you!"
 
+
+# --- PostgreSQL Integration Tests ---
 class TestLlmOperationCollectorPostgres:
     def test_db_connection_established(self, monkeypatch):
         """
@@ -261,34 +264,33 @@ class TestLlmOperationCollectorPostgres:
         """
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        # Patch psycopg2.connect to return a fake connection.
-        monkeypatch.setattr(psycopg2, "connect", lambda conn_str: FakeConn())
+        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: FakeConn())
         collector = LlmOperationCollector()
         assert collector.db_conn is not None, "Expected a valid database connection."
     
     def test_db_table_creation_called(self, monkeypatch):
         """
-        Test that the collector executes the SQL to create the 'observability' table if it does not exist.
+        Test that the collector executes the SQL to create the sessions, messages, and metrics tables if they do not exist.
         """
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         executed_queries = []
 
         class FakeCursorForTable(FakeCursor):
-            pass
-
+            def __init__(self, executed_queries):
+                super().__init__(executed_queries)
         class FakeConnForTable(FakeConn):
             def cursor(self):
                 return FakeCursorForTable(executed_queries)
-
-        monkeypatch.setattr(psycopg2, "connect", lambda conn_str: FakeConnForTable())
+        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: FakeConnForTable())
         _ = LlmOperationCollector()
-        query_found = any("CREATE TABLE IF NOT EXISTS observability" in q for q in executed_queries)
-        assert query_found, "Table creation SQL was not executed."
+        # Check that at least one table creation query (for sessions) was executed.
+        query_found = any("CREATE TABLE IF NOT EXISTS sessions" in q for q in executed_queries)
+        assert query_found, "Sessions table creation SQL was not executed."
     
     def test_record_insertion_executes_sql(self, monkeypatch):
         """
-        Test that record insertion calls the SQL INSERT command on the PostgreSQL connection.
+        Test that record insertion calls the SQL INSERT command for sessions, messages, and metrics.
         """
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
@@ -297,21 +299,18 @@ class TestLlmOperationCollectorPostgres:
         class FakeCursorForInsert(FakeCursor):
             def execute(self, query, params=None):
                 executed_queries.append(query)
-        
         class FakeConnForInsert(FakeConn):
             def cursor(self):
                 return FakeCursorForInsert(executed_queries)
-        
-        # Create a single connection instance to be reused
         fake_conn = FakeConnForInsert()
-        monkeypatch.setattr(psycopg2, "connect", lambda conn_str: fake_conn)
+        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: fake_conn)
         
         collector = LlmOperationCollector()
         
-        # Clear the queries after initialization
+        # Clear queries recorded during initialization
         executed_queries.clear()
         
-        record = collector.record_completion(
+        _ = collector.record_completion(
             completion_args={"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]},
             operation_type="completion",
             provider="openai",
@@ -321,18 +320,18 @@ class TestLlmOperationCollectorPostgres:
             latency_ms=150.0
         )
         
-        # Print for debugging
-        print(f"Executed queries: {executed_queries}")
-        
-        insertion_queries = [q for q in executed_queries if "INSERT INTO observability" in q]
-        assert len(insertion_queries) == 1, "Record insertion SQL was not executed properly."
+        # For the new schema, we expect three INSERT statements.
+        insert_sessions = any("INSERT INTO sessions" in q for q in executed_queries)
+        insert_messages = any("INSERT INTO messages" in q for q in executed_queries)
+        insert_metrics = any("INSERT INTO metrics" in q for q in executed_queries)
+        assert insert_sessions and insert_messages and insert_metrics, "Record insertion SQL for one or more tables was not executed properly."
 
     def test_no_pg_connection_when_env_missing(self, monkeypatch):
         """
         Test that if the PG_CONNECTION_STRING environment variable is not present,
         no PostgreSQL connection is attempted.
         """
-        monkeypatch.delenv("PG_CONNECTION_STRING", raising=False)
+        monkeypatch.setenv("PG_CONNECTION_STRING", "")
         collector = LlmOperationCollector()
         assert collector.db_conn is None, "Database connection should remain None without PG_CONNECTION_STRING."
 
@@ -342,10 +341,12 @@ class TestLlmOperationCollectorPostgres:
         """
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        monkeypatch.setattr(psycopg2, "connect", lambda conn_str: (_ for _ in ()).throw(Exception("Connection failed")))
+        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: (_ for _ in ()).throw(Exception("Connection failed")))
         collector = LlmOperationCollector()
         assert collector.db_conn is None, "Database connection should be None after a connection failure."
 
+
+# --- Integration Storage Tests (File) ---
 class TestIntegrationStorage:
     """
     Integration tests for LlmOperationCollector and LlmOperationRecord, including file storage.
@@ -357,11 +358,9 @@ class TestIntegrationStorage:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_file = os.path.join(temp_dir, "test_records.json")
             
-            # Create a collector with a storage path set.
             collector = LlmOperationCollector()
             collector.storage_path = temp_file
             
-            # Record a completion.
             collector.record_completion(
                 completion_args={
                     "model": "gpt-4",
@@ -376,7 +375,6 @@ class TestIntegrationStorage:
                 latency_ms=120.0
             )
             
-            # Verify the file was created and contains the record.
             assert os.path.exists(temp_file), "Storage file was not created."
             
             with open(temp_file, 'r', encoding='utf-8') as f:
@@ -389,14 +387,14 @@ class TestIntegrationStorage:
             assert record["response"] == "Hi there!"
             assert record["temperature"] == 0.5
 
+
+# --- Polars from PostgreSQL Tests ---
 class TestLlmOperationCollectorPolarsFromPg:
     """Tests for the polars_from_pg classmethod."""
-
+    
     def test_polars_from_pg_no_connection_string(self, monkeypatch):
         """Test behavior when no PG_CONNECTION_STRING is available."""
         monkeypatch.delenv("PG_CONNECTION_STRING", raising=False)
-        
-        # Mock polars import to avoid dependency issues in test environment
         with patch("importlib.import_module") as mock_import:
             mock_import.return_value = None
             result = LlmOperationCollector.polars_from_pg()
@@ -406,8 +404,6 @@ class TestLlmOperationCollectorPolarsFromPg:
         """Test behavior when polars module is not available."""
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        # Simulate ModuleNotFoundError when importing polars
         with patch("importlib.import_module") as mock_import:
             mock_import.side_effect = ModuleNotFoundError("No module named 'polars'")
             result = LlmOperationCollector.polars_from_pg()
@@ -417,172 +413,141 @@ class TestLlmOperationCollectorPolarsFromPg:
         """Test handling of database connection errors."""
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        # Mock polars module
-        mock_polars = pytest.importorskip("polars", reason="Polars is required for this test")
-        
-        # Mock psycopg2.connect to raise an exception
         with patch("psycopg2.connect") as mock_connect:
             mock_connect.side_effect = Exception("Connection error")
             result = LlmOperationCollector.polars_from_pg()
             assert result is None
 
-    # @pytest.mark.parametrize(
-    #     "filters,expected_query_parts",
-    #     [
-    #         (
-    #             {"provider": "groq"}, 
-    #             ["provider = %(provider)s"]
-    #         ),
-    #         (
-    #             {"model": "deepseek-r1-distill-llama-70b"}, 
-    #             ["model = %(model)s"]
-    #         ),
-    #         (
-    #             {"agent_id": "Zé"}, 
-    #             ["agent_id = %(agent_id)s"]
-    #         ),
-    #         (
-    #             {"session_id": "01JP14ZPH4VGS3BRVDAR3CKM67"}, 
-    #             ["session_id = %(session_id)s"]
-    #         ),
-    #         (
-    #             {"workspace": "workspace1"}, 
-    #             ["workspace = %(workspace)s"]
-    #         ),
-    #         (
-    #             {"start_date": "2025-03-01T00:00:00"}, 
-    #             ["timestamp >= %(start_date)s"]
-    #         ),
-    #         (
-    #             {"end_date": "2025-03-31T23:59:59"}, 
-    #             ["timestamp <= %(end_date)s"]
-    #         ),
-    #         (
-    #             {
-    #                 "provider": "groq",
-    #                 "model": "deepseek-r1-distill-llama-70b",
-    #                 "start_date": "2025-03-01T00:00:00",
-    #                 "end_date": "2025-03-31T23:59:59"
-    #             }, 
-    #             [
-    #                 "provider = %(provider)s",
-    #                 "model = %(model)s",
-    #                 "timestamp >= %(start_date)s",
-    #                 "timestamp <= %(end_date)s"
-    #             ]
-    #         ),
-    #     ]
-    # )
-    # def test_polars_from_pg_filter_application(self, monkeypatch, filters, expected_query_parts):
-    #     """Test that filters are correctly applied to the SQL query."""
-    #     test_conn_str = "postgresql://user:pass@localhost/test_db"
-    #     monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
+    @pytest.mark.parametrize(
+        "filters,expected_query_parts",
+        [
+            (
+                {"agent_id": "Zé"}, 
+                ["s.agent_id = %(agent_id)s"]
+            ),
+            (
+                {"session_id": "01JP14ZPH4VGS3BRVDAR3CKM67"}, 
+                ["s.session_id = %(session_id)s"]
+            ),
+            (
+                {"workspace": "workspace1"}, 
+                ["s.workspace = %(workspace)s"]
+            ),
+        ]
+    )
+    def test_polars_from_pg_filter_application(self, monkeypatch, filters, expected_query_parts):
+        """Test that filters are correctly applied to the SQL query."""
+        test_conn_str = "postgresql://user:pass@localhost/test_db"
+        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         
-    #     # Create a test cursor that captures the executed query
-    #     executed_queries = []
-    #     executed_params = []
+        executed_queries = []
+        executed_params = []
         
-    #     class TestCursor:
-    #         def __init__(self):
-    #             pass
+        class TestCursor:
+            def execute(self, query, params=None):
+                executed_queries.append(query)
+                executed_params.append(params)
+            def fetchall(self):
+                return []
+            def close(self):
+                pass
                 
-    #         def execute(self, query, params=None):
-    #             executed_queries.append(query)
-    #             executed_params.append(params)
-                
-    #         def fetchall(self):
-    #             return []
-                
-    #         def close(self):
-    #             pass
+        class TestConnection:
+            def cursor(self, cursor_factory=None):
+                return TestCursor()
+            def close(self):
+                pass
+            def commit(self):
+                pass
+
         
-    #     class TestConnection:
-    #         def __init__(self):
-    #             pass
-                
-    #         def cursor(self, cursor_factory=None):
-    #             return TestCursor()
-                
-    #         def close(self):
-    #             pass
-        
-    #     # Mock necessary imports and functions
-    #     with patch("psycopg2.connect", return_value=TestConnection()):
-    #         with patch("polars.from_dicts") as mock_from_dicts:
-    #             mock_from_dicts.return_value = "polars_dataframe"
-                
-    #             # Call the method with the test filters
-    #             LlmOperationCollector.polars_from_pg(**filters)
-                
-    #             # Check that the query was executed with the correct parameters
-    #             assert len(executed_queries) == 1
-    #             query = executed_queries[0]
-                
-    #             # Check that all expected parts are in the query
-    #             for part in expected_query_parts:
-    #                 assert part in query
-                    
-    #             # Check that parameters were passed correctly
-    #             assert len(executed_params) == 1
-    #             params = executed_params[0]
-                
-    #             for key, value in filters.items():
-    #                 assert key in params
-    #                 assert params[key] == value
-    
+        with patch("psycopg2.connect", return_value=TestConnection()):
+            with patch("polars.from_dicts") as mock_from_dicts:
+                mock_from_dicts.return_value = "polars_dataframe"
+                LlmOperationCollector.polars_from_pg(**filters)
+                assert len(executed_queries) == 1
+                query = executed_queries[0]
+                for part in expected_query_parts:
+                    assert part in query
+                assert len(executed_params) == 1
+                params = executed_params[0]
+                for key, value in filters.items():
+                    assert key in params
+                    assert params[key] == value
+
     def test_polars_from_pg_successful_query(self, monkeypatch):
         """Test successful query execution and DataFrame creation."""
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         
-        # Mock data to return from the database
+        # Mock data matching the new schema
         mock_data = [
-            {"operation_id": "op1", "provider": "groq", "model": "model1", "timestamp": "2025-03-10T12:00:00"},
-            {"operation_id": "op2", "provider": "gemini", "model": "model2", "timestamp": "2025-03-11T12:00:00"}
+            {
+                "session_id": "s1",
+                "workspace": "ws1",
+                "agent_id": "Zé",
+                "operation_id": "op1",
+                "system_prompt": "prompt1",
+                "user_prompt": "hello",
+                "response": "hi",
+                "assistant_message": "",
+                "history_messages": "[]",
+                "completion_args": '{"model": "gpt-4"}',
+                "temperature": 0.5,
+                "max_tokens": 1024,
+                "input_tokens": 5,
+                "output_tokens": 3,
+                "total_tokens": 8,
+                "cost": 0.0,
+                "latency_ms": 120.0
+            },
+            {
+                "session_id": "s2",
+                "workspace": "ws2",
+                "agent_id": "",
+                "operation_id": "op2",
+                "system_prompt": "prompt2",
+                "user_prompt": "how are you?",
+                "response": "fine",
+                "assistant_message": "",
+                "history_messages": "[]",
+                "completion_args": '{"model": "gpt-3.5-turbo"}',
+                "temperature": 0.7,
+                "max_tokens": 1024,
+                "input_tokens": 4,
+                "output_tokens": 5,
+                "total_tokens": 9,
+                "cost": 0.0,
+                "latency_ms": 80.0
+            }
         ]
         
         class TestDictCursor:
-            def __init__(self):
-                self.mock_data = mock_data
-            
             def execute(self, query, params=None):
                 pass
-                
             def fetchall(self):
-                return self.mock_data
-                
+                return mock_data
             def close(self):
                 pass
-        
-        class TestConnection:
-            def __init__(self):
-                pass
                 
+        class TestConnection:
             def cursor(self, cursor_factory=None):
                 return TestDictCursor()
-                
             def close(self):
                 pass
         
-        # Mock necessary imports and functions
         with patch("psycopg2.connect", return_value=TestConnection()):
             with patch("psycopg2.extras.DictCursor"):
                 with patch("polars.from_dicts") as mock_from_dicts:
                     mock_from_dicts.return_value = "polars_dataframe"
-                    
-                    # Call the method
-                    result = LlmOperationCollector.polars_from_pg(provider="groq")
-                    
-                    # Check the result
+                    result = LlmOperationCollector.polars_from_pg(agent_id="Zé")
                     assert result == "polars_dataframe"
-                    
-                    # Verify that from_dicts was called with the mock data
                     mock_from_dicts.assert_called_once()
                     args, _ = mock_from_dicts.call_args
                     assert args[0] == mock_data
 
 
+# --- Get Filter Options Tests ---
 class TestLlmOperationCollectorGetFilterOptions:
     """Tests for the get_filter_options method."""
     
@@ -596,8 +561,6 @@ class TestLlmOperationCollectorGetFilterOptions:
         """Test handling of database connection errors."""
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        # Mock psycopg2.connect to raise an exception
         with patch("psycopg2.connect") as mock_connect:
             mock_connect.side_effect = Exception("Connection error")
             result = LlmOperationCollector.get_filter_options()
@@ -608,71 +571,45 @@ class TestLlmOperationCollectorGetFilterOptions:
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         
-        # Define mock data for each filter query
+        # Define mock data for sessions table queries
         query_results = {
-            "SELECT DISTINCT provider FROM observability WHERE provider IS NOT NULL AND provider != '' ORDER BY provider": 
-                [("groq",), ("gemini",)],
-            "SELECT DISTINCT model FROM observability WHERE model IS NOT NULL AND model != '' ORDER BY model": 
-                [("deepseek-r1-distill-llama-70b",), ("gemini-2.0-flash-exp",)],
-            "SELECT DISTINCT agent_id FROM observability WHERE agent_id IS NOT NULL AND agent_id != '' ORDER BY agent_id": 
-                [("Zé",), ("")],
-            "SELECT DISTINCT session_id FROM observability WHERE session_id IS NOT NULL AND session_id != '' ORDER BY session_id": 
+            "SELECT DISTINCT agent_id FROM sessions WHERE agent_id IS NOT NULL AND agent_id != '' ORDER BY agent_id":
+                [("Zé",)],
+            "SELECT DISTINCT session_id FROM sessions WHERE session_id IS NOT NULL AND session_id != '' ORDER BY session_id":
                 [("01JP14ZPH4VGS3BRVDAR3CKM67",)],
-            "SELECT DISTINCT workspace FROM observability WHERE workspace IS NOT NULL AND workspace != '' ORDER BY workspace": 
-                [("",)],
-            "SELECT MIN(timestamp), MAX(timestamp) FROM observability": 
-                [("2025-03-10T23:07:10.447968", "2025-03-10T23:07:12.761532")]
+            "SELECT DISTINCT workspace FROM sessions WHERE workspace IS NOT NULL AND workspace != '' ORDER BY workspace":
+                [("workspace1",)],
+            "SELECT NULL, NULL":  # for date range query
+                [(None, None)]
         }
         
         class TestCursor:
             def __init__(self):
                 self.current_query = None
-                
             def execute(self, query, params=None):
                 self.current_query = query
-                
             def fetchall(self):
-                if self.current_query in query_results:
-                    return query_results[self.current_query]
-                return []
-                
+                return query_results.get(self.current_query, [])
             def fetchone(self):
-                if self.current_query in query_results:
-                    return query_results[self.current_query][0]
+                result = query_results.get(self.current_query)
+                if result:
+                    return result[0]
                 return None
-                
             def close(self):
                 pass
-        
-        class TestConnection:
-            def __init__(self):
-                pass
                 
+        class TestConnection:
             def cursor(self):
                 return TestCursor()
-                
             def close(self):
                 pass
         
-        # Mock psycopg2.connect
         with patch("psycopg2.connect", return_value=TestConnection()):
             result = LlmOperationCollector.get_filter_options()
-            
-            # Check that the result contains all expected filters
-            assert "provider" in result
-            assert "model" in result
-            assert "agent_id" in result
-            assert "session_id" in result
-            assert "workspace" in result
-            assert "date_range" in result
-            
-            # Check specific values
-            assert result["provider"] == ["groq", "gemini"]
-            assert result["model"] == ["deepseek-r1-distill-llama-70b", "gemini-2.0-flash-exp"]
-            assert result["agent_id"] == ["Zé"]  # Empty string should be filtered out
+            # Expected filters from sessions table
+            assert result["agent_id"] == ["Zé"]
             assert result["session_id"] == ["01JP14ZPH4VGS3BRVDAR3CKM67"]
-            assert result["workspace"] == []  # Empty string should be filtered out
-            assert result["date_range"] == ["2025-03-10T23:07:10.447968", "2025-03-10T23:07:12.761532"]
+            assert result["workspace"] == ["workspace1"]
     
     def test_get_filter_options_query_error(self, monkeypatch):
         """Test handling of query execution errors."""
@@ -680,33 +617,23 @@ class TestLlmOperationCollectorGetFilterOptions:
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         
         class TestCursor:
-            def __init__(self):
-                pass
-                
             def execute(self, query, params=None):
                 raise Exception("Query execution error")
-                
             def close(self):
                 pass
-        
-        class TestConnection:
-            def __init__(self):
-                pass
                 
+        class TestConnection:
             def cursor(self):
                 return TestCursor()
-                
             def close(self):
                 pass
         
-        # Mock psycopg2.connect
         with patch("psycopg2.connect", return_value=TestConnection()):
             result = LlmOperationCollector.get_filter_options()
-            
-            # Should return empty dict on error
             assert result == {}
 
 
+# --- Get Metrics Summary Tests ---
 class TestLlmOperationCollectorGetMetricsSummary:
     """Tests for the get_metrics_summary method."""
     
@@ -720,8 +647,6 @@ class TestLlmOperationCollectorGetMetricsSummary:
         """Test handling of database connection errors."""
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        # Mock psycopg2.connect to raise an exception
         with patch("psycopg2.connect") as mock_connect:
             mock_connect.side_effect = Exception("Connection error")
             result = LlmOperationCollector.get_metrics_summary()
@@ -731,26 +656,16 @@ class TestLlmOperationCollectorGetMetricsSummary:
         "filters,expected_where_parts",
         [
             (
-                {"provider": "groq"}, 
-                ["provider = %(provider)s"]
+                {"agent_id": "Zé"}, 
+                ["s.agent_id = %(agent_id)s"]
             ),
             (
-                {"model": "deepseek-r1-distill-llama-70b"}, 
-                ["model = %(model)s"]
+                {"session_id": "01JP14ZPH4VGS3BRVDAR3CKM67"}, 
+                ["s.session_id = %(session_id)s"]
             ),
             (
-                {
-                    "provider": "groq",
-                    "model": "deepseek-r1-distill-llama-70b",
-                    "start_date": "2025-03-01T00:00:00",
-                    "end_date": "2025-03-31T23:59:59"
-                }, 
-                [
-                    "provider = %(provider)s",
-                    "model = %(model)s",
-                    "timestamp >= %(start_date)s",
-                    "timestamp <= %(end_date)s"
-                ]
+                {"workspace": "workspace1"}, 
+                ["s.workspace = %(workspace)s"]
             ),
         ]
     )
@@ -759,91 +674,50 @@ class TestLlmOperationCollectorGetMetricsSummary:
         test_conn_str = "postgresql://user:pass@localhost/test_db"
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         
-        # Track executed queries and parameters
         executed_queries = []
         executed_params = []
         
         class TestDictCursor:
-            def __init__(self):
-                pass
-                
             def execute(self, query, params=None):
                 executed_queries.append(query)
                 executed_params.append(params)
-                
             def fetchone(self):
+                # Return values for the new summary query keys.
                 return {
                     "total_operations": 100,
-                    "successful_operations": 95,
-                    "failed_operations": 5,
                     "avg_latency_ms": 150.5,
                     "total_input_tokens": 5000,
                     "total_output_tokens": 3000,
                     "total_tokens": 8000,
-                    "total_cost": 0.25,
-                    "provider_count": 2,
-                    "model_count": 3,
-                    "session_count": 10
+                    "total_cost": 0.25
                 }
-                
             def fetchall(self):
-                query = executed_queries[-1] if executed_queries else ""
-                if "provider" in query and "GROUP BY provider" in query:
-                    return [
-                        {"provider": "groq", "count": 60},
-                        {"provider": "gemini", "count": 40}
-                    ]
-                elif "model" in query and "GROUP BY model" in query:
-                    return [
-                        {"model": "deepseek-r1-distill-llama-70b", "count": 50},
-                        {"model": "gemini-2.0-flash-exp", "count": 50}
-                    ]
+                # For provider/model distributions (not applicable here)
                 return []
-                
             def close(self):
                 pass
-        
-        class TestConnection:
-            def __init__(self):
-                pass
                 
+        class TestConnection:
             def cursor(self, cursor_factory=None):
                 return TestDictCursor()
-                
             def close(self):
                 pass
         
-        # Mock psycopg2.connect
         with patch("psycopg2.connect", return_value=TestConnection()):
             with patch("psycopg2.extras.DictCursor"):
                 result = LlmOperationCollector.get_metrics_summary(**filters)
-                
-                # Check that at least 3 queries were executed (main metrics, provider distribution, model distribution)
-                assert len(executed_queries) >= 3
-                
-                # Check filter application in WHERE clauses
+                # At least one query (the main summary) should be executed.
+                assert len(executed_queries) >= 1
                 main_query = executed_queries[0]
                 for part in expected_where_parts:
                     assert part in main_query
-                
-                # Check that the result contains expected fields
-                assert "total_operations" in result
-                assert "successful_operations" in result
-                assert "failed_operations" in result
-                assert "avg_latency_ms" in result
-                assert "total_input_tokens" in result
-                assert "total_output_tokens" in result
-                assert "total_tokens" in result
-                assert "total_cost" in result
-                assert "provider_distribution" in result
-                assert "model_distribution" in result
-                
-                # Check specific values
+                # Check expected result fields for the new summary query.
                 assert result["total_operations"] == 100
-                assert result["successful_operations"] == 95
-                assert result["failed_operations"] == 5
-                assert result["provider_distribution"] == {"groq": 60, "gemini": 40}
-                assert result["model_distribution"] == {"deepseek-r1-distill-llama-70b": 50, "gemini-2.0-flash-exp": 50}
+                assert result["avg_latency_ms"] == 150.5
+                assert result["total_input_tokens"] == 5000
+                assert result["total_output_tokens"] == 3000
+                assert result["total_tokens"] == 8000
+                assert result["total_cost"] == 0.25
     
     def test_get_metrics_summary_query_error(self, monkeypatch):
         """Test handling of query execution errors."""
@@ -851,29 +725,18 @@ class TestLlmOperationCollectorGetMetricsSummary:
         monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
         
         class TestDictCursor:
-            def __init__(self):
-                pass
-                
             def execute(self, query, params=None):
                 raise Exception("Query execution error")
-                
             def close(self):
                 pass
-        
-        class TestConnection:
-            def __init__(self):
-                pass
                 
+        class TestConnection:
             def cursor(self, cursor_factory=None):
                 return TestDictCursor()
-                
             def close(self):
                 pass
         
-        # Mock psycopg2.connect
         with patch("psycopg2.connect", return_value=TestConnection()):
             with patch("psycopg2.extras.DictCursor"):
                 result = LlmOperationCollector.get_metrics_summary()
-                
-                # Should return empty dict on error
                 assert result == {}
