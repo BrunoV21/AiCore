@@ -158,7 +158,6 @@ class ObservabilityDashboard:
                     dcc.Tab(label='Overview', value='overview-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div(id='overview-metrics', className="metrics-container"),
-
                             html.Div([
                                 html.Div([
                                     html.H3("Request Volume Over Time"),
@@ -190,6 +189,7 @@ class ObservabilityDashboard:
                     # Performance Tab
                     dcc.Tab(label='Performance', value='performance-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
+                            html.Div(id='latency-metrics', className="metrics-container"),
                             # Row 1: Overall latency stats
                             html.Div([
                                 html.Div([
@@ -218,7 +218,8 @@ class ObservabilityDashboard:
 
                     # Token Usage Tab
                     dcc.Tab(label='Token Usage', value='token-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
-                        html.Div([
+                        html.Div([                            
+                            html.Div(id='token-metrics', className="metrics-container"),
                             # Row 1: Token efficiency and usage
                             html.Div([
                                 html.Div([
@@ -247,7 +248,8 @@ class ObservabilityDashboard:
 
                     # Cost Analysis Tab
                     dcc.Tab(label='Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
-                        html.Div([
+                        html.Div([                            
+                            html.Div(id='cost-metrics', className="metrics-container"),
                             # Row 1: Cost breakdown and cost per token
                             html.Div([
                                 html.Div([
@@ -264,7 +266,8 @@ class ObservabilityDashboard:
 
                     # Agent Analysis Tab
                     dcc.Tab(label='Agent Analysis', value='agent-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
-                        html.Div([
+                        html.Div([                            
+                            html.Div(id='agent-metrics', className="metrics-container"),
                             # Row 1: Overall agent usage and performance
                             html.Div([
                                 html.Div([
@@ -394,22 +397,26 @@ class ObservabilityDashboard:
                 Output('model-distribution', 'figure'),
                 
                 # Performance Tab
+                Output('latency-metrics', 'children'),
                 Output('latency-histogram', 'figure'),
                 Output('latency-by-provider', 'figure'),
                 Output('latency-by-model', 'figure'),
                 Output('latency-timeline', 'figure'),
                 
                 # Token Usage Tab
+                Output('token-metrics', 'children'),
                 Output('token-efficiency-chart', 'figure'),
                 Output('token-by-model', 'figure'),
                 Output('token-distribution', 'figure'),
                 Output('cost-analysis', 'figure'),
                 
                 # Cost Analysis Tab
+                Output('cost-metrics', 'children'),
                 Output('cost-breakdown-sunburst', 'figure'),
                 Output('cost-per-token', 'figure'),
                 
                 # Agent Analysis Tab
+                Output('agent-metrics', 'children'),
                 Output('agent-distribution', 'figure'),
                 Output('agent-performance', 'figure'),
                 Output('agent-model-preference', 'figure'),
@@ -459,7 +466,7 @@ class ObservabilityDashboard:
                 return empty_outputs
             
             # Overview Tab
-            metrics = self._create_overview_metrics(filtered_df)
+            overview_metrics = self._create_overview_metrics(filtered_df)
             
             # Time series chart for requests
             requests_by_date = filtered_df.group_by("day").agg(pl.len().alias("count"))
@@ -513,6 +520,9 @@ class ObservabilityDashboard:
             )
             
             # Performance Tab
+            # Performance Metrics
+            performance_metrics = self._create_performance_metrics(filtered_df)
+
             # Latency histogram
             latency_fig = px.histogram(
                 filtered_df, 
@@ -565,6 +575,9 @@ class ObservabilityDashboard:
             latency_timeline_fig.update_layout(yaxis_title="Latency (ms)")
             
             # Token Usage Tab
+            # Token Usage Metrics
+            token_usage_metrics = self._create_token_usage_metrics(filtered_df)
+
             # Token efficiency chart (tokens per ms)
             token_efficiency = filtered_df.filter(
                 (pl.col("total_tokens") > 0) & (pl.col("latency_ms") > 0)
@@ -621,6 +634,9 @@ class ObservabilityDashboard:
             )
             
             # Cost analysis
+            # Cost analysis metrics
+            cost_analysis_metrics = self._create_cost_analysis_metrics(filtered_df)
+
             cost_by_model = filtered_df.filter(
                 pl.col("cost") > 0
             ).group_by("model").agg(
@@ -686,6 +702,9 @@ class ObservabilityDashboard:
             cost_per_token_fig.update_layout(yaxis_title="Cost per 1K Tokens ($)")
             
             # Agent Analysis Tab
+            # Agent Analysis metrics
+            agent_analysis_metrics = self._create_agent_analysis_metrics(filtered_df)
+
             # Agent distribution
             agent_data = filtered_df.filter(pl.col("agent_id") != "")
             if agent_data.height > 0:
@@ -852,19 +871,19 @@ class ObservabilityDashboard:
             
             return (
                 # Overview Tab
-                metrics, requests_ts_fig, success_rate_fig, sunburst_fig, model_fig,
+                overview_metrics, requests_ts_fig, success_rate_fig, sunburst_fig, model_fig,
                 
                 # Performance Tab
-                latency_fig, latency_provider_fig, latency_model_fig, latency_timeline_fig,
+                performance_metrics , latency_fig, latency_provider_fig, latency_model_fig, latency_timeline_fig,
                 
                 # Token Usage Tab
-                token_efficiency_fig, token_model_fig, token_dist_fig, cost_fig,
+                token_usage_metrics, token_efficiency_fig, token_model_fig, token_dist_fig, cost_fig,
                 
                 # Cost Analysis Tab
-                cost_sunburst_fig, cost_per_token_fig,
+                cost_analysis_metrics, cost_sunburst_fig, cost_per_token_fig,
                 
                 # Agent Analysis Tab
-                agent_dist_fig, agent_perf_fig, agent_model_fig, agent_provider_fig,
+                agent_analysis_metrics, agent_dist_fig, agent_perf_fig, agent_model_fig, agent_provider_fig,
                 agent_tokens_fig, agent_cost_fig,
                 
                 # Additional Observability Plot
@@ -963,7 +982,215 @@ class ObservabilityDashboard:
             ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
         ], style={"display": "flex", "flexDirection": "column"})
 
+    def _create_performance_metrics(self, df):
+        """Create dynamic performance metrics from dataframe."""
+        total_requests = len(df)
+        avg_latency = df["latency_ms"].mean() if total_requests > 0 else 0
+        max_latency = df["latency_ms"].max() if total_requests > 0 else 0
+        min_latency = df["latency_ms"].min() if total_requests > 0 else 0
+        failed_requests = total_requests - len([_ for _ in df["success"] if _])
+
+        card_style = {
+            "backgroundColor": "#1E1E2F",
+            "padding": "20px",
+            "borderRadius": "10px",
+            "margin": "10px",
+            "flex": "1",
+            "minWidth": "250px",
+            "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+            "textAlign": "center"
+        }
+
+        return html.Div([
+            # First row: Average Latency and Maximum Latency
+            html.Div([
+                html.Div([
+                    html.H4("⏱️ Avg. Latency", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{avg_latency:.2f} ms", style={"color": "#17a2b8"}),
+                    html.P("Average response time", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("🚀 Max Latency", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{max_latency:.2f} ms", style={"color": "#dc3545"}),
+                    html.P("Slowest response time", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
+
+            # Second row: Minimum Latency and Failed Requests
+            html.Div([
+                html.Div([
+                    html.H4("🐢 Min Latency", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{min_latency:.2f} ms", style={"color": "#28a745"}),
+                    html.P("Fastest response time", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("❌ Failed Requests", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{failed_requests}", style={"color": "#ffc107"}),
+                    html.P("Requests that did not succeed", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
+        ], style={"display": "flex", "flexDirection": "column"})
+
+    def _create_token_usage_metrics(self, df):
+        """Create dynamic token usage metrics from dataframe."""
+        total_requests = len(df)
+        total_tokens = df["total_tokens"].sum() if 'total_tokens' in df.columns else 0
+        input_tokens = df["input_tokens"].sum() if 'input_tokens' in df.columns else 0
+        output_tokens = df["output_tokens"].sum() if 'output_tokens' in df.columns else 0
+        avg_tokens = total_tokens / total_requests if total_requests > 0 else 0
+
+        card_style = {
+            "backgroundColor": "#1E1E2F",
+            "padding": "20px",
+            "borderRadius": "10px",
+            "margin": "10px",
+            "flex": "1",
+            "minWidth": "250px",
+            "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+            "textAlign": "center"
+        }
+
+        return html.Div([
+            # First row: Total Tokens and Input Tokens
+            html.Div([
+                html.Div([
+                    html.H4("💬 Total Tokens", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{int(total_tokens):,}", style={"color": "#20c997"}),
+                    html.P("Total tokens processed", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("📝 Input Tokens", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{int(input_tokens):,}", style={"color": "#007bff"}),
+                    html.P("Total input tokens", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
+
+            # Second row: Output Tokens and Avg. Tokens per Request
+            html.Div([
+                html.Div([
+                    html.H4("🗣️ Output Tokens", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{int(output_tokens):,}", style={"color": "#fd7e14"}),
+                    html.P("Total output tokens", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("🔢 Avg. Tokens/Request", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{avg_tokens:.1f}", style={"color": "#28a745"}),
+                    html.P("Average tokens per request", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
+        ], style={"display": "flex", "flexDirection": "column"})
     
+    def _create_cost_analysis_metrics(self, df):
+        """Create dynamic cost analysis metrics from dataframe."""
+        total_requests = len(df)
+        total_cost = df["cost"].sum() if 'cost' in df.columns else 0.0
+        avg_cost = total_cost / total_requests if total_requests > 0 else 0.0
+        max_cost = df["cost"].max() if total_requests > 0 else 0.0
+        total_tokens = df["total_tokens"].sum() if 'total_tokens' in df.columns and df["total_tokens"].sum() > 0 else 0
+        cost_per_token = total_cost / total_tokens if total_tokens else 0.0
+
+        card_style = {
+            "backgroundColor": "#1E1E2F",
+            "padding": "20px",
+            "borderRadius": "10px",
+            "margin": "10px",
+            "flex": "1",
+            "minWidth": "250px",
+            "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+            "textAlign": "center"
+        }
+
+        return html.Div([
+            # First row: Total Cost and Average Cost per Request
+            html.Div([
+                html.Div([
+                    html.H4("💰 Total Cost", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"${total_cost:.4f}", style={"color": "#ffc107"}),
+                    html.P("Cumulative expenditure", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("🧮 Avg. Cost/Request", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"${avg_cost:.4f}", style={"color": "#17a2b8"}),
+                    html.P("Average cost per request", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
+
+            # Second row: Max Cost and Cost per Token
+            html.Div([
+                html.Div([
+                    html.H4("💸 Max Cost", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"${max_cost:.4f}", style={"color": "#dc3545"}),
+                    html.P("Highest cost incurred", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("📊 Cost per Token", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"${cost_per_token:.6f}", style={"color": "#20c997"}),
+                    html.P("Average cost per token", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
+        ], style={"display": "flex", "flexDirection": "column"})
+    
+    def _create_agent_analysis_metrics(self, df :pl.DataFrame):
+        """Create dynamic agent analysis metrics from dataframe."""
+        # Filter out empty agent IDs
+        agent_df = df.filter(pl.col("agent_id") != "")
+        total_agent_requests = len(agent_df)
+        unique_agents = len(agent_df["agent_id"].unique())
+        avg_requests_per_agent = total_agent_requests / unique_agents if unique_agents > 0 else 0
+
+        # Identify the top (most active) agent
+        if unique_agents > 0:
+            top_agent = agent_df["agent_id"][agent_df["agent_id"].value_counts()["count"].arg_max()]
+            top_agent_count = agent_df["agent_id"].value_counts()["count"].max()
+        else:
+            top_agent = "N/A"
+            top_agent_count = 0
+
+        # Compute agent-specific success rate
+        successful_agent_requests = len([_ for _ in agent_df["success"] if _])
+        agent_success_rate = successful_agent_requests / total_agent_requests * 100 if total_agent_requests > 0 else 0
+
+        card_style = {
+            "backgroundColor": "#1E1E2F",
+            "padding": "20px",
+            "borderRadius": "10px",
+            "margin": "10px",
+            "flex": "1",
+            "minWidth": "250px",
+            "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+            "textAlign": "center"
+        }
+
+        return html.Div([
+            # First row: Active Agents and Average Requests per Agent
+            html.Div([
+                html.Div([
+                    html.H4("👥 Active Agents", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{unique_agents}", style={"color": "#6f42c1"}),
+                    html.P("Unique agents in action", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("📊 Avg. Req/Agent", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{avg_requests_per_agent:.1f}", style={"color": "#17a2b8"}),
+                    html.P("Average requests per agent", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
+
+            # Second row: Top Agent and Agent Success Rate
+            html.Div([
+                html.Div([
+                    html.H4("🏆 Top Agent", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{top_agent} ({top_agent_count})", style={"color": "#fd7e14"}),
+                    html.P("Most active agent", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("✅ Agent Success Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{agent_success_rate:.1f}%", style={"color": "#28a745"}),
+                    html.P("Success rate of agent requests", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style)
+            ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
+        ], style={"display": "flex", "flexDirection": "column"})
+
     def _create_empty_dashboard(self):
         """Create empty dashboard components when no data is available."""
         empty_metrics = [html.Div([html.H4("No Data"), html.P("No records found")], className="metric-card")]
@@ -991,8 +1218,8 @@ class ObservabilityDashboard:
             # Operations Tab
             empty_table_data, empty_table_columns
         )
-    
-    def run_server(self, debug=False, port=8050, host="127.0.0.1"):
+
+    def run_server(self, debug=True, port=8050, host="127.0.0.1"):
         """Run the dashboard server."""
         self.app.run_server(debug=debug, port=port, host=host)
 
@@ -1001,6 +1228,6 @@ if __name__ == "__main__":
     #TODO fix css for dropdowns and co
     #TODO add overview like indicators for the remaining tabs
     #TODO add cross workspace abaysis by integrating workspaces into tokens and cost
-    od = ObservabilityDashboard()
+    od = ObservabilityDashboard(from_local_records_only=True)
     print(od.df)
     od.run_server()
