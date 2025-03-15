@@ -452,21 +452,6 @@ class ObservabilityDashboard:
             if filtered_df.is_empty():
                 # Return empty visualizations if no data
                 empty_outputs = self._create_empty_dashboard()
-                # Append an empty pie chart for the additional observability plot
-                empty_outputs += (px.pie({"operation_type": ["No data"], "count": [1]},
-                                        names='operation_type',
-                                        values='count',
-                                        template=TEMPLATE,
-                                        title="Operation Type Distribution"),)
-                # Also append empty figures for the new agent tokens and cost plots
-                empty_outputs += (px.bar({"agent_id": ["No data"], "total_tokens": [0]},
-                                        x="agent_id", y="total_tokens",
-                                        template=TEMPLATE,
-                                        title="Total Tokens by Agent"),
-                                px.bar({"agent_id": ["No data"], "total_cost": [0]},
-                                        x="agent_id", y="total_cost",
-                                        template=TEMPLATE,
-                                        title="Total Cost by Agent"))
                 return empty_outputs
             
             # Overview Tab
@@ -902,14 +887,25 @@ class ObservabilityDashboard:
                 table_data, table_columns
             )
     
-    def filter_data(self, start_date, end_date, session_id, workspace, providers, models, agents):
+    def filter_data(self, start_date, end_date, session_id, workspace, provider, model, agent_id):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
-        #TODO implement filter in polars
-        # Column order for better analysis
-        # if not filtered_df.is_empty():
-        #     filtered_df = filtered_df.select(["timestamp", "operation_id", "session_id", "agent_id", "provider", "model", "operation_type", "success", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "cost", "error_message", "system_prompt", "user_prompt", "response"])
+        start_date = datetime.fromisoformat(start_date)
+        end_date = datetime.fromisoformat(end_date)
+        args = []
+        names = ["session_id", "workspace", "provider", "model","agent_id"]
+        for i, _filter in enumerate([session_id, workspace, provider, model, agent_id]):
+            if not _filter:
+                continue
+            elif isinstance(_filter, list):
+                args.append(pl.col(names[i]).is_in(_filter))
+            else:
+                args.append(pl.col(names[i]).eq(_filter))
         
+        if start_date and end_date:
+            args.append(pl.col("date").is_between(start_date, end_date))
+        
+        filtered_df = filtered_df.filter(*args)
         return filtered_df
         
     def _create_overview_metrics(self, df):
@@ -1213,17 +1209,20 @@ class ObservabilityDashboard:
             empty_metrics, empty_fig, empty_fig, empty_fig, empty_fig,
             
             # Performance Tab
-            empty_fig, empty_fig, empty_fig, empty_fig,
+            empty_metrics, empty_fig, empty_fig, empty_fig, empty_fig,
             
             # Token Usage Tab
-            empty_fig, empty_fig, empty_fig, empty_fig,
+            empty_metrics, empty_metrics, empty_fig, empty_fig, empty_fig,
             
             # Cost Analysis Tab
-            empty_fig, empty_fig,
+            empty_metrics, empty_fig, empty_fig,
             
             # Agent Analysis Tab
-            empty_fig, empty_fig, empty_fig, empty_fig,
-            
+            empty_metrics, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig,
+
+            # Additional Observability Plot
+            empty_fig,
+
             # Operations Tab
             empty_table_data, empty_table_columns
         )
