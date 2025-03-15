@@ -26,6 +26,27 @@ class CompletionUsage(BaseModel):
     def __str__(self)->str:
         cost_prefix = f"Cost: ${self.cost} | " if self.cost else ""
         return f"{cost_prefix}Tokens: {self.total_tokens} | Prompt: {self.prompt_tokens} | Response: {self.response_tokens}"
+    
+    @classmethod
+    def from_pricing_info(cls,
+        completion_id :str,
+        prompt_tokens :int,
+        response_tokens :int,
+        cost :Optional[float]=0,
+        pricing :Optional[PricingConfig]=None)->"CompletionUsage":
+        if pricing is not None:
+            cost = pricing.input * prompt_tokens + pricing.output * response_tokens
+            cost *= 1e-6
+        return cls(
+            completion_id=completion_id,
+            prompt_tokens=prompt_tokens,
+            response_tokens=response_tokens,
+            cost=cost,
+        )
+    
+    def update_with_pricing(self, pricing :PricingConfig):
+        if not self.cost:
+            self.cost = pricing.input * self.prompt_tokens + pricing.output * self.response_tokens
 
 class UsageInfo(RootModel):
     root :List[CompletionUsage]=[]
@@ -41,18 +62,16 @@ class UsageInfo(RootModel):
                 prompt_tokens :int,
                 response_tokens :int,
                 completion_id :Optional[str]=None
-        ):
-        kwargs = {
-            "prompt_tokens": prompt_tokens,
-            "response_tokens": response_tokens
-        }
-        if completion_id is not None:
-            kwargs["completion_id"] = completion_id
-        
-        self.root.append(CompletionUsage(**kwargs))
+        ):        
+        self.root.append(CompletionUsage.from_pricing_info(
+            completion_id=completion_id,
+            prompt_tokens=prompt_tokens,
+            response_tokens=response_tokens,
+            pricing=self.pricing
+        ))
 
     @computed_field
-    def pricing(self)->PricingConfig:
+    def pricing(self)->Optional[PricingConfig]:
         return self._pricing
     
     @pricing.setter
@@ -119,21 +138,13 @@ class UsageInfo(RootModel):
                 if item.completion_id == comp_id:
                     # Update token counts
                     prompt_tokens = item.prompt_tokens + tokens["prompt_tokens"]
-                    response_tokens = item.response_tokens + tokens["response_tokens"]
-                    
-                    # Calculate cost if pricing is available
-                    if self.pricing is not None:
-                        cost = self.pricing.input * prompt_tokens + self.pricing.output * response_tokens
-                        cost *= 1e-6
-                    else:
-                        cost = 0
-                    
+                    response_tokens = item.response_tokens + tokens["response_tokens"]                    
                     # Replace with updated item
-                    result[i] = CompletionUsage(
+                    result[i] = CompletionUsage.from_pricing_info(
                         completion_id=comp_id,
                         prompt_tokens=prompt_tokens,
                         response_tokens=response_tokens,
-                        cost=cost
+                        pricing=self.pricing
                     )
                     break
         
