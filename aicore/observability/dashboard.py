@@ -597,6 +597,7 @@ class ObservabilityDashboard:
             token_efficiency_fig.update_layout(yaxis_title="Tokens per millisecond")
             
             # Token usage by model
+            # Aggregate token usage by model
             token_by_model = filtered_df.filter(
                 (pl.col("input_tokens") > 0) | (pl.col("output_tokens") > 0)
             ).group_by("model").agg(
@@ -604,16 +605,20 @@ class ObservabilityDashboard:
                 pl.col("output_tokens").sum().alias("output_tokens"),
                 pl.col("total_tokens").sum().alias("total_tokens")
             )
+
+            # Create a grouped bar chart for token usage
             token_model_fig = px.bar(
                 token_by_model,
-                x='model',
-                y='total_tokens',
-                color='model',
+                x="model",
+                y=["input_tokens", "output_tokens", "total_tokens"],
                 template=TEMPLATE,
                 title="Token Usage by Model"
             )
-            token_model_fig.update_layout(yaxis_title="Total Tokens")
-            
+            token_model_fig.update_layout(
+                yaxis_title="Tokens",
+                barmode="group"
+            )
+
             # Input vs Output tokens distribution
             token_dist_data = filtered_df.filter(
                 (pl.col("input_tokens") > 0) | (pl.col("output_tokens") > 0)
