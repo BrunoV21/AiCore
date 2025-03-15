@@ -157,7 +157,7 @@ class ObservabilityDashboard:
                 dcc.Tabs(id="dashboard-tabs", value='overview-tab', className="custom-tabs", children=[
 
                     # Overview Tab
-                    dcc.Tab(label='Overview', value='overview-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                    dcc.Tab(label='🗂️ Overview', value='overview-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div(id='overview-metrics', className="metrics-container"),
                             html.Div([
@@ -189,7 +189,7 @@ class ObservabilityDashboard:
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Performance Tab
-                    dcc.Tab(label='Performance', value='performance-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                    dcc.Tab(label='🚀 Performance', value='performance-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div(id='latency-metrics', className="metrics-container"),
                             # Row 1: Overall latency stats
@@ -219,7 +219,7 @@ class ObservabilityDashboard:
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Token Usage Tab
-                    dcc.Tab(label='Token Usage', value='token-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                    dcc.Tab(label='🏷️ Token Usage', value='token-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([                            
                             html.Div(id='token-metrics', className="metrics-container"),
                             # Row 1: Token efficiency and usage
@@ -249,7 +249,7 @@ class ObservabilityDashboard:
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Cost Analysis Tab
-                    dcc.Tab(label='Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                    dcc.Tab(label='💰 Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([                            
                             html.Div(id='cost-metrics', className="metrics-container"),
                             # Row 1: Cost breakdown and cost per token
@@ -267,7 +267,7 @@ class ObservabilityDashboard:
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Agent Analysis Tab
-                    dcc.Tab(label='Agent Analysis', value='agent-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                    dcc.Tab(label='🕵️‍♂️ Agent Analysis', value='agent-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([                            
                             html.Div(id='agent-metrics', className="metrics-container"),
                             # Row 1: Overall agent usage and performance
@@ -309,10 +309,9 @@ class ObservabilityDashboard:
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Operations Tab
-                    dcc.Tab(label='Operations Data', value='operations-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
+                    dcc.Tab(label='⚙️ Operations Data', value='operations-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div([
-                                html.H3("Operation Details"),
                                 dash_table.DataTable(
                                     id='operations-table',
                                     page_size=15,
@@ -1233,9 +1232,6 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
-    #TODO add apply_fitlers to global filters
-    #TODO fix css for datapickrange
-    #TODO add cross workspace anaçysis by integrating workspaces into tokens and cost
-    od = ObservabilityDashboard(from_local_records_only=True)
+    od = ObservabilityDashboard()
     print(od.df)
     od.run_server()
