@@ -10,10 +10,11 @@ from typing import Optional, Any
 from datetime import datetime, timedelta
 
 EXTERNAL_STYLESHEETS = [
-    "https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/darkly/bootstrap.min.css",
+    dbc.themes.BOOTSTRAP,
+    dbc.themes.GRID,
+    dbc.themes.DARKLY,
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
 ]
-
 TEMPLATE = "plotly_dark"
 
 class ObservabilityDashboard:
@@ -72,7 +73,7 @@ class ObservabilityDashboard:
                                 dcc.Dropdown(
                                     id='workspace-dropdown',
                                     multi=True,
-                                    style={"background-color": "#333", "color": "white"}
+                                    style={"background-color": "#333", "color": "white"},
                                 ),
                             ], style={"flex": "1", "margin-right": "10px"}),
 
@@ -136,7 +137,8 @@ class ObservabilityDashboard:
                                         html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
                                     ],
                                     title="Additional Filters", style={
-                                        "backgroundColor": "#333",
+
+                                        "background-color": "#333",
                                         "color": "white",
                                         "fontSize": "0.85rem",
                                         "padding": "10px"
@@ -184,7 +186,7 @@ class ObservabilityDashboard:
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'}),
                         ], className="tab-content")
-                    ]),
+                    ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Performance Tab
                     dcc.Tab(label='Performance', value='performance-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
@@ -214,7 +216,7 @@ class ObservabilityDashboard:
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'})
                         ], style={'padding': '10px'})
-                    ]),
+                    ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Token Usage Tab
                     dcc.Tab(label='Token Usage', value='token-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
@@ -244,7 +246,7 @@ class ObservabilityDashboard:
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'})
                         ], style={'padding': '10px'})
-                    ]),
+                    ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Cost Analysis Tab
                     dcc.Tab(label='Cost Analysis', value='cost-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
@@ -262,7 +264,7 @@ class ObservabilityDashboard:
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'})
                         ], style={'padding': '10px'})
-                    ]),
+                    ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Agent Analysis Tab
                     dcc.Tab(label='Agent Analysis', value='agent-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
@@ -304,7 +306,7 @@ class ObservabilityDashboard:
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'})
                         ], style={'padding': '10px'})
-                    ]),
+                    ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Operations Tab
                     dcc.Tab(label='Operations Data', value='operations-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
@@ -343,7 +345,7 @@ class ObservabilityDashboard:
                                 )
                             ], className="table-container")
                         ], className="tab-content")
-                    ])
+                    ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"})
                 ]),
             ], className="tabs-container"),
         ], className="dashboard-wrapper")
@@ -1224,14 +1226,14 @@ class ObservabilityDashboard:
             empty_table_data, empty_table_columns
         )
 
-    def run_server(self, debug=True, port=8050, host="127.0.0.1"):
+    def run_server(self, debug=False, port=8050, host="127.0.0.1"):
         """Run the dashboard server."""
         self.app.run_server(debug=debug, port=port, host=host)
+        self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
     #TODO add apply_fitlers to global filters
-    #TODO fix css for dropdowns and co
-    #TODO add input and output tokens and costs into sql schema and dashbaprds
+    #TODO fix css for datapickrange
     #TODO add cross workspace anaçysis by integrating workspaces into tokens and cost
     od = ObservabilityDashboard(from_local_records_only=True)
     print(od.df)

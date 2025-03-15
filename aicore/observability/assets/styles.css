@@ -1,0 +1,18 @@
+.Select-control {
+    background-color: rgb(25, 25, 25) !important;
+    color:white;
+}  
+
+.Select-value-label {
+    color: white !important;
+}
+
+.Select-menu-outer {
+    background-color: rgb(25, 25, 25);
+    color: white;
+}
+
+#session-dropdown .Select-menu-outer {
+    background-color: rgb(25, 25, 25);
+    color: white;
+}  
