@@ -466,6 +466,7 @@ class LlmOperationCollector(RootModel):
         query += " ORDER BY m.operation_id DESC"
 
         try:
+            import polars as pl
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             cursor.execute(query, params)
             results = cursor.fetchall()
