@@ -370,13 +370,10 @@ class ObservabilityDashboard:
             """Update dropdown options based on available data, filtering by workspace if provided."""
             if self.df.is_empty():
                 return [], [], [], [], []
-            
             # Compute workspace options from the full dataframe
             workspaces = self.df["workspace"].unique().to_list()
             workspace_options = [{'label': w, 'value': w} for w in workspaces]
-            
             df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
-            
             # Compute other dropdown options from the filtered dataframe
             providers = df_filtered["provider"].unique().to_list()
             models = df_filtered["model"].unique().to_list()
@@ -890,7 +887,7 @@ class ObservabilityDashboard:
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
         start_date = datetime.fromisoformat(start_date)
-        end_date = datetime.fromisoformat(end_date)
+        end_date = datetime.fromisoformat(end_date) + timedelta(days=1)
         args = []
         names = ["session_id", "workspace", "provider", "model","agent_id"]
         for i, _filter in enumerate([session_id, workspace, provider, model, agent_id]):
