@@ -112,9 +112,9 @@ class ObservabilityDashboard:
                                             ),
                                         ], style={"margin-bottom": "10px"}),
 
-                                        html.Div([
-                                            html.Button('Refresh Data', id='refresh-data', n_clicks=0, className="btn btn-secondary btn-sm")
-                                        ], style={"margin-bottom": "5px"}),
+                                        # html.Div([
+                                        #     html.Button('Refresh Data', id='refresh-data', n_clicks=0, className="btn btn-secondary btn-sm")
+                                        # ], style={"margin-bottom": "5px"}),
 
                                         html.Div([
                                             html.Label("Model:", style={"color": "white"}),
@@ -134,7 +134,7 @@ class ObservabilityDashboard:
                                             ),
                                         ], style={"margin-bottom": "10px"}),
 
-                                        html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
+                                        # html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
                                     ],
                                     title="Additional Filters", style={
 
@@ -359,10 +359,15 @@ class ObservabilityDashboard:
             Output('agent-dropdown', 'options'),
             Output('session-dropdown', 'options'),
             Output('workspace-dropdown', 'options')],
-            [Input('apply-filters', 'n_clicks'),
-            Input('workspace-dropdown', 'value')]
+            [Input('date-picker-range', 'start_date'),
+            Input('date-picker-range', 'end_date'),
+            Input('session-dropdown', 'value'),
+            Input('workspace-dropdown', 'value'),
+            Input('provider-dropdown', 'value'),
+            Input('model-dropdown', 'value'),
+            Input('agent-dropdown', 'value')]
         )
-        def update_dropdowns(n_clicks, selected_workspaces):
+        def update_dropdowns(start_date, end_date, session_id, workspace, providers, models, agents):
             """Update dropdown options based on available data, filtering by workspace if provided."""
             if self.df.is_empty():
                 return [], [], [], [], []
@@ -371,10 +376,7 @@ class ObservabilityDashboard:
             workspaces = self.df["workspace"].unique().to_list()
             workspace_options = [{'label': w, 'value': w} for w in workspaces]
             
-            # If a workspace filter is applied, filter the dataframe accordingly
-            df_filtered = self.df
-            if selected_workspaces:
-                df_filtered = self.df.filter(pl.col("workspace").is_in(selected_workspaces))
+            df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
             
             # Compute other dropdown options from the filtered dataframe
             providers = df_filtered["provider"].unique().to_list()
@@ -434,16 +436,16 @@ class ObservabilityDashboard:
                 Output('operations-table', 'data'),
                 Output('operations-table', 'columns')
             ],
-            [Input('apply-filters', 'n_clicks'), Input('refresh-data', 'n_clicks')],
-            [State('date-picker-range', 'start_date'),
-            State('date-picker-range', 'end_date'),
-            State('session-dropdown', 'value'),
-            State('workspace-dropdown', 'value'),
-            State('provider-dropdown', 'value'),
-            State('model-dropdown', 'value'),
-            State('agent-dropdown', 'value')]
+            # [Input('apply-filters', 'n_clicks'), Input('refresh-data', 'n_clicks')],
+            [Input('date-picker-range', 'start_date'),
+            Input('date-picker-range', 'end_date'),
+            Input('session-dropdown', 'value'),
+            Input('workspace-dropdown', 'value'),
+            Input('provider-dropdown', 'value'),
+            Input('model-dropdown', 'value'),
+            Input('agent-dropdown', 'value')]
         )
-        def update_dashboard(n_clicks, refresh_clicks, start_date, end_date, session_id, workspace, providers, models, agents):
+        def update_dashboard(start_date, end_date, session_id, workspace, providers, models, agents):
             """Update dashboard visualizations based on filters."""
             filtered_df = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
             
