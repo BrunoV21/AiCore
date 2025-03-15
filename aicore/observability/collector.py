@@ -150,14 +150,13 @@ class LlmOperationRecord(BaseModel):
             "completion_args": json.dumps(self.completion_args, indent=4)
         }
 
-
 class LlmOperationCollector(RootModel):
     root: List[LlmOperationRecord] = []
     _storage_path: Optional[Union[str, Path]] = None
-    _db_conn: Optional["psycopg2.extensions.connection"] = None # noqa: F821
+    _db_conn: Optional["psycopg2.extensions.connection"] = None  # noqa: F821
 
     @model_validator(mode="after")
-    def init_db_conn(self)->Self:
+    def init_db_conn(self) -> Self:
         try:
             import psycopg2
             import psycopg2.extensions
@@ -167,13 +166,12 @@ class LlmOperationCollector(RootModel):
             if conn_str:
                 try:
                     self.db_conn = psycopg2.connect(conn_str)
-                    self._init_db_table()
+                    self._init_db_tables()  # use the new multi-table initializer
                 except Exception as e:
                     print(f"Database connection failed: {str(e)}")
                     self._db_conn = None
         except ModuleNotFoundError:
             raise ModuleNotFoundError("pip install aicore[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
-
         return self
 
     @property
@@ -181,11 +179,11 @@ class LlmOperationCollector(RootModel):
         return self._storage_path
 
     @property
-    def db_conn(self)->Optional["psycopg2.extensions.connection"]: # noqa: F821
+    def db_conn(self) -> Optional["psycopg2.extensions.connection"]:  # noqa: F821
         return self._db_conn
 
-    @db_conn.setter    
-    def db_conn(self, connection :Optional["psycopg2.extensions.connection"]): # noqa: F821
+    @db_conn.setter
+    def db_conn(self, connection: Optional["psycopg2.extensions.connection"]):  # noqa: F821
         self._db_conn = connection
 
     @storage_path.setter
@@ -252,10 +250,10 @@ class LlmOperationCollector(RootModel):
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None
     ) -> LlmOperationRecord:
-
-        # Clean request argjs to remove potentially sensitive or large objects
+        # Clean request args to remove potentially sensitive or large objects
         cleaned_args = self._clean_completion_args(completion_args)
 
+        # Build a record (assumes LlmOperationRecord includes these fields)
         record = LlmOperationRecord(
             session_id=session_id,
             agent_id=agent_id,
@@ -281,96 +279,143 @@ class LlmOperationCollector(RootModel):
                 self._insert_record_to_db(record)
             except Exception as e:
                 # In a production system, proper logging should be done here.
-                pass
+                print(f"Error inserting record to DB: {str(e)}")
 
         return record
 
-    def _init_db_table(self) -> None:
+    def _init_db_tables(self) -> None:
         """
-        Check for the existence of the 'observability' table.
-        If it does not exist, create it with the required schema.
+        Initialize three tables: sessions, messages, and metrics.
         """
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS observability (
-            operation_id VARCHAR PRIMARY KEY,
-            session_id VARCHAR,
+        sessions_table_sql = """
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id VARCHAR PRIMARY KEY,
             workspace VARCHAR,
-            agent_id VARCHAR,
+            agent_id VARCHAR
+        );
+        """
+        messages_table_sql = """
+        CREATE TABLE IF NOT EXISTS messages (
+            operation_id VARCHAR PRIMARY KEY,
+            session_id VARCHAR REFERENCES sessions(session_id),
             timestamp VARCHAR,
-            operation_type VARCHAR,
-            provider VARCHAR,
-            model TEXT,
             system_prompt TEXT,
             user_prompt TEXT,
             response TEXT,
-            success BOOLEAN,
             assistant_message TEXT,
             history_messages TEXT,
+            completion_args TEXT,
+            error_messages TEXT
+        );
+        """
+        metrics_table_sql = """
+        CREATE TABLE IF NOT EXISTS metrics (
+            operation_id VARCHAR PRIMARY KEY REFERENCES messages(operation_id),
+            operation_type VARCHAR,
+            provider VARCHAR,
+            model VARCHAR,
+            success BOOL,
             temperature VARCHAR,
             max_tokens INTEGER,
             input_tokens INTEGER,
             output_tokens INTEGER,
             total_tokens INTEGER,
             cost FLOAT,
-            latency_ms FLOAT,
-            error_message TEXT,
-            completion_args TEXT
+            latency_ms FLOAT
         );
         """
         cur = self.db_conn.cursor()
-        cur.execute(create_table_sql)
+        cur.execute(sessions_table_sql)
+        cur.execute(messages_table_sql)
+        cur.execute(metrics_table_sql)
         self.db_conn.commit()
         cur.close()
         self._table_initialized = True
 
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """
-        Insert a single LLM operation record into the PostgreSQL 'observability' table.
+        Insert a single LLM operation record into the three PostgreSQL tables.
         """
-        insert_sql = """
-        INSERT INTO observability (
-            operation_id, session_id, workspace, agent_id, timestamp, operation_type, provider,
-            model, system_prompt, user_prompt, response, success, assistant_message, history_messages,
-            temperature, max_tokens, input_tokens, output_tokens, total_tokens, cost, latency_ms,
-            error_message, completion_args
+        # Insert session (if not already present)
+        insert_session_sql = """
+        INSERT INTO sessions (session_id, workspace, agent_id)
+        VALUES (%(session_id)s, %(workspace)s, %(agent_id)s)
+        ON CONFLICT (session_id) DO NOTHING;
+        """
+
+        # Insert message
+        insert_message_sql = """
+        INSERT INTO messages (
+            operation_id, session_id, timestamp, system_prompt, user_prompt, response,
+            assistant_message, history_messages, completion_args, error_messages
         ) VALUES (
-            %(operation_id)s, %(session_id)s, %(workspace)s, %(agent_id)s, %(timestamp)s, %(operation_type)s, %(provider)s,
-            %(model)s, %(system_prompt)s, %(user_prompt)s, %(response)s, %(success)s, %(assistant_message)s, %(history_messages)s,
-            %(temperature)s, %(max_tokens)s, %(input_tokens)s, %(output_tokens)s, %(total_tokens)s, %(cost)s, %(latency_ms)s,
-            %(error_message)s, %(completion_args)s
-        )
+            %(operation_id)s, %(session_id)s, %(timestamp)s, %(system_prompt)s, %(user_prompt)s, %(response)s,
+            %(assistant_message)s, %(history_messages)s, %(completion_args)s, %(error_messages)s
+        );
         """
-        # Use the custom serializer to ensure computed fields are included
+
+        # Insert metrics
+        insert_metrics_sql = """
+        INSERT INTO metrics (
+            operation_id, operation_type, provider, model, success, temperature, max_tokens, input_tokens, output_tokens, total_tokens, cost, latency_ms
+        ) VALUES (
+            %(operation_id)s, %(operation_type)s, %(provider)s, %(model)s, %(success)s, %(temperature)s, %(max_tokens)s, %(input_tokens)s, %(output_tokens)s,
+            %(total_tokens)s, %(cost)s, %(latency_ms)s
+        );
+        """
+
         data = record.serialize_model()
+
         cur = self.db_conn.cursor()
-        cur.execute(insert_sql, data)
+        # Insert session record
+        cur.execute(insert_session_sql, {
+            'session_id': data.get('session_id'),
+            'workspace': data.get('workspace'),
+            'agent_id': data.get('agent_id')
+        })
+        # Insert message record
+        cur.execute(insert_message_sql, {
+            'operation_id': data.get('operation_id'),
+            'session_id': data.get('session_id'),
+            'timestamp': data.get('timestamp'),
+            'system_prompt': data.get('system_prompt'),
+            'user_prompt': data.get('user_prompt'),
+            'response': data.get('response'),
+            'assistant_message': data.get('assistant_message'),
+            'history_messages': data.get('history_messages'),
+            'completion_args': data.get('completion_args'),
+            'error_messages': data.get('error_messages')
+        })
+        # Insert metrics record
+        cur.execute(insert_metrics_sql, {
+            'operation_id': data.get('operation_id'),
+            'operation_type': data.get('operation_type'),
+            'provider': data.get('provider'),
+            'model': data.get('model'),
+            'success': data.get('success'),
+            'temperature': data.get('temperature'),
+            'max_tokens': data.get('max_tokens'),
+            'input_tokens': data.get('input_tokens'),
+            'output_tokens': data.get('output_tokens'),
+            'total_tokens': data.get('total_tokens'),
+            'cost': data.get('cost'),
+            'latency_ms': data.get('latency_ms')
+        })
+
         self.db_conn.commit()
         cur.close()
-        self._last_inserted_record = record.operation_id
+        self._last_inserted_record = data.get('operation_id')
 
     @classmethod
-    def polars_from_pg(cls, 
-                    provider: Optional[str] = None,
-                    model: Optional[str] = None, 
-                    agent_id: Optional[str] = None,
-                    session_id: Optional[str] = None,
-                    workspace: Optional[str] = None,
-                    start_date: Optional[str] = None,
-                    end_date: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+    def polars_from_pg(cls,
+                       agent_id: Optional[str] = None,
+                       session_id: Optional[str] = None,
+                       workspace: Optional[str] = None,
+                       start_date: Optional[str] = None,  # if you later decide to add a timestamp column
+                       end_date: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
         """
-        Query the PostgreSQL database and return results as a Polars DataFrame.
-        
-        Parameters:
-        - provider: Filter by LLM provider (e.g., 'groq', 'gemini')
-        - model: Filter by model name
-        - agent_id: Filter by agent ID
-        - session_id: Filter by session ID
-        - workspace: Filter by workspace
-        - start_date: Filter by start date (ISO format: YYYY-MM-DDThh:mm:ss)
-        - end_date: Filter by end date (ISO format: YYYY-MM-DDThh:mm:ss)
-        
-        Returns:
-        - Polars DataFrame containing the filtered records
+        Query the PostgreSQL database (joining sessions, messages, and metrics)
+        and return results as a Polars DataFrame.
         """
         try:
             import polars as pl
@@ -380,67 +425,59 @@ class LlmOperationCollector(RootModel):
             print("pip install aicore[pg,dashboard] for PostgreSQL and Polars integration")
             return None
         
-        obj = cls()
         conn_str = os.environ.get("PG_CONNECTION_STRING")
         if not conn_str:
             print("PostgreSQL connection string not found in environment variables")
             return None
-        
+
         try:
             conn = psycopg2.connect(conn_str)
         except Exception as e:
             print(f"Database connection failed: {str(e)}")
             return None
-        
-        # Build query with parameterized filters
-        query = "SELECT * FROM observability WHERE 1=1"
+
+        query = """
+        SELECT 
+            s.session_id, s.workspace, s.agent_id,
+            m.operation_id, m.timestamp, m.system_prompt, m.user_prompt, m.response,
+            m.assistant_message, m.history_messages, m.completion_args, m.error_messages,
+            met.operation_type, met.provider, met.model, met.success, met.temperature, met.max_tokens, met.input_tokens, met.output_tokens, met.total_tokens,
+            met.cost, met.latency_ms
+        FROM sessions s
+        JOIN messages m ON s.session_id = m.session_id
+        JOIN metrics met ON m.operation_id = met.operation_id
+        WHERE 1=1
+        """
         params = {}
-        
-        if provider:
-            query += " AND provider = %(provider)s"
-            params['provider'] = provider
-        
-        if model:
-            query += " AND model = %(model)s"
-            params['model'] = model
-        
+
         if agent_id:
-            query += " AND agent_id = %(agent_id)s"
+            query += " AND s.agent_id = %(agent_id)s"
             params['agent_id'] = agent_id
-        
+
         if session_id:
-            query += " AND session_id = %(session_id)s"
+            query += " AND s.session_id = %(session_id)s"
             params['session_id'] = session_id
-        
+
         if workspace:
-            query += " AND workspace = %(workspace)s"
+            query += " AND s.workspace = %(workspace)s"
             params['workspace'] = workspace
-        
-        if start_date:
-            query += " AND timestamp >= %(start_date)s"
-            params['start_date'] = start_date
-        
-        if end_date:
-            query += " AND timestamp <= %(end_date)s"
-            params['end_date'] = end_date
-        
-        # Add sorting to ensure consistent results
-        query += " ORDER BY timestamp DESC"
-        
+
+        # Note: If you add a timestamp to messages, you can filter by date here.
+        query += " ORDER BY m.operation_id DESC"
+
         try:
+            import polars as pl
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             cursor.execute(query, params)
             results = cursor.fetchall()
             cursor.close()
             conn.close()
-            
+
             if not results:
                 return pl.DataFrame()
-            
-            # Convert results to a list of dictionaries
+
             records = [dict(row) for row in results]
             return pl.from_dicts(records)
-        
         except Exception as e:
             print(f"Error executing database query: {str(e)}")
             if conn:
@@ -450,84 +487,56 @@ class LlmOperationCollector(RootModel):
     @classmethod
     def get_filter_options(cls) -> Dict[str, List[str]]:
         """
-        Query the database to get unique values for each filter field.
-        
-        Returns:
-        - Dictionary with filter names as keys and lists of unique values as values
+        Query the database to get unique filter values.
+        For this schema, we provide filters for agent_id, session_id, and workspace.
         """
         try:
             import psycopg2
-            import psycopg2.extras
         except ModuleNotFoundError:
             print("pip install aicore[pg] for PostgreSQL integration")
             return {}
-        
+
         conn_str = os.environ.get("PG_CONNECTION_STRING")
         if not conn_str:
             print("PostgreSQL connection string not found in environment variables")
             return {}
-        
+
         try:
             conn = psycopg2.connect(conn_str)
         except Exception as e:
             print(f"Database connection failed: {str(e)}")
             return {}
-        
-        # Define the fields to get unique values for
+
         filter_fields = {
-            'provider': 'provider',
-            'model': 'model',
             'agent_id': 'agent_id',
             'session_id': 'session_id',
             'workspace': 'workspace'
         }
-        
+
         filter_options = {}
-        cursor = conn.cursor()
-        
+        cur = conn.cursor()
         try:
             for key, field in filter_fields.items():
-                query = f"SELECT DISTINCT {field} FROM observability WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}"
-                cursor.execute(query)
-                results = cursor.fetchall()
-                # Use a helper expression to safely get the value
-                filter_options[key] = [
-                    (row[0] if isinstance(row, (list, tuple)) else row)
-                    for row in results
-                    if (row[0] if isinstance(row, (list, tuple)) else row)
-                ]
-            
-            # Get min and max dates for date range filters
-            cursor.execute("SELECT MIN(timestamp), MAX(timestamp) FROM observability")
-            date_range = cursor.fetchone()
-            if date_range and date_range[0] and date_range[1]:
-                filter_options['date_range'] = [date_range[0], date_range[1]]
-            else:
-                filter_options['date_range'] = []
-                
+                query = f"SELECT DISTINCT {field} FROM sessions WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}"
+                cur.execute(query)
+                results = cur.fetchall()
+                filter_options[key] = [row[0] for row in results if row[0]]
         except Exception as e:
             print(f"Error retrieving filter options: {str(e)}")
         finally:
-            cursor.close()
+            cur.close()
             conn.close()
-        
+
         return filter_options
 
-
     @classmethod
-    def get_metrics_summary(cls, 
-                            provider: Optional[str] = None,
-                            model: Optional[str] = None, 
+    def get_metrics_summary(cls,
                             agent_id: Optional[str] = None,
                             session_id: Optional[str] = None,
-                            workspace: Optional[str] = None,
-                            start_date: Optional[str] = None,
-                            end_date: Optional[str] = None) -> Dict[str, Any]:
+                            workspace: Optional[str] = None) -> Dict[str, Any]:
         """
         Retrieve summary metrics from the database based on filters.
-        
-        Returns:
-        - Dictionary with summary metrics
+        This summary aggregates data from the metrics table.
         """
         try:
             import psycopg2
@@ -535,104 +544,63 @@ class LlmOperationCollector(RootModel):
         except ModuleNotFoundError:
             print("pip install aicore[pg] for PostgreSQL integration")
             return {}
-        
+
         conn_str = os.environ.get("PG_CONNECTION_STRING")
         if not conn_str:
             print("PostgreSQL connection string not found in environment variables")
             return {}
-        
+
         try:
             conn = psycopg2.connect(conn_str)
         except Exception as e:
             print(f"Database connection failed: {str(e)}")
             return {}
-        
-        # Build query with parameterized filters
+
+        # Build a query that joins sessions and metrics (via messages)
         where_clause = "WHERE 1=1"
         params = {}
-        
-        if provider:
-            where_clause += " AND provider = %(provider)s"
-            params['provider'] = provider
-        
-        if model:
-            where_clause += " AND model = %(model)s"
-            params['model'] = model
-        
+
         if agent_id:
-            where_clause += " AND agent_id = %(agent_id)s"
+            where_clause += " AND s.agent_id = %(agent_id)s"
             params['agent_id'] = agent_id
-        
+
         if session_id:
-            where_clause += " AND session_id = %(session_id)s"
+            where_clause += " AND s.session_id = %(session_id)s"
             params['session_id'] = session_id
-        
+
         if workspace:
-            where_clause += " AND workspace = %(workspace)s"
+            where_clause += " AND s.workspace = %(workspace)s"
             params['workspace'] = workspace
-        
-        if start_date:
-            where_clause += " AND timestamp >= %(start_date)s"
-            params['start_date'] = start_date
-        
-        if end_date:
-            where_clause += " AND timestamp <= %(end_date)s"
-            params['end_date'] = end_date
-        
+
         query = f"""
         SELECT 
             COUNT(*) as total_operations,
-            SUM(CASE WHEN success = true THEN 1 ELSE 0 END) as successful_operations,
-            SUM(CASE WHEN success = false THEN 1 ELSE 0 END) as failed_operations,
-            AVG(latency_ms) as avg_latency_ms,
-            SUM(input_tokens) as total_input_tokens,
-            SUM(output_tokens) as total_output_tokens,
-            SUM(total_tokens) as total_tokens,
-            SUM(cost) as total_cost,
-            COUNT(DISTINCT provider) as provider_count,
-            COUNT(DISTINCT model) as model_count,
-            COUNT(DISTINCT session_id) as session_count
-        FROM observability
+            AVG(met.latency_ms) as avg_latency_ms,
+            SUM(met.input_tokens) as total_input_tokens,
+            SUM(met.output_tokens) as total_output_tokens,
+            SUM(met.total_tokens) as total_tokens,
+            SUM(met.cost) as total_cost
+        FROM sessions s
+        JOIN messages m ON s.session_id = m.session_id
+        JOIN metrics met ON m.operation_id = met.operation_id
         {where_clause}
         """
-        
         try:
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            cursor.execute(query, params)
-            result = dict(cursor.fetchone())
-            
-            # Get provider distribution
-            provider_query = f"""
-            SELECT provider, COUNT(*) as count
-            FROM observability
-            {where_clause}
-            GROUP BY provider
-            ORDER BY count DESC
-            """
-            cursor.execute(provider_query, params)
-            result['provider_distribution'] = {row['provider']: row['count'] for row in cursor.fetchall()}
-            
-            # Get model distribution
-            model_query = f"""
-            SELECT model, COUNT(*) as count
-            FROM observability
-            {where_clause}
-            GROUP BY model
-            ORDER BY count DESC
-            """
-            cursor.execute(model_query, params)
-            result['model_distribution'] = {row['model']: row['count'] for row in cursor.fetchall()}
-            
-            cursor.close()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute(query, params)
+            result = dict(cur.fetchone())
+            cur.close()
             conn.close()
             return result
-            
         except Exception as e:
             print(f"Error executing metrics query: {str(e)}")
             if conn:
                 conn.close()
             return {}
 
+
 if __name__ == "__main__":
     LlmOperationCollector()
-    print(LlmOperationCollector.polars_from_pg())
+    df = LlmOperationCollector.polars_from_pg()
+    print(df.columns)
+    print(df)

@@ -1,0 +1,187 @@
+.Select-control {
+    background-color: rgb(25, 25, 25) !important;
+    color:white;
+}  
+
+.Select-value-label {
+    color: white !important;
+}
+
+.Select-menu-outer {
+    background-color: rgb(25, 25, 25);
+    color: white;
+}
+
+#session-dropdown .Select-menu-outer {
+    background-color: rgb(25, 25, 25);
+    color: white;
+}
+
+/* DateRangePicker - Dark Theme with specific classes */
+/* Main container and its children */
+#date-picker-range,
+#date-picker-range *,
+.DateRangePicker,
+.DateRangePicker_1,
+.DateRangePickerInput,
+.DateRangePickerInput_1,
+.DateRangePickerInput__withBorder,
+.DateRangePickerInput__withBorder_2 {
+  background-color: #121212 !important;
+  color: #fff !important;
+}
+
+/* Input fields */
+.DateInput,
+.DateInput_1,
+.DateInput_input,
+.DateInput_input_1 {
+  background-color: #1e1e1e !important;
+  color: #fff !important;
+  border-color: #373888 !important;
+}
+
+/* Placeholders */
+.DateInput_input::placeholder,
+.DateInput_input_1::placeholder {
+  color: #aaa !important;
+}
+
+/* Calendar popup related elements */
+.DayPicker,
+.DayPicker_1,
+.CalendarMonth,
+.CalendarMonth_1,
+.CalendarMonthGrid,
+.CalendarMonthGrid_1 {
+  background-color: #1e1e1e !important;
+}
+
+/* Month caption */
+.CalendarMonth_caption,
+.CalendarMonth_caption_1 {
+  color: #fff !important;
+}
+
+/* Weekday headers */
+.DayPicker_weekHeader,
+.DayPicker_weekHeader_1,
+.DayPicker_weekHeader_li,
+.DayPicker_weekHeader_li_1 {
+  color: #bbb !important;
+}
+
+/* Calendar days */
+.CalendarDay,
+.CalendarDay_1,
+.CalendarDay__default,
+.CalendarDay__default_2 {
+  background-color: #1e1e1e !important;
+  color: #fff !important;
+  border: 1px solid #2c2c2c !important;
+}
+
+/* Hover state */
+.CalendarDay__default:hover,
+.CalendarDay__default_2:hover {
+  background-color: #2a2a59 !important;
+  border: 1px solid #373888 !important;
+  color: #fff !important;
+}
+
+/* Selected start and end dates - FILLED with accent color */
+.CalendarDay__selected,
+.CalendarDay__selected_4,
+.CalendarDay__selected_5,
+.CalendarDay__selected_6,
+.CalendarDay__selected:hover {
+  background-color: #373888 !important;
+  border: 1px solid #373888 !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+/* Date range span - FILLED with lighter accent color */
+.CalendarDay__selected_span,
+.CalendarDay__selected_span_3,
+.CalendarDay__selected_span_4 {
+  background-color: #2a2a59 !important;
+  border: 1px solid #2a2a59 !important;
+  color: #fff !important;
+}
+
+/* Hovered date in range */
+.CalendarDay__hovered_span,
+.CalendarDay__hovered_span_2,
+.CalendarDay__hovered_span:hover {
+  background-color: #232336 !important;
+  border: 1px solid #232336 !important;
+  color: #fff !important;
+}
+
+/* Today's date */
+.CalendarDay__today,
+.CalendarDay__today_3 {
+  background-color: #232336 !important;
+  color: #fff !important;
+  border: 1px solid #373888 !important;
+}
+
+/* Navigation buttons */
+.DayPickerNavigation_button,
+.DayPickerNavigation_button_1 {
+  background-color: #1e1e1e !important;
+  color: #fff !important;
+  border: 1px solid #373888 !important;
+}
+
+.DayPickerNavigation_svg__horizontal,
+.DayPickerNavigation_svg__horizontal_1 {
+  fill: #373888 !important;
+}
+
+/* Arrow between inputs */
+.DateRangePickerInput_arrow,
+.DateRangePickerInput_arrow_1,
+.DateRangePickerInput_arrow_svg,
+.DateRangePickerInput_arrow_svg_1 {
+  fill: #373888 !important;
+}
+
+/* Calendar container */
+.DayPicker_transitionContainer,
+.DayPicker_transitionContainer_1,
+.DayPicker_focusRegion,
+.DayPicker_focusRegion_1 {
+  background-color: #1e1e1e !important;
+}
+
+/* Calendar popup */
+.DateRangePicker_picker,
+.DateRangePicker_picker_1 {
+  background-color: #1e1e1e !important;
+  border: 1px solid #373888 !important;
+  box-shadow: 0 2px 10px rgba(55, 56, 136, 0.3) !important;
+}
+
+/* Keyboard shortcuts panel */
+.DayPickerKeyboardShortcuts_show,
+.DayPickerKeyboardShortcuts_show_1,
+.DayPickerKeyboardShortcuts_show__bottomRight,
+.DayPickerKeyboardShortcuts_show__bottomRight_2 {
+  border-right: 33px solid #373888 !important;
+}
+
+.DayPickerKeyboardShortcuts_buttonReset {
+  color: #373888 !important;
+}
+
+/* Blocked dates */
+.CalendarDay__blocked_calendar,
+.CalendarDay__blocked_calendar_2,
+.CalendarDay__blocked_out_of_range,
+.CalendarDay__blocked_out_of_range_2 {
+  background-color: #1e1e1e !important;
+  color: #666 !important;
+  border: 1px solid #2c2c2c !important;
+}
