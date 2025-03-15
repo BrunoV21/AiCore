@@ -79,7 +79,7 @@ class LlmOperationRecord(BaseModel):
 
     @computed_field
     def max_tokens(self) -> int:
-        return self.completion_args.get("max_tokens", 0)
+        return self.completion_args.get("max_tokens", 0) or self.completion_args.get("max_completion_tokens", 0)
 
     @computed_field
     def system_prompt(self) -> Optional[str]:

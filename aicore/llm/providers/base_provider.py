@@ -238,6 +238,8 @@ class LlmBaseProvider(BaseModel):
             if not stream:
                 self.completion_args.pop("stream_options", None)
             args.update(self.completion_args)
+
+        args = {arg: value for arg, value in args.items() if value is not None}
         
         return args
 

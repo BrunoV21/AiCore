@@ -1,5 +1,5 @@
 from typing import Literal, Optional, Self
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 
 from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
 from aicore.pricing import PricingConfig
@@ -13,6 +13,10 @@ class LlmConfig(BaseModel):
     max_tokens :int=12000
     reasoner :Optional["LlmConfig"]=None
     pricing :Optional[PricingConfig]=None
+
+    model_config = ConfigDict(
+        extra="allow",
+    )
 
     @field_validator("temperature")
     @classmethod
