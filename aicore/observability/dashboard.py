@@ -150,9 +150,15 @@ class ObservabilityDashboard:
                                                 style={"background-color": "#333", "color": "white"}
                                             ),
                                         ], style={"margin-bottom": "10px"}),
-
-                                        # html.Button('Apply Filters', id='apply-filters', n_clicks=0, className="btn btn-primary btn-block"),
-                                    ],
+                                        html.Div([
+                                            html.Label("Action:", style={"color": "white"}),
+                                            dcc.Dropdown(
+                                                id='action-dropdown',
+                                                multi=True,
+                                                style={"background-color": "#333", "color": "white"}
+                                            ),
+                                        ], style={"margin-bottom": "10px"})
+                                        ],
                                     title="Additional Filters", style={
 
                                         "background-color": "#333",
@@ -382,6 +388,7 @@ class ObservabilityDashboard:
             [Output('provider-dropdown', 'options'),
             Output('model-dropdown', 'options'),
             Output('agent-dropdown', 'options'),
+            Output('action-dropdown', 'options'),
             Output('session-dropdown', 'options'),
             Output('workspace-dropdown', 'options')],
             [Input("refresh-button", "n_clicks"),
@@ -392,28 +399,31 @@ class ObservabilityDashboard:
             Input('workspace-dropdown', 'value'),
             Input('provider-dropdown', 'value'),
             Input('model-dropdown', 'value'),
-            Input('agent-dropdown', 'value')]
+            Input('agent-dropdown', 'value'),
+            Input('action-dropdown', 'value')]
         )
-        def update_dropdowns(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents):
+        def update_dropdowns(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions):
             """Update dropdown options based on available data, filtering by workspace if provided."""
             if self.df.is_empty():
                 return [], [], [], [], []
             # Compute workspace options from the full dataframe
             workspaces = self.df["workspace"].unique().to_list()
             workspace_options = [{'label': w, 'value': w} for w in workspaces]
-            df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
+            df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
             # Compute other dropdown options from the filtered dataframe
             providers = df_filtered["provider"].unique().to_list()
             models = df_filtered["model"].unique().to_list()
             sessions = df_filtered["session_id"].unique().to_list()
             agents = [a for a in df_filtered["agent_id"].unique().to_list() if a]  # Filter empty agent IDs
+            actions = [a for a in df_filtered["action_id"].unique().to_list() if a]  # Filter empty agent IDs
             
             provider_options = [{'label': p, 'value': p} for p in providers]
             model_options = [{'label': m, 'value': m} for m in models]
             session_options = [{'label': s, 'value': s} for s in sessions]
             agent_options = [{'label': a, 'value': a} for a in agents]
+            actions_options = [{'label': a, 'value': a} for a in actions]
             
-            return provider_options, model_options, agent_options, session_options, workspace_options
+            return provider_options, model_options, agent_options, actions_options, session_options, workspace_options
 
         @self.app.callback(
             [
@@ -469,11 +479,12 @@ class ObservabilityDashboard:
             Input('workspace-dropdown', 'value'),
             Input('provider-dropdown', 'value'),
             Input('model-dropdown', 'value'),
-            Input('agent-dropdown', 'value')]
+            Input('agent-dropdown', 'value'),
+            Input('action-dropdown', 'value')]
         )
-        def update_dashboard(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents):
+        def update_dashboard(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions):
             """Update dashboard visualizations based on filters."""
-            filtered_df = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
+            filtered_df = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
             
             if filtered_df.is_empty():
                 # Return empty visualizations if no data
@@ -885,7 +896,7 @@ class ObservabilityDashboard:
             )
             
             # Operations Data Tab
-            display_columns = filtered_df.columns
+            display_columns = [col for col in filtered_df.columns if col not in ["day", "hour", "minute"]]
             table_data = filtered_df.select(display_columns).to_dicts()
             table_columns = [{"name": i, "id": i} for i in display_columns]
             
@@ -913,14 +924,14 @@ class ObservabilityDashboard:
                 table_data, table_columns
             )
     
-    def filter_data(self, start_date, end_date, session_id, workspace, provider, model, agent_id):
+    def filter_data(self, start_date, end_date, session_id, workspace, provider, model, agent_id, action_id):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
         start_date = datetime.fromisoformat(start_date)
         end_date = datetime.fromisoformat(end_date) + timedelta(days=1)
         args = []
-        names = ["session_id", "workspace", "provider", "model","agent_id"]
-        for i, _filter in enumerate([session_id, workspace, provider, model, agent_id]):
+        names = ["session_id", "workspace", "provider", "model","agent_id", "action_id"]
+        for i, _filter in enumerate([session_id, workspace, provider, model, agent_id, action_id]):
             if not _filter:
                 continue
             elif isinstance(_filter, list):
@@ -1259,6 +1270,8 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
+    # TODO add action_id filter
+    # TODO agents add view per actions ie actions count per agent, incude actions into tokens cost
     # TODO refresh Cost per Token plot
     # TODO add support to execute all operations on db (i.e filters and so on)
     od = ObservabilityDashboard()
