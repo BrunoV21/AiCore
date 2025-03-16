@@ -6,6 +6,17 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      run_security:
+        description: 'Run security check'
+        type: boolean
+        default: false
+      run_deploy:
+        description: 'Run deploy step'
+        type: boolean
+        default: false
+        required: true
 jobs:
   build_and_test:
     name: Build and Test
@@ -36,7 +47,7 @@ jobs:
   security:
     name: Security Check
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || inputs.run_security
     steps:
       - uses: actions/checkout@main
       - name: Run Safety CLI to check for vulnerabilities
@@ -45,7 +56,7 @@ jobs:
     name: Deploy Package to PyPI
     runs-on: ubuntu-latest
     needs: [build_and_test, security]
-    if: github.event_name == 'release' && github.event.action == 'published' && needs.build_and_test.result == 'success' && needs.security.result == 'success'
+    if: (github.event_name == 'release' && github.event.action == 'published' && needs.build_and_test.result == 'success' && needs.security.result == 'success') || inputs.run_deploy
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
