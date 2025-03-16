@@ -6,6 +6,7 @@ with open("README.md", "r") as fh:
 
 
 install_requires = [
+    "anthropic==0.49.0",
     "google-genai==0.6.0",
     "groq==0.13.1",
     "mistralai==1.2.3",

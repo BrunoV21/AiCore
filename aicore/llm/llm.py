@@ -13,6 +13,7 @@ from aicore.llm.config import LlmConfig
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE, DEFAULT_SYSTEM_PROMPT, REASONER_DEFAULT_SYSTEM_PROMPT
 from aicore.llm.providers import (
     LlmBaseProvider,
+    AnthropicLlm,
     OpenAiLlm,
     OpenRouterLlm,
     MistralLlm, 
@@ -22,6 +23,7 @@ from aicore.llm.providers import (
 )
 
 class Providers(Enum):
+    ANTHROPIC :AnthropicLlm=AnthropicLlm
     OPENAI :OpenAiLlm=OpenAiLlm
     OPENROUTER :OpenRouterLlm=OpenRouterLlm
     MISTRAL :MistralLlm=MistralLlm
