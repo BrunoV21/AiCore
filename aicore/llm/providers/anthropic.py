@@ -75,13 +75,12 @@ class AnthropicLlm(LlmBaseProvider):
         elif event_type == "content_block_delta":
             return event
         elif event_type == "message_delta":
-            if hasattr(event, "message"):
-                output_tokens = event.message.usage.output_tokens
-                self.usage.record_completion(
-                    prompt_tokens=input_tokens,
-                    response_tokens=output_tokens,
-                    completion_id=completion_id or event.message.id
-                )
+            output_tokens = event.usage.output_tokens
+            self.usage.record_completion(
+                prompt_tokens=input_tokens,
+                response_tokens=output_tokens,
+                completion_id=completion_id
+            )
 
     @staticmethod
     def _handle_stream_messages(event, message)->list:
