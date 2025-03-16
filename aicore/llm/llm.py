@@ -131,11 +131,11 @@ class Llm(BaseModel):
             system_prompt :Optional[Union[str, List[str]]]=None,
             prefix_prompt :Optional[Union[str, List[str]]]=None,
             img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
-            stream :bool=True, agent_id: Optional[str]=None)->List[str]:
+            stream :bool=True, agent_id: Optional[str]=None, action_id :Optional[str]=None)->List[str]:
         
         if self.reasoner:
             system_prompt = system_prompt or self.reasoner.system_prompt
-            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream, agent_id)
+            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream, agent_id, action_id)
             reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
             
@@ -146,22 +146,14 @@ class Llm(BaseModel):
         system_prompt :Optional[Union[str, List[str]]]=None,
         prefix_prompt :Optional[Union[str, List[str]]]=None,
         img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
-        stream :bool=True, agent_id: Optional[str]=None)->List[str]:
+        stream :bool=True, agent_id: Optional[str]=None, action_id :Optional[str]=None)->List[str]:
         
         if self.reasoner:
             sys_prompt = system_prompt or self.reasoner.system_prompt
-            reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn, agent_id)
+            reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn, agent_id, action_id)
             reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)            
         return prefix_prompt
-    
-    def _handle_id(self, agent_id :Optional[str]=None, action_id :Optional[str]=None)->str:
-        agent_id = agent_id or self.agent_id
-        if agent_id and action_id:
-            agent_id = f"{agent_id}.{action_id}"
-        elif action_id:
-            agent_id = action_id
-        return agent_id
     
     @retry_on_rate_limit
     def complete(self,
@@ -179,9 +171,8 @@ class Llm(BaseModel):
         """
 
         sys_prompt = system_prompt or self.system_prompt
-        agent_id = self._handle_id(agent_id, action_id)
-        prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path, stream, agent_id)
-        return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id)
+        prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path, stream, agent_id, action_id)
+        return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id, action_id)
     
     @retry_on_rate_limit
     async def acomplete(self,
@@ -198,6 +189,5 @@ class Llm(BaseModel):
         """
          
         sys_prompt = system_prompt or self.system_prompt
-        agent_id = self._handle_id(agent_id, action_id)
-        prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path, stream, agent_id)
-        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id)
+        prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path, stream, agent_id, action_id)
+        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id, action_id)

@@ -14,6 +14,7 @@ class LlmOperationRecord(BaseModel):
     session_id: Optional[str] = ""
     workspace: Optional[str] = ""
     agent_id: Optional[str] = ""
+    action_id: Optional[str] = ""
     operation_id: str = Field(default_factory=ulid.ulid)
     timestamp: Optional[str] = ""
     operation_type: Literal["completion", "acompletion"]
@@ -29,7 +30,7 @@ class LlmOperationRecord(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    @field_validator(*["session_id", "workspace", "agent_id", "timestamp", "error_message", "response"])
+    @field_validator(*["session_id", "workspace", "agent_id", "action_id", "timestamp", "error_message", "response"])
     @classmethod
     def ensure_non_nulls(cls, value: Optional[str] = None) -> str:
         if value is None:
@@ -132,6 +133,7 @@ class LlmOperationRecord(BaseModel):
             "session_id": self.session_id,
             "workspace": self.workspace,
             "agent_id": self.agent_id,
+            "action_id": self.action_id,
             "timestamp": self.timestamp,
             "operation_id": self.operation_id,
             "operation_type": self.operation_type,
@@ -248,6 +250,7 @@ class LlmOperationCollector(RootModel):
         session_id: Optional[str] = None,
         workspace: Optional[str] = None,
         agent_id: Optional[str] = None,
+        action_id :Optional[str]=None,
         input_tokens: Optional[int] = 0,
         output_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
@@ -261,6 +264,7 @@ class LlmOperationCollector(RootModel):
         record = LlmOperationRecord(
             session_id=session_id,
             agent_id=agent_id,
+            action_id=action_id,
             workspace=workspace,
             provider=provider,
             operation_type=operation_type,
@@ -302,6 +306,7 @@ class LlmOperationCollector(RootModel):
         CREATE TABLE IF NOT EXISTS messages (
             operation_id VARCHAR PRIMARY KEY,
             session_id VARCHAR REFERENCES sessions(session_id),
+            action_id VARCHAR,
             timestamp VARCHAR,
             system_prompt TEXT,
             user_prompt TEXT,
@@ -350,10 +355,10 @@ class LlmOperationCollector(RootModel):
         # Insert message
         insert_message_sql = """
         INSERT INTO messages (
-            operation_id, session_id, timestamp, system_prompt, user_prompt, response,
+            operation_id, session_id, action_id, timestamp, system_prompt, user_prompt, response,
             assistant_message, history_messages, completion_args, error_messages
         ) VALUES (
-            %(operation_id)s, %(session_id)s, %(timestamp)s, %(system_prompt)s, %(user_prompt)s, %(response)s,
+            %(operation_id)s, %(session_id)s, %(action_id)s, %(timestamp)s, %(system_prompt)s, %(user_prompt)s, %(response)s,
             %(assistant_message)s, %(history_messages)s, %(completion_args)s, %(error_messages)s
         );
         """
@@ -381,6 +386,7 @@ class LlmOperationCollector(RootModel):
         cur.execute(insert_message_sql, {
             'operation_id': data.get('operation_id'),
             'session_id': data.get('session_id'),
+            'action_id': data.get('action_id'),
             'timestamp': data.get('timestamp'),
             'system_prompt': data.get('system_prompt'),
             'user_prompt': data.get('user_prompt'),
@@ -413,6 +419,7 @@ class LlmOperationCollector(RootModel):
     @classmethod
     def polars_from_pg(cls,
                        agent_id: Optional[str] = None,
+                       action_id: Optional[str] = None,
                        session_id: Optional[str] = None,
                        workspace: Optional[str] = None,
                        start_date: Optional[str] = None,  # if you later decide to add a timestamp column
@@ -443,7 +450,7 @@ class LlmOperationCollector(RootModel):
         query = """
         SELECT 
             s.session_id, s.workspace, s.agent_id,
-            m.operation_id, m.timestamp, m.system_prompt, m.user_prompt, m.response,
+            m.action_id, m.operation_id, m.timestamp, m.system_prompt, m.user_prompt, m.response,
             m.assistant_message, m.history_messages, m.completion_args, m.error_messages,
             met.operation_type, met.provider, met.model, met.success, met.temperature, met.max_tokens, met.input_tokens, met.output_tokens, met.total_tokens,
             met.cost, met.latency_ms
@@ -457,6 +464,10 @@ class LlmOperationCollector(RootModel):
         if agent_id:
             query += " AND s.agent_id = %(agent_id)s"
             params['agent_id'] = agent_id
+
+        if action_id:
+            query += " AND m.action_id = %(action_id)s"
+            params['action_id'] = action_id
 
         if session_id:
             query += " AND s.session_id = %(session_id)s"

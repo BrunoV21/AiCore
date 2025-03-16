@@ -339,7 +339,8 @@ class LlmBaseProvider(BaseModel):
                 img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
                 json_output: bool = False,
                 stream: bool = True,
-                agent_id: Optional[str]=None,) -> Union[str, Dict]:
+                agent_id: Optional[str]=None,
+                action_id :Optional[str]=None) -> Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -392,6 +393,7 @@ class LlmBaseProvider(BaseModel):
                     session_id=self.session_id,
                     workspace=self.worspace,
                     agent_id=agent_id or self.agent_id,
+                    action_id=action_id,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cost=cost,
@@ -411,6 +413,7 @@ class LlmBaseProvider(BaseModel):
                         stream: bool = True,
                         stream_handler: Optional[Callable[[str], None]] = default_stream_handler,
                         agent_id: Optional[str]=None,
+                        action_id :Optional[str]=None
                         ) -> Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
@@ -464,6 +467,7 @@ class LlmBaseProvider(BaseModel):
                     session_id=self.session_id,
                     workspace=self.worspace,
                     agent_id=agent_id or self.agent_id,
+                    action_id=action_id,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cost=cost,
