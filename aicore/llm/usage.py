@@ -62,7 +62,9 @@ class UsageInfo(RootModel):
                 prompt_tokens :int,
                 response_tokens :int,
                 completion_id :Optional[str]=None
-        ):        
+        ):
+        if completion_id is None and self.root:
+            completion_id = self.latest_completion.completion_id
         self.root.append(CompletionUsage.from_pricing_info(
             completion_id=completion_id,
             prompt_tokens=prompt_tokens,
