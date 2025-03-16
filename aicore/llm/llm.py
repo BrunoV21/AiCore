@@ -159,6 +159,8 @@ class Llm(BaseModel):
         agent_id = agent_id or self.agent_id
         if agent_id and action_id:
             agent_id = f"{agent_id}.{action_id}"
+        elif action_id:
+            agent_id = action_id
         return agent_id
     
     @retry_on_rate_limit
