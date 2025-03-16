@@ -15,13 +15,12 @@ class OpenAiLlm(LlmBaseProvider):
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        _aclient :AsyncOpenAI = AsyncOpenAI(
+        self.aclient :AsyncOpenAI = AsyncOpenAI(
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        self.aclient =  _aclient
         self.completion_fn = self.client.chat.completions.create
-        self.acompletion_fn = _aclient.chat.completions.create
+        self.acompletion_fn = self.aclient.chat.completions.create
         self.completion_args["stream_options"] = {
             "include_usage": True
         }
