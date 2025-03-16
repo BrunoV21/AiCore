@@ -37,8 +37,9 @@ class ObservabilityDashboard:
             storage: OperationStorage instance for accessing operation data
             title: Dashboard title
         """
-        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(storage_path) if from_local_records_only else LlmOperationCollector.polars_from_pg()
-        self.add_day_col()
+        self.storage_path = storage_path
+        self.from_local_records_only = from_local_records_only
+        self.fetch_df()
         self.title = title
         self.app = dash.Dash(
             __name__, 
@@ -47,6 +48,11 @@ class ObservabilityDashboard:
         )
         self._setup_layout()
         self._register_callbacks()
+
+    def fetch_df(self):
+        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_pg()
+        self.add_day_col()
+        return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     def add_day_col(self):
         """Add date columns for time-based analysis"""
@@ -62,7 +68,18 @@ class ObservabilityDashboard:
         self.app.layout = html.Div([
             # Header
             html.Div([
-                html.H1(self.title, className="dashboard-title"),
+                html.Div([
+                    html.H1(self.title, className="dashboard-title"),
+                    html.Div([
+                        html.Span(id="last-updated-text", className="updated-text", style={"color": "#6c757d"}),
+                        html.Button("↻", id="refresh-button", n_clicks=0, className="refresh-btn", style={"backgroundColor": "#1E1E2F", "color": "white"}),
+                    ], style={"display": "flex", "alignItems": "center", "gap": "10px"}),
+                    dcc.Interval(
+                        id="interval-component",
+                        interval=5 * 60 * 1000,  # 5 minutes
+                        n_intervals=0
+                    )
+                ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
                 html.Div([
                     html.Div([
                         html.H3("Global Filters", style={"color": "white", "margin-bottom": "15px"}),
@@ -351,6 +368,15 @@ class ObservabilityDashboard:
         
     def _register_callbacks(self):
         """Register dashboard callbacks."""
+
+        @self.app.callback(
+            Output("last-updated-text", "children"),
+            Input("refresh-button", "n_clicks"),
+            Input("interval-component", "n_intervals"),
+        )
+        def update_time(n_clicks, n_intervals):
+            last_updated = self.fetch_df()
+            return f"Last updated: {last_updated}"
         
         @self.app.callback(
             [Output('provider-dropdown', 'options'),
@@ -358,7 +384,9 @@ class ObservabilityDashboard:
             Output('agent-dropdown', 'options'),
             Output('session-dropdown', 'options'),
             Output('workspace-dropdown', 'options')],
-            [Input('date-picker-range', 'start_date'),
+            [Input("refresh-button", "n_clicks"),
+            Input("interval-component", "n_intervals"),
+            Input('date-picker-range', 'start_date'),
             Input('date-picker-range', 'end_date'),
             Input('session-dropdown', 'value'),
             Input('workspace-dropdown', 'value'),
@@ -366,7 +394,7 @@ class ObservabilityDashboard:
             Input('model-dropdown', 'value'),
             Input('agent-dropdown', 'value')]
         )
-        def update_dropdowns(start_date, end_date, session_id, workspace, providers, models, agents):
+        def update_dropdowns(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents):
             """Update dropdown options based on available data, filtering by workspace if provided."""
             if self.df.is_empty():
                 return [], [], [], [], []
@@ -433,7 +461,9 @@ class ObservabilityDashboard:
                 Output('operations-table', 'columns')
             ],
             # [Input('apply-filters', 'n_clicks'), Input('refresh-data', 'n_clicks')],
-            [Input('date-picker-range', 'start_date'),
+            [Input("refresh-button", "n_clicks"),
+            Input("interval-component", "n_intervals"),
+            Input('date-picker-range', 'start_date'),
             Input('date-picker-range', 'end_date'),
             Input('session-dropdown', 'value'),
             Input('workspace-dropdown', 'value'),
@@ -441,7 +471,7 @@ class ObservabilityDashboard:
             Input('model-dropdown', 'value'),
             Input('agent-dropdown', 'value')]
         )
-        def update_dashboard(start_date, end_date, session_id, workspace, providers, models, agents):
+        def update_dashboard(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents):
             """Update dashboard visualizations based on filters."""
             filtered_df = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents)
             
@@ -1229,6 +1259,8 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
+    # TODO refresh Cost per Token plot
+    # TODO add support to execute all operations on db (i.e filters and so on)
     od = ObservabilityDashboard()
     print(od.df)
     od.run_server()
