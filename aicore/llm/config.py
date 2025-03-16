@@ -5,7 +5,7 @@ from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
 from aicore.pricing import PricingConfig
 
 class LlmConfig(BaseModel):
-    provider :Literal["gemini", "groq", "mistral", "nvidia", "openai", "openrouter"]
+    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter"]
     api_key :str
     model :Optional[str]=None
     base_url :Optional[str]=None
