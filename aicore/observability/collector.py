@@ -86,6 +86,10 @@ class LlmOperationRecord(BaseModel):
         for msg in self.messages:
             if msg.get("role") == "system":
                 return msg.get("content", "")
+        # anthropic system messages
+        if self.completion_args.get("system"):
+            return self.completion_args.get("system")
+                
         return ""
 
     @computed_field
