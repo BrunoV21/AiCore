@@ -15,7 +15,7 @@ class OpenAiLlm(LlmBaseProvider):
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        self.aclient :AsyncOpenAI = AsyncOpenAI(
+        self._aclient :AsyncOpenAI = AsyncOpenAI(
             api_key=self.config.api_key,
             base_url=self.base_url
         )
