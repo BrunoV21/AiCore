@@ -46,6 +46,7 @@ class Providers(Enum):
 class Llm(BaseModel):
     config :LlmConfig
     system_prompt :str=DEFAULT_SYSTEM_PROMPT
+    agent_id :Optional[str]=None
     _provider :Union[LlmBaseProvider, None]=None
     _logger_fn :Optional[Callable[[str], None]]=None
     _reasoner :Union["Llm", None]=None
@@ -154,6 +155,12 @@ class Llm(BaseModel):
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)            
         return prefix_prompt
     
+    def _handle_id(self, agent_id :Optional[str]=None, action_id :Optional[str]=None)->str:
+        agent_id = agent_id or self.agent_id
+        if agent_id and action_id:
+            agent_id = f"{agent_id}.{action_id}"
+        return agent_id
+    
     @retry_on_rate_limit
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel],
@@ -162,13 +169,15 @@ class Llm(BaseModel):
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True,
-                 agent_id: Optional[str]=None)->Union[str, Dict]:
+                 agent_id :Optional[str]=None,
+                 action_id :Optional[str]=None)->Union[str, Dict]:
         
         """
         msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
         """
 
         sys_prompt = system_prompt or self.system_prompt
+        agent_id = self._handle_id(agent_id, action_id)
         prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path, stream, agent_id)
         return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id)
     
@@ -180,11 +189,13 @@ class Llm(BaseModel):
                  img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
                  json_output :bool=False,
                  stream :bool=True,
-                 agent_id: Optional[str]=None)->Union[str, Dict]:
+                 agent_id :Optional[str]=None,
+                 action_id :Optional[str]=None)->Union[str, Dict]:
         """
         msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
         """
          
         sys_prompt = system_prompt or self.system_prompt
+        agent_id = self._handle_id(agent_id, action_id)
         prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path, stream, agent_id)
         return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id)
