@@ -204,6 +204,18 @@ class LlmBaseProvider(BaseModel):
             prompt_messages.append(_prompt)
         
         return prompt_messages[::-1]
+    
+    def _handle_system_prompt(self,
+            messages :list,
+            system_prompt: Optional[Union[List[str], str]] = None):
+                
+        if system_prompt is not None:
+            messages.append(self._message_body(system_prompt, role="system"))
+
+    @staticmethod
+    def _handle_special_sys_prompt_anthropic(args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
+        """placeholder to be overwritten by the anthropic provider"""
+        pass
 
     def completion_args_template(self,
                                 prompt: Union[str, List[str], List[Dict[str, str]]],
@@ -218,8 +230,7 @@ class LlmBaseProvider(BaseModel):
             prompt = [prompt]
 
         messages = []
-        if system_prompt is not None:
-            messages.append(self._message_body(system_prompt, role="system"))
+        self._handle_system_prompt(messages, system_prompt)
 
         messages.extend(self._map_multiple_prompts(prompt))
 
@@ -239,6 +250,8 @@ class LlmBaseProvider(BaseModel):
                 self.completion_args.pop("stream_options", None)
             args.update(self.completion_args)
 
+        self._handle_special_sys_prompt_anthropic(args, system_prompt)
+        
         args = {arg: value for arg, value in args.items() if value is not None}
         
         return args
@@ -266,6 +279,17 @@ class LlmBaseProvider(BaseModel):
         )
         return completion_args
     
+    @staticmethod
+    def _handle_stream_messages(_chunk, message)->list:
+        chunk_message = _chunk[0].delta.content or ""
+        default_stream_handler(chunk_message)
+        message.append(chunk_message)
+    
+    @staticmethod
+    async def _handle_astream_messages(_chunk, logger_fn, message)->list:
+        chunk_message = _chunk[0].delta.content or  ""
+        await logger_fn(chunk_message)
+        message.append(chunk_message)
 
     def _stream(self, stream, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
         message = []
@@ -273,10 +297,8 @@ class LlmBaseProvider(BaseModel):
         for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
-                chunk_message = _chunk[0].delta.content or ""
-                default_stream_handler(chunk_message)
-                message.append(chunk_message)
-        
+                self._handle_stream_messages(_chunk, message)
+
         if self._is_reasoner:
             default_stream_handler(REASONING_STOP_TOKEN)
         response = "".join(message)
@@ -289,9 +311,7 @@ class LlmBaseProvider(BaseModel):
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
-                chunk_message = _chunk[0].delta.content or ""
-                await logger_fn(chunk_message)
-                message.append(chunk_message)
+                await self._handle_astream_messages(_chunk, logger_fn, message)
         
         if self._is_reasoner:
             await logger_fn(REASONING_STOP_TOKEN)
