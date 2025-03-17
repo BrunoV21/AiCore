@@ -121,44 +121,45 @@ class ObservabilityDashboard:
                                         ], style={"margin-bottom": "10px"}),
 
                                         html.Div([
-                                            html.Label("Provider:", style={"color": "white"}),
-                                            dcc.Dropdown(
-                                                id='provider-dropdown',
-                                                multi=True,
-                                                style={"background-color": "#333", "color": "white"}
-                                            ),
-                                        ], style={"margin-bottom": "10px"}),
+                                            html.Div([
+                                                html.Div([
+                                                    html.Label("Provider:", style={"color": "white", "margin-right": "10px", "display": "flex", "align-items": "center"}),
+                                                    dcc.Dropdown(
+                                                        id='provider-dropdown',
+                                                        multi=True,
+                                                        style={"background-color": "#333", "color": "white", "width": "100%"}
+                                                    ),
+                                                ], style={"margin-bottom": "10px", "display": "flex", "flex-direction": "column", "width": "48%", "margin-right": "2%"}),
+                                                html.Div([
+                                                    html.Label("Model:", style={"color": "white", "margin-right": "10px", "display": "flex", "align-items": "center"}),
+                                                    dcc.Dropdown(
+                                                        id='model-dropdown',
+                                                        multi=True,
+                                                        style={"background-color": "#333", "color": "white", "width": "100%"}
+                                                    ),
+                                                ], style={"margin-bottom": "10px", "display": "flex", "flex-direction": "column", "width": "48%"}),
+                                            ], style={"display": "flex", "width": "100%", "margin-bottom": "10px", "justify-content": "space-between"}),
 
-                                        # html.Div([
-                                        #     html.Button('Refresh Data', id='refresh-data', n_clicks=0, className="btn btn-secondary btn-sm")
-                                        # ], style={"margin-bottom": "5px"}),
-
-                                        html.Div([
-                                            html.Label("Model:", style={"color": "white"}),
-                                            dcc.Dropdown(
-                                                id='model-dropdown',
-                                                multi=True,
-                                                style={"background-color": "#333", "color": "white"}
-                                            ),
-                                        ], style={"margin-bottom": "10px"}),
-
-                                        html.Div([
-                                            html.Label("Agent:", style={"color": "white"}),
-                                            dcc.Dropdown(
-                                                id='agent-dropdown',
-                                                multi=True,
-                                                style={"background-color": "#333", "color": "white"}
-                                            ),
-                                        ], style={"margin-bottom": "10px"}),
-                                        html.Div([
-                                            html.Label("Action:", style={"color": "white"}),
-                                            dcc.Dropdown(
-                                                id='action-dropdown',
-                                                multi=True,
-                                                style={"background-color": "#333", "color": "white"}
-                                            ),
-                                        ], style={"margin-bottom": "10px"})
-                                        ],
+                                            html.Div([
+                                                html.Div([
+                                                    html.Label("Agent:", style={"color": "white", "margin-right": "10px", "display": "flex", "align-items": "center"}),
+                                                    dcc.Dropdown(
+                                                        id='agent-dropdown',
+                                                        multi=True,
+                                                        style={"background-color": "#333", "color": "white", "width": "100%"}
+                                                    ),
+                                                ], style={"margin-bottom": "10px", "display": "flex", "flex-direction": "column", "width": "48%", "margin-right": "2%"}),
+                                                html.Div([
+                                                    html.Label("Action:", style={"color": "white", "margin-right": "10px", "display": "flex", "align-items": "center"}),
+                                                    dcc.Dropdown(
+                                                        id='action-dropdown',
+                                                        multi=True,
+                                                        style={"background-color": "#333", "color": "white", "width": "100%"}
+                                                    ),
+                                                ], style={"margin-bottom": "10px", "display": "flex", "flex-direction": "column", "width": "48%"})
+                                            ], style={"display": "flex", "width": "100%", "margin-bottom": "10px", "justify-content": "space-between"})
+                                        ], style={"width": "100%"})
+                                    ],
                                     title="Additional Filters", style={
 
                                         "background-color": "#333",
@@ -1585,9 +1586,8 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
-    # TODO add action_id filter
-    # TODO agents add view per actions ie actions count per agent, incude actions into tokens cost
-    # TODO refresh Cost per Token plot
+    # TODO add number of actions into overview -> change sucess rate by provider n -> sunburst with operation type and action
+    # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
     od = ObservabilityDashboard()
     print(od.df)
