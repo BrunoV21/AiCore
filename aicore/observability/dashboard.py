@@ -50,7 +50,7 @@ class ObservabilityDashboard:
         self._register_callbacks()
 
     def fetch_df(self):
-        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_pg()
+        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_db()
         self.add_day_col()
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -1592,6 +1592,6 @@ if __name__ == "__main__":
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
-    od = ObservabilityDashboard()
+    od = ObservabilityDashboard(from_local_records_only=True)
     print(od.df)
     od.run_server()
