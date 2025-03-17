@@ -305,19 +305,7 @@ class ObservabilityDashboard:
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'}),
 
-                            # Row 2: Agent preferences
-                            html.Div([
-                                html.Div([
-                                    html.H3("Agent Model Preference"),
-                                    dcc.Graph(id='agent-model-preference')
-                                ], style={'flex': '1', 'padding': '10px'}),
-                                html.Div([
-                                    html.H3("Agent Provider Preference"),
-                                    dcc.Graph(id='agent-provider-preference')
-                                ], style={'flex': '1', 'padding': '10px'})
-                            ], style={'display': 'flex'}),
-
-                            # Row 3: Token and cost consumption by agent
+                            # Row 2: Token and cost consumption by agent
                             html.Div([
                                 html.Div([
                                     html.H3("Total Tokens by Agent"),
@@ -328,7 +316,33 @@ class ObservabilityDashboard:
                                     dcc.Graph(id='agent-cost')
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'})
-                        ], style={'padding': '10px'})
+                        ], style={'padding': '10px'}),
+
+                        # Row 3
+                        html.Div([
+                            html.Div([
+                                html.H3("Agent Action Success Rate"),
+                                dcc.Graph(id='agent-action-succes')
+                            ], style={'flex': '1', 'padding': '10px'}),
+                            html.Div([
+                                html.H3("Agent Action Latency"),
+                                dcc.Graph(id='agent-action-latency')
+                            ], style={'flex': '1', 'padding': '10px'}),
+
+                        ], style={'display': 'flex'}),
+
+                        # Row 4
+                        html.Div([
+                            html.Div([
+                                html.H3("Tokens Used per Action"),
+                                dcc.Graph(id='agent-action-tokens')
+                            ], style={'flex': '1', 'padding': '10px'}),
+                            html.Div([
+                                html.H3("Total Cost by Action"),
+                                dcc.Graph(id='agent-action-cost')
+                            ], style={'flex': '1', 'padding': '10px'})
+                        ], style={'display': 'flex'})
+
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"}),
 
                     # Operations Tab
@@ -457,11 +471,14 @@ class ObservabilityDashboard:
                 Output('agent-metrics', 'children'),
                 Output('agent-distribution', 'figure'),
                 Output('agent-performance', 'figure'),
-                Output('agent-model-preference', 'figure'),
-                Output('agent-provider-preference', 'figure'),
                 # New outputs for tokens and cost by agent:
                 Output('agent-tokens', 'figure'),
                 Output('agent-cost', 'figure'),
+                # Actions
+                Output('agent-action-succes', 'figure'),
+                Output('agent-action-latency', 'figure'),
+                Output('agent-action-tokens', 'figure'),
+                Output('agent-action-cost', 'figure'),
                 
                 # Additional Observability Plot
                 Output('operation-type-distribution', 'figure'),
@@ -736,22 +753,85 @@ class ObservabilityDashboard:
             # Agent Analysis metrics
             agent_analysis_metrics = self._create_agent_analysis_metrics(filtered_df)
 
-            # Agent distribution
+            # Agent distribution (sunburst version)
             agent_data = filtered_df.filter(pl.col("agent_id") != "")
             if agent_data.height > 0:
-                agent_dist = agent_data.group_by("agent_id").agg(pl.len().alias("count"))
-                agent_dist_fig = px.pie(
-                    agent_dist,
-                    names='agent_id',
-                    values='count',
-                    template=TEMPLATE,
-                    title="Agent Distribution"
-                )
+                # For simple agent distribution without actions
+                if "action_id" not in agent_data.columns or all(agent_data["action_id"].is_null()):
+                    # Create a dataframe with root level and agent level
+                    sunburst_data = {"ids": ["total"], "labels": ["All Agents"], "parents": [""]}
+                    
+                    agent_dist = agent_data.group_by("agent_id").agg(pl.len().alias("count"))
+                    
+                    # Add agent IDs as children of the root
+                    sunburst_data["ids"].extend(agent_dist["agent_id"].to_list())
+                    sunburst_data["labels"].extend(agent_dist["agent_id"].to_list())
+                    sunburst_data["parents"].extend(["total"] * len(agent_dist))
+                    
+                    # Add values for all elements
+                    sunburst_data["values"] = [agent_dist["count"].sum()] + agent_dist["count"].to_list()
+                    
+                    agent_dist_fig = go.Figure(go.Sunburst(
+                        ids=sunburst_data["ids"],
+                        labels=sunburst_data["labels"],
+                        parents=sunburst_data["parents"],
+                        values=sunburst_data["values"],
+                        branchvalues="total"
+                    ))
+                    agent_dist_fig.update_layout(
+                        template=TEMPLATE,
+                        title="Agent Distribution"
+                    )
+                else:
+                    # With actions, create a hierarchical sunburst
+                    action_data = agent_data.filter(pl.col("action_id").is_not_null())
+                    
+                    # First prepare the data structure for the sunburst chart
+                    sunburst_data = {"ids": ["total"], "labels": ["All Agents"], "parents": [""]}
+                    
+                    # Add agent level data
+                    agent_dist = agent_data.group_by("agent_id").agg(pl.len().alias("count"))
+                    sunburst_data["ids"].extend(agent_dist["agent_id"].to_list())
+                    sunburst_data["labels"].extend(agent_dist["agent_id"].to_list())
+                    sunburst_data["parents"].extend(["total"] * len(agent_dist))
+                    
+                    # Add action level data if available
+                    if action_data.height > 0:
+                        action_dist = action_data.group_by(["agent_id", "action_id"]).agg(pl.len().alias("count"))
+                        
+                        # Create combined IDs for action nodes
+                        action_ids = [f"{row['agent_id']}_{row['action_id']}" for row in action_dist.to_dicts()]
+                        sunburst_data["ids"].extend(action_ids)
+                        sunburst_data["labels"].extend(action_dist["action_id"].to_list())
+                        sunburst_data["parents"].extend(action_dist["agent_id"].to_list())
+                        
+                        # Values for each level
+                        agent_values = agent_dist["count"].to_list()
+                        action_values = action_dist["count"].to_list()
+                        sunburst_data["values"] = [sum(agent_values)] + agent_values + action_values
+                    else:
+                        # Values for agent level only
+                        sunburst_data["values"] = [agent_dist["count"].sum()] + agent_dist["count"].to_list()
+                    
+                    agent_dist_fig = go.Figure(go.Sunburst(
+                        ids=sunburst_data["ids"],
+                        labels=sunburst_data["labels"],
+                        parents=sunburst_data["parents"],
+                        values=sunburst_data["values"],
+                        branchvalues="total"
+                    ))
+                    agent_dist_fig.update_layout(
+                        template=TEMPLATE,
+                        title="Agent & Action Distribution"
+                    )
             else:
-                agent_dist_fig = px.pie(
-                    {"agent_id": ["No agent data"], "count": [1]},
-                    names='agent_id',
-                    values='count',
+                agent_dist_fig = go.Figure(go.Sunburst(
+                    ids=["no_data"],
+                    labels=["No agent data"],
+                    parents=[""],
+                    values=[1]
+                ))
+                agent_dist_fig.update_layout(
                     template=TEMPLATE,
                     title="No agent data available"
                 )
@@ -787,85 +867,103 @@ class ObservabilityDashboard:
                     template=TEMPLATE,
                     title="No agent data available"
                 )
-            
-            # Agent model preference
-            if agent_data.height > 0:
-                agent_model_pref = agent_data.group_by(["agent_id", "model"]).agg(
-                    pl.len().alias("count")
-                )
-                agent_model_fig = px.bar(
-                    agent_model_pref,
-                    x='agent_id',
-                    y='count',
-                    color='model',
-                    barmode='stack',
-                    template=TEMPLATE,
-                    title="Agent Model Preference"
-                )
+                
+            # Aggregate tokens by agent and action
+            if agent_data.height > 0 and "action_id" in agent_data.columns:
+                # Filter for non-null actions
+                action_data = agent_data.filter(pl.col("action_id").is_not_null())
+
+                if action_data.height > 0:
+                    # Create a dataframe with summed tokens for each agent-action pair
+                    tokens_by_agent_action = action_data.group_by(["agent_id", "action_id"]).agg(
+                        pl.col("total_tokens").sum().alias("total_tokens"),
+                        pl.col("input_tokens").sum().alias("input_tokens"),
+                        pl.col("output_tokens").sum().alias("output_tokens")
+                    )
+
+                    # Convert to long format for stacking input/output tokens
+                    input_tokens = tokens_by_agent_action.select(
+                        pl.col("agent_id"),
+                        pl.col("action_id"),
+                        pl.lit("Input").alias("token_type"),
+                        pl.col("input_tokens").alias("tokens")
+                    )
+
+                    output_tokens = tokens_by_agent_action.select(
+                        pl.col("agent_id"),
+                        pl.col("action_id"),
+                        pl.lit("Output").alias("token_type"),
+                        pl.col("output_tokens").alias("tokens")
+                    )
+
+                    total_tokens = tokens_by_agent_action.select(
+                        pl.col("agent_id"),
+                        pl.col("action_id"),
+                        pl.lit("Total").alias("token_type"),
+                        pl.col("total_tokens").alias("tokens")
+                    )
+
+                    # Merge all token types
+                    stacked_tokens_df = pl.concat([input_tokens, output_tokens, total_tokens])
+
+                    # Create a stacked bar chart using go.Bar
+                    agent_ids = stacked_tokens_df["agent_id"].unique()
+                    token_types = ["Total", "Input", "Output"]
+                    traces = []
+
+                    for token_type in token_types:
+                        _filtered_df = stacked_tokens_df.filter(pl.col("token_type") == token_type)
+                        traces.append(
+                            go.Bar(
+                                name=token_type,
+                                x=_filtered_df["agent_id"],
+                                y=_filtered_df["tokens"],
+                                hovertemplate="<b>Agent ID:</b> %{x}<br>"
+                                              "<b>Tokens:</b> %{y}<br>"
+                                              "<b>Action ID:</b> %{customdata}",
+                                customdata=_filtered_df["action_id"],
+                                text=_filtered_df["action_id"],
+                                textangle=0
+                            )
+                        )
+
+                    combined_tokens_fig = go.Figure(traces, 
+                        layout=go.Layout( 
+                            template=TEMPLATE
+                        )
+                    )
+                    combined_tokens_fig.update_layout(
+                        title="Token Usage by Agent, Action, and Token Type",
+                        yaxis_title="Tokens",
+                        legend_title="Token Type"
+                    )
+
+                else:
+                    # Fallback when there is no action data available
+                    combined_tokens_fig = go.Figure()
+                    combined_tokens_fig.add_trace(go.Bar(
+                        x=["No action data"],
+                        y=[0],
+                        name="None"
+                    ))
+                    combined_tokens_fig.update_layout(
+                        title="No action token data available"
+                    )
             else:
-                agent_model_fig = px.bar(
-                    {"agent_id": ["No agent data"], "count": [0], "model": ["None"]},
-                    x='agent_id',
-                    y='count',
-                    color='model',
-                    template=TEMPLATE,
-                    title="No agent data available"
-                )
-            
-            # Agent provider preference
-            if agent_data.height > 0:
-                agent_provider_pref = agent_data.group_by(["agent_id", "provider"]).agg(
-                    pl.len().alias("count")
-                )
-                agent_provider_fig = px.bar(
-                    agent_provider_pref,
-                    x='agent_id',
-                    y='count',
-                    color='provider',
-                    barmode='stack',
-                    template=TEMPLATE,
-                    title="Agent Provider Preference"
-                )
-            else:
-                agent_provider_fig = px.bar(
-                    {"agent_id": ["No agent data"], "count": [0], "provider": ["None"]},
-                    x='agent_id',
-                    y='count',
-                    color='provider',
-                    template=TEMPLATE,
-                    title="No agent data available"
-                )
-            
-            # New: Tokens consumed by agent
-            if agent_data.height > 0:
-                tokens_by_agent = agent_data.group_by("agent_id").agg(
-                    pl.col("total_tokens").sum().alias("total_tokens"),
-                    pl.col("input_tokens").sum().alias("input_tokens"),
-                    pl.col("output_tokens").sum().alias("output_tokens")
-                )
-                agent_tokens_fig = px.bar(
-                    tokens_by_agent.sort("total_tokens", descending=True),
-                    x="agent_id",
-                    y=["total_tokens", "input_tokens", "output_tokens"],
-                    template=TEMPLATE,
-                    title="Tokens by Agent"
-                )
-                agent_tokens_fig.update_layout(
-                    yaxis_title="Tokens",
-                    barmode="group"
-                )
-            else:
-                agent_tokens_fig = px.bar(
-                    {"agent_id": ["No agent data"], "total_tokens": [0]},
-                    x="agent_id",
-                    y="total_tokens",
-                    template=TEMPLATE,
+                # Fallback when agent data or action_id column is not available
+                combined_tokens_fig = go.Figure()
+                combined_tokens_fig.add_trace(go.Bar(
+                    x=["No agent data"],
+                    y=[0],
+                    name="None"
+                ))
+                combined_tokens_fig.update_layout(
                     title="No token data available"
                 )
-            
+                                    
             # New: Cost incurred by agent
             if agent_data.height > 0:
-                cost_by_agent = agent_data.filter(pl.col("cost") > 0).group_by("agent_id").agg(
+                cost_by_agent = agent_data.filter(pl.col("cost") > 0).group_by(["agent_id", "action_id"]).agg(
                     pl.col("cost").sum().alias("total_cost")
                 )
                 agent_cost_fig = px.bar(
@@ -873,6 +971,9 @@ class ObservabilityDashboard:
                     x="agent_id",
                     y="total_cost",
                     template=TEMPLATE,
+                    color="action_id",
+                    text="action_id",
+                    barmode="stack",
                     title="Total Cost by Agent"
                 )
                 agent_cost_fig.update_layout(yaxis_title="Total Cost ($)")
@@ -880,6 +981,198 @@ class ObservabilityDashboard:
                 agent_cost_fig = px.bar(
                     {"agent_id": ["No agent data"], "total_cost": [0]},
                     x="agent_id",
+                    y="total_cost",
+                    template=TEMPLATE,
+                    title="No cost data available"
+                )
+
+            # Action distribution by Agent
+            if agent_data.height > 0 and "action_id" in agent_data.columns:
+                action_data = agent_data.filter(pl.col("action_id").is_not_null())
+                if action_data.height > 0:
+                    # Actions by agent distribution
+                    actions_by_agent = action_data.group_by(["agent_id", "action_id"]).agg(
+                        pl.len().alias("count")
+                    )
+                    agent_action_dist_fig = px.bar(
+                        actions_by_agent,
+                        x='agent_id',
+                        y='count',
+                        color='action_id',
+                        barmode='stack',
+                        template=TEMPLATE,
+                        title="Actions Distribution by Agent"
+                    )
+                    agent_action_dist_fig.update_layout(
+                        xaxis_title="Agent ID",
+                        yaxis_title="Number of Executions"
+                    )
+                    
+                    # Action success rate by agent
+                    action_success_by_agent = action_data.group_by(["agent_id", "action_id"]).agg(
+                        pl.col("success").mean().mul(100).round(1).alias("success_rate"),
+                        pl.len().alias("count")
+                    )
+                    action_success_fig = px.scatter(
+                        action_success_by_agent,
+                        x='agent_id',
+                        y='success_rate',
+                        size='count',
+                        color='action_id',
+                        hover_name='action_id',
+                        template=TEMPLATE,
+                        title="Action Success Rate by Agent"
+                    )
+                    action_success_fig.update_layout(
+                        xaxis_title="Agent ID",
+                        yaxis_title="Success Rate (%)"
+                    )
+                    
+                    # Action latency by agent
+                    action_latency = action_data.group_by(["agent_id", "action_id"]).agg(
+                        pl.col("latency_ms").mean().alias("avg_latency"),
+                        pl.len().alias("count")
+                    )
+                    action_latency_fig = px.scatter(
+                        action_latency,
+                        x='agent_id',
+                        y='avg_latency',
+                        size='count',
+                        color='action_id',
+                        hover_name='action_id',
+                        template=TEMPLATE,
+                        title="Action Latency by Agent"
+                    )
+                    action_latency_fig.update_layout(
+                        xaxis_title="Agent ID",
+                        yaxis_title="Average Latency (ms)"
+                    )
+                    
+                    # Tokens by action
+                    tokens_by_action = action_data.group_by(["action_id"]).agg(
+                        pl.col("total_tokens").sum().alias("total_tokens"),
+                        pl.col("input_tokens").sum().alias("input_tokens"),
+                        pl.col("output_tokens").sum().alias("output_tokens")
+                    )
+                    action_tokens_fig = px.bar(
+                        tokens_by_action.sort("total_tokens", descending=True),
+                        x="action_id",
+                        y=["total_tokens", "input_tokens", "output_tokens"],
+                        template=TEMPLATE,
+                        title="Tokens by Action"
+                    )
+                    action_tokens_fig.update_layout(
+                        xaxis_title="action_id",
+                        yaxis_title="Tokens",
+                        barmode="group"
+                    )
+                    
+                    # Cost by action
+                    cost_by_action = action_data.filter(pl.col("cost") > 0).group_by("action_id").agg(
+                        pl.col("cost").sum().alias("total_cost")
+                    )
+                    action_cost_fig = px.bar(
+                        cost_by_action.sort("total_cost", descending=True),
+                        x="action_id",
+                        y="total_cost",
+                        template=TEMPLATE,
+                        title="Total Cost by Action"
+                    )
+                    action_cost_fig.update_layout(
+                        xaxis_title="action_id",
+                        yaxis_title="Total Cost ($)"
+                    )
+                    
+                    # Action ratio per agent (pie charts, one per agent)
+                    agent_ids = agent_data["agent_id"].unique()
+                    action_ratio_figs = []
+                    for agent_id in agent_ids:
+                        agent_actions = action_data.filter(pl.col("agent_id") == agent_id)
+                        if agent_actions.height > 0:
+                            agent_action_counts = agent_actions.group_by("action_id").agg(
+                                pl.len().alias("count")
+                            )
+                            fig = px.pie(
+                                agent_action_counts,
+                                names="action_id",
+                                values="count",
+                                template=TEMPLATE,
+                                title=f"Action Distribution for {agent_id}"
+                            )
+                            action_ratio_figs.append(fig)
+                    
+                else:
+                    # Default empty charts
+                    agent_action_dist_fig = px.bar(
+                        {"agent_id": ["No action data"], "count": [0], "action_id": ["None"]},
+                        x="agent_id",
+                        y="count",
+                        color="action_id",
+                        template=TEMPLATE,
+                        title="No action data available"
+                    )
+                    action_success_fig = px.scatter(
+                        {"agent_id": ["No action data"], "success_rate": [0], "count": [0], "action_id": ["None"]},
+                        x="agent_id",
+                        y="success_rate",
+                        template=TEMPLATE,
+                        title="No action data available"
+                    )
+                    action_latency_fig = px.scatter(
+                        {"agent_id": ["No action data"], "avg_latency": [0], "count": [0], "action_id": ["None"]},
+                        x="agent_id",
+                        y="avg_latency",
+                        template=TEMPLATE,
+                        title="No action data available"
+                    )
+                    action_tokens_fig = px.bar(
+                        {"action_id": ["No action data"], "total_tokens": [0]},
+                        x="action_id",
+                        y="total_tokens",
+                        template=TEMPLATE,
+                        title="No token data available"
+                    )
+                    action_cost_fig = px.bar(
+                        {"action_id": ["No action data"], "total_cost": [0]},
+                        x="action_id",
+                        y="total_cost",
+                        template=TEMPLATE,
+                        title="No cost data available"
+                    )
+            else:
+                # Default empty charts if no action data
+                agent_action_dist_fig = px.bar(
+                    {"agent_id": ["No action data"], "count": [0], "action_id": ["None"]},
+                    x="agent_id",
+                    y="count",
+                    color="action_id",
+                    template=TEMPLATE,
+                    title="No action data available"
+                )
+                action_success_fig = px.scatter(
+                    {"agent_id": ["No action data"], "success_rate": [0], "count": [0], "action_id": ["None"]},
+                    x="agent_id",
+                    y="success_rate",
+                    template=TEMPLATE,
+                    title="No action data available"
+                )
+                action_latency_fig = px.scatter(
+                    {"agent_id": ["No action data"], "avg_latency": [0], "count": [0], "action_id": ["None"]},
+                    x="agent_id",
+                    y="avg_latency",
+                    template=TEMPLATE,
+                    title="No action data available"
+                )
+                action_tokens_fig = px.bar(
+                    {"action_id": ["No action data"], "total_tokens": [0]},
+                    x="action_id",
+                    y="total_tokens",
+                    template=TEMPLATE,
+                    title="No token data available"
+                )
+                action_cost_fig = px.bar(
+                    {"action_id": ["No action data"], "total_cost": [0]},
+                    x="action_id",
                     y="total_cost",
                     template=TEMPLATE,
                     title="No cost data available"
@@ -914,8 +1207,9 @@ class ObservabilityDashboard:
                 cost_analysis_metrics, cost_sunburst_fig, cost_per_token_fig,
                 
                 # Agent Analysis Tab
-                agent_analysis_metrics, agent_dist_fig, agent_perf_fig, agent_model_fig, agent_provider_fig,
-                agent_tokens_fig, agent_cost_fig,
+                agent_analysis_metrics, agent_dist_fig, agent_perf_fig,
+                combined_tokens_fig, agent_cost_fig, 
+                action_success_fig, action_latency_fig, action_tokens_fig, action_cost_fig,
                 
                 # Additional Observability Plot
                 op_type_fig,
@@ -1172,13 +1466,19 @@ class ObservabilityDashboard:
             ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
         ], style={"display": "flex", "flexDirection": "column"})
     
-    def _create_agent_analysis_metrics(self, df :pl.DataFrame):
-        """Create dynamic agent analysis metrics from dataframe."""
+    def _create_agent_analysis_metrics(self, df: pl.DataFrame):
+        """Create dynamic agent analysis metrics from dataframe with action support."""
         # Filter out empty agent IDs
         agent_df = df.filter(pl.col("agent_id") != "")
         total_agent_requests = len(agent_df)
         unique_agents = len(agent_df["agent_id"].unique())
         avg_requests_per_agent = total_agent_requests / unique_agents if unique_agents > 0 else 0
+
+        # Action-related metrics
+        action_df = agent_df.filter(pl.col("action_id") != "")
+        total_actions = len(action_df)
+        unique_actions = len(action_df["action_id"].unique())
+        actions_per_agent = total_actions / unique_agents if unique_agents > 0 else 0
 
         # Identify the top (most active) agent
         if unique_agents > 0:
@@ -1187,6 +1487,14 @@ class ObservabilityDashboard:
         else:
             top_agent = "N/A"
             top_agent_count = 0
+
+        # Identify the most used action
+        if total_actions > 0:
+            top_action = action_df["action_id"][action_df["action_id"].value_counts()["count"].arg_max()]
+            top_action_count = action_df["action_id"].value_counts()["count"].max()
+        else:
+            top_action = "N/A"
+            top_action_count = 0
 
         # Compute agent-specific success rate
         successful_agent_requests = len([_ for _ in agent_df["success"] if _])
@@ -1212,10 +1520,10 @@ class ObservabilityDashboard:
                     html.P("Unique agents in action", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
-                    html.H4("📊 Avg. Req/Agent", style={"color": "#ffffff", "marginBottom": "5px"}),
-                    html.H2(f"{avg_requests_per_agent:.1f}", style={"color": "#17a2b8"}),
-                    html.P("Average requests per agent", style={"color": "#cccccc", "fontSize": "0.9rem"})
-                ], className="metric-card", style=card_style)
+                    html.H4("🔄 Unique Actions", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{unique_actions}", style={"color": "#dc3545"}),
+                    html.P("Different actions available", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
             ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
 
             # Second row: Top Agent and Agent Success Rate
@@ -1229,7 +1537,12 @@ class ObservabilityDashboard:
                     html.H4("✅ Agent Success Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
                     html.H2(f"{agent_success_rate:.1f}%", style={"color": "#28a745"}),
                     html.P("Success rate of agent requests", style={"color": "#cccccc", "fontSize": "0.9rem"})
-                ], className="metric-card", style=card_style)
+                ], className="metric-card", style=card_style),
+                html.Div([
+                    html.H4("🌟 Top Action", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{top_action} ({top_action_count})", style={"color": "#e83e8c"}),
+                    html.P("Most executed action", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                ], className="metric-card", style=card_style),
             ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
         ], style={"display": "flex", "flexDirection": "column"})
 
@@ -1255,7 +1568,9 @@ class ObservabilityDashboard:
             empty_metrics, empty_fig, empty_fig,
             
             # Agent Analysis Tab
-            empty_metrics, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig,
+            empty_metrics, empty_fig, empty_fig, empty_fig, empty_fig,
+            # Actions
+            empty_fig, empty_fig, empty_fig, empty_fig,
 
             # Additional Observability Plot
             empty_fig,
