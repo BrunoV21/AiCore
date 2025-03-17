@@ -110,15 +110,17 @@ class ObservabilityDashboard:
                                 dbc.AccordionItem(
                                     [
                                         html.Div([
-                                            html.Label("Date Range:", style={"color": "white"}),
-                                            dcc.DatePickerRange(
-                                                id='date-picker-range',
-                                                start_date=(datetime.now() - timedelta(days=7)).date(),
-                                                end_date=datetime.now().date(),
-                                                display_format='YYYY-MM-DD',
-                                                style={"background-color": "#333", "color": "white"}
-                                            ),
-                                        ], style={"margin-bottom": "10px"}),
+                                            html.Label("Date Range:", style={"color": "white", "display": "block", "text-align": "center", "margin-bottom": "5px"}),
+                                            html.Div([
+                                                dcc.DatePickerRange(
+                                                    id='date-picker-range',
+                                                    start_date=(datetime.now() - timedelta(days=7)).date(),
+                                                    end_date=datetime.now().date(),
+                                                    display_format='YYYY-MM-DD',
+                                                    style={"background-color": "#333", "color": "white"}
+                                                ),
+                                            ], style={"display": "flex", "justify-content": "center", "width": "100%"}),
+                                        ], style={"margin-bottom": "10px", "width": "100%", "display": "flex", "flex-direction": "column", "align-items": "center"}),
 
                                         html.Div([
                                             html.Div([
@@ -1587,6 +1589,7 @@ class ObservabilityDashboard:
 
 if __name__ == "__main__":
     # TODO add number of actions into overview -> change sucess rate by provider n -> sunburst with operation type and action
+    # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
     od = ObservabilityDashboard()
