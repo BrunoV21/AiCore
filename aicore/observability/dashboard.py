@@ -51,6 +51,8 @@ class ObservabilityDashboard:
 
     def fetch_df(self):
         self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_db()
+        if self.df is None:
+            self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path)
         self.add_day_col()
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
