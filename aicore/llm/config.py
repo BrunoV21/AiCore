@@ -27,8 +27,9 @@ class LlmConfig(BaseModel):
     @field_validator("reasoner", mode="after")
     @classmethod
     def ensure_valid_reasoner(cls, reasoner :"LlmConfig")->"LlmConfig":
-        assert reasoner.provider in SUPPORTED_REASONER_PROVIDERS, f"{reasoner.provider} is not supported as a reasoner provider. Supported providers are {SUPPORTED_REASONER_PROVIDERS}"
-        assert reasoner.model in SUPPORTED_REASONER_MODELS, f"{reasoner.model} is not supported as a reasoner model. Supported models are {SUPPORTED_REASONER_MODELS}"
+        if isinstance(reasoner, LlmConfig):
+            assert reasoner.provider in SUPPORTED_REASONER_PROVIDERS, f"{reasoner.provider} is not supported as a reasoner provider. Supported providers are {SUPPORTED_REASONER_PROVIDERS}"
+            assert reasoner.model in SUPPORTED_REASONER_MODELS, f"{reasoner.model} is not supported as a reasoner model. Supported models are {SUPPORTED_REASONER_MODELS}"
         return reasoner
     
     @model_validator(mode="after")
