@@ -28,7 +28,7 @@ class Message(Base):
     assistant_message = Column(Text)
     history_messages = Column(Text)
     completion_args = Column(Text)
-    error_messages = Column(Text)
+    error_message = Column(Text)
     
     # Relationships
     session = relationship("Session", back_populates="messages")

@@ -169,7 +169,7 @@ class LlmOperationCollector(RootModel):
     _dbsession :Optional[Any]=None
 
     @model_validator(mode="after")
-    def init_bsession(self) -> Self:
+    def init_dbsession(self) -> Self:
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
@@ -228,8 +228,8 @@ class LlmOperationCollector(RootModel):
             os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
             records = LlmOperationCollector()
         else:
-            with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
-                records = LlmOperationCollector(root=json.loads(f.read()))
+            with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:                
+                records = LlmOperationCollector(root=[LlmOperationRecord(**kwargs) for kwargs in json.loads(f.read())])
         records.root.append(new_record)
 
         with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
@@ -348,7 +348,7 @@ class LlmOperationCollector(RootModel):
                 assistant_message=serialized['assistant_message'],
                 history_messages=serialized['history_messages'],
                 completion_args=serialized['completion_args'],
-                error_messages=serialized['error_messages']
+                error_message=serialized['error_message']
             )
             session.add(message)
             
@@ -409,7 +409,7 @@ class LlmOperationCollector(RootModel):
                 Message.action_id, Message.operation_id, Message.timestamp, 
                 Message.system_prompt, Message.user_prompt, Message.response,
                 Message.assistant_message, Message.history_messages, 
-                Message.completion_args, Message.error_messages,
+                Message.completion_args, Message.error_message,
                 Metric.operation_type, Metric.provider, Metric.model, 
                 Metric.success, Metric.temperature, Metric.max_tokens, 
                 Metric.input_tokens, Metric.output_tokens, Metric.total_tokens,
