@@ -1,18 +1,18 @@
-import pytest
-import json
 import os
-from unittest.mock import patch, mock_open
-from datetime import datetime
+import ulid
+import json
+import pytest
 import tempfile
+from unittest.mock import patch, MagicMock, mock_open
+import polars as pl
 from pathlib import Path
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-import psycopg2
-
-from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE
+from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
 # Use the collector module that now also supports PostgreSQL.
 from aicore.observability.collector import LlmOperationCollector, LlmOperationRecord
-
-# --- Helpers for Fake PostgreSQL Connection and Cursor (V2) ---
+from aicore.observability.models import Session, Message, Metric
 
 class FakeCursor:
     """A fake database cursor that tracks executed SQL commands."""
@@ -256,96 +256,6 @@ class TestIntegrationFileStorage:
             assert data[1]["response"] == "I'm fine, thank you!"
 
 
-# --- PostgreSQL Integration Tests ---
-class TestLlmOperationCollectorPostgres:
-    def test_db_connection_established(self, monkeypatch):
-        """
-        Test that, when PG_CONNECTION_STRING is set, the collector attempts a PostgreSQL connection.
-        """
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: FakeConn())
-        collector = LlmOperationCollector()
-        assert collector.db_conn is not None, "Expected a valid database connection."
-    
-    def test_db_table_creation_called(self, monkeypatch):
-        """
-        Test that the collector executes the SQL to create the sessions, messages, and metrics tables if they do not exist.
-        """
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        executed_queries = []
-
-        class FakeCursorForTable(FakeCursor):
-            def __init__(self, executed_queries):
-                super().__init__(executed_queries)
-        class FakeConnForTable(FakeConn):
-            def cursor(self):
-                return FakeCursorForTable(executed_queries)
-        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: FakeConnForTable())
-        _ = LlmOperationCollector()
-        # Check that at least one table creation query (for sessions) was executed.
-        query_found = any("CREATE TABLE IF NOT EXISTS sessions" in q for q in executed_queries)
-        assert query_found, "Sessions table creation SQL was not executed."
-    
-    def test_record_insertion_executes_sql(self, monkeypatch):
-        """
-        Test that record insertion calls the SQL INSERT command for sessions, messages, and metrics.
-        """
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        executed_queries = []
-        
-        class FakeCursorForInsert(FakeCursor):
-            def execute(self, query, params=None):
-                executed_queries.append(query)
-        class FakeConnForInsert(FakeConn):
-            def cursor(self):
-                return FakeCursorForInsert(executed_queries)
-        fake_conn = FakeConnForInsert()
-        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: fake_conn)
-        
-        collector = LlmOperationCollector()
-        
-        # Clear queries recorded during initialization
-        executed_queries.clear()
-        
-        _ = collector.record_completion(
-            completion_args={"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]},
-            operation_type="completion",
-            provider="openai",
-            response="Test response",
-            input_tokens=10,
-            output_tokens=5,
-            latency_ms=150.0
-        )
-        
-        # For the new schema, we expect three INSERT statements.
-        insert_sessions = any("INSERT INTO sessions" in q for q in executed_queries)
-        insert_messages = any("INSERT INTO messages" in q for q in executed_queries)
-        insert_metrics = any("INSERT INTO metrics" in q for q in executed_queries)
-        assert insert_sessions and insert_messages and insert_metrics, "Record insertion SQL for one or more tables was not executed properly."
-
-    def test_no_pg_connection_when_env_missing(self, monkeypatch):
-        """
-        Test that if the PG_CONNECTION_STRING environment variable is not present,
-        no PostgreSQL connection is attempted.
-        """
-        monkeypatch.setenv("PG_CONNECTION_STRING", "")
-        collector = LlmOperationCollector()
-        assert collector.db_conn is None, "Database connection should remain None without PG_CONNECTION_STRING."
-
-    def test_connection_failure_handling(self, monkeypatch):
-        """
-        Test that if psycopg2.connect fails (raises an exception), the collector handles it gracefully.
-        """
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        monkeypatch.setattr(__import__("psycopg2"), "connect", lambda conn_str: (_ for _ in ()).throw(Exception("Connection failed")))
-        collector = LlmOperationCollector()
-        assert collector.db_conn is None, "Database connection should be None after a connection failure."
-
-
 # --- Integration Storage Tests (File) ---
 class TestIntegrationStorage:
     """
@@ -388,355 +298,333 @@ class TestIntegrationStorage:
             assert record["temperature"] == 0.5
 
 
-# --- Polars from PostgreSQL Tests ---
-class TestLlmOperationCollectorPolarsFromPg:
-    """Tests for the polars_from_pg classmethod."""
-    
-    def test_polars_from_pg_no_connection_string(self, monkeypatch):
-        """Test behavior when no PG_CONNECTION_STRING is available."""
-        monkeypatch.delenv("PG_CONNECTION_STRING", raising=False)
-        with patch("importlib.import_module") as mock_import:
-            mock_import.return_value = None
-            result = LlmOperationCollector.polars_from_pg()
-            assert result is None
+@pytest.fixture
+def in_memory_collector(monkeypatch, tmp_path):
+    """
+    Create a collector with an in-memory SQLite DB and temporary file storage.
+    """
+    # Use in-memory SQLite for testing DB operations that occur within the same collector instance.
+    monkeypatch.setenv("CONNECTION_STRING", "sqlite:///:memory:")
+    collector = LlmOperationCollector().init_dbsession()
+    storage_file = tmp_path / "observability.json"
+    collector.storage_path = str(storage_file)
+    return collector
 
-    def test_polars_from_pg_missing_polars(self, monkeypatch):
-        """Test behavior when polars module is not available."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        with patch("importlib.import_module") as mock_import:
-            mock_import.side_effect = ModuleNotFoundError("No module named 'polars'")
-            result = LlmOperationCollector.polars_from_pg()
-            assert result is None
 
-    def test_polars_from_pg_connection_error(self, monkeypatch):
-        """Test handling of database connection errors."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        with patch("psycopg2.connect") as mock_connect:
-            mock_connect.side_effect = Exception("Connection error")
-            result = LlmOperationCollector.polars_from_pg()
-            assert result is None
+@pytest.fixture
+def file_based_db_collector(monkeypatch, tmp_path):
+    """
+    Create a collector using a file-based SQLite database. This is necessary for tests that use
+    class methods (e.g. polars_from_db, get_filter_options, get_metrics_summary) since these methods
+    create a new instance. Using a file-based DB ensures state is shared.
+    """
+    db_file = tmp_path / "test.db"
+    db_url = "sqlite:///" + str(db_file)
+    monkeypatch.setenv("CONNECTION_STRING", db_url)
+    collector = LlmOperationCollector().init_dbsession()
+    # Use a temporary file for file-storage even if not needed by DB methods.
+    storage_file = tmp_path / "observability.json"
+    collector.storage_path = str(storage_file)
+    return collector
 
-    @pytest.mark.parametrize(
-        "filters,expected_query_parts",
-        [
-            (
-                {"agent_id": "Zé"}, 
-                ["s.agent_id = %(agent_id)s"]
-            ),
-            (
-                {"session_id": "01JP14ZPH4VGS3BRVDAR3CKM67"}, 
-                ["s.session_id = %(session_id)s"]
-            ),
-            (
-                {"workspace": "workspace1"}, 
-                ["s.workspace = %(workspace)s"]
-            ),
-        ]
+
+# For tests that call class methods (which create a new instance) we patch __init__
+# so that the new instance is set up with the same engine/DBSession.
+def patch_init_with_db(monkeypatch, db_url: str):
+    engine = create_engine(db_url)
+    SessionMaker = sessionmaker(bind=engine)
+    monkeypatch.setattr(
+        LlmOperationCollector,
+        "init_dbsession",
+        lambda self: (setattr(self, "_dbsession", SessionMaker), setattr(self, "engine", engine))
     )
-    def test_polars_from_pg_filter_application(self, monkeypatch, filters, expected_query_parts):
-        """Test that filters are correctly applied to the SQL query."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        executed_queries = []
-        executed_params = []
-        
-        class TestCursor:
-            def execute(self, query, params=None):
-                executed_queries.append(query)
-                executed_params.append(params)
-            def fetchall(self):
-                return []
-            def close(self):
-                pass
-                
-        class TestConnection:
-            def cursor(self, cursor_factory=None):
-                return TestCursor()
-            def close(self):
-                pass
-            def commit(self):
-                pass
-
-        
-        with patch("psycopg2.connect", return_value=TestConnection()):
-            with patch("polars.from_dicts") as mock_from_dicts:
-                mock_from_dicts.return_value = "polars_dataframe"
-                LlmOperationCollector.polars_from_pg(**filters)
-                assert len(executed_queries) == 1
-                query = executed_queries[0]
-                for part in expected_query_parts:
-                    assert part in query
-                assert len(executed_params) == 1
-                params = executed_params[0]
-                for key, value in filters.items():
-                    assert key in params
-                    assert params[key] == value
-
-    def test_polars_from_pg_successful_query(self, monkeypatch):
-        """Test successful query execution and DataFrame creation."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        # Mock data matching the new schema
-        mock_data = [
-            {
-                "session_id": "s1",
-                "workspace": "ws1",
-                "agent_id": "Zé",
-                "operation_id": "op1",
-                "system_prompt": "prompt1",
-                "user_prompt": "hello",
-                "response": "hi",
-                "assistant_message": "",
-                "history_messages": "[]",
-                "completion_args": '{"model": "gpt-4"}',
-                "temperature": 0.5,
-                "max_tokens": 1024,
-                "input_tokens": 5,
-                "output_tokens": 3,
-                "total_tokens": 8,
-                "cost": 0.0,
-                "latency_ms": 120.0
-            },
-            {
-                "session_id": "s2",
-                "workspace": "ws2",
-                "agent_id": "",
-                "operation_id": "op2",
-                "system_prompt": "prompt2",
-                "user_prompt": "how are you?",
-                "response": "fine",
-                "assistant_message": "",
-                "history_messages": "[]",
-                "completion_args": '{"model": "gpt-3.5-turbo"}',
-                "temperature": 0.7,
-                "max_tokens": 1024,
-                "input_tokens": 4,
-                "output_tokens": 5,
-                "total_tokens": 9,
-                "cost": 0.0,
-                "latency_ms": 80.0
-            }
-        ]
-        
-        class TestDictCursor:
-            def execute(self, query, params=None):
-                pass
-            def fetchall(self):
-                return mock_data
-            def close(self):
-                pass
-                
-        class TestConnection:
-            def cursor(self, cursor_factory=None):
-                return TestDictCursor()
-            def close(self):
-                pass
-        
-        with patch("psycopg2.connect", return_value=TestConnection()):
-            with patch("psycopg2.extras.DictCursor"):
-                with patch("polars.from_dicts") as mock_from_dicts:
-                    mock_from_dicts.return_value = "polars_dataframe"
-                    result = LlmOperationCollector.polars_from_pg(agent_id="Zé")
-                    assert result == "polars_dataframe"
-                    mock_from_dicts.assert_called_once()
-                    args, _ = mock_from_dicts.call_args
-                    assert args[0] == mock_data
 
 
-# --- Get Filter Options Tests ---
-class TestLlmOperationCollectorGetFilterOptions:
-    """Tests for the get_filter_options method."""
-    
-    def test_get_filter_options_no_connection_string(self, monkeypatch):
-        """Test behavior when no PG_CONNECTION_STRING is available."""
-        monkeypatch.delenv("PG_CONNECTION_STRING", raising=False)
-        result = LlmOperationCollector.get_filter_options()
-        assert result == {}
-    
-    def test_get_filter_options_connection_error(self, monkeypatch):
-        """Test handling of database connection errors."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        with patch("psycopg2.connect") as mock_connect:
-            mock_connect.side_effect = Exception("Connection error")
-            result = LlmOperationCollector.get_filter_options()
-            assert result == {}
-    
-    def test_get_filter_options_successful_query(self, monkeypatch):
-        """Test successful retrieval of filter options."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        # Define mock data for sessions table queries
-        query_results = {
-            "SELECT DISTINCT agent_id FROM sessions WHERE agent_id IS NOT NULL AND agent_id != '' ORDER BY agent_id":
-                [("Zé",)],
-            "SELECT DISTINCT session_id FROM sessions WHERE session_id IS NOT NULL AND session_id != '' ORDER BY session_id":
-                [("01JP14ZPH4VGS3BRVDAR3CKM67",)],
-            "SELECT DISTINCT workspace FROM sessions WHERE workspace IS NOT NULL AND workspace != '' ORDER BY workspace":
-                [("workspace1",)],
-            "SELECT NULL, NULL":  # for date range query
-                [(None, None)]
-        }
-        
-        class TestCursor:
-            def __init__(self):
-                self.current_query = None
-            def execute(self, query, params=None):
-                self.current_query = query
-            def fetchall(self):
-                return query_results.get(self.current_query, [])
-            def fetchone(self):
-                result = query_results.get(self.current_query)
-                if result:
-                    return result[0]
-                return None
-            def close(self):
-                pass
-                
-        class TestConnection:
-            def cursor(self):
-                return TestCursor()
-            def close(self):
-                pass
-        
-        with patch("psycopg2.connect", return_value=TestConnection()):
-            result = LlmOperationCollector.get_filter_options()
-            # Expected filters from sessions table
-            assert result["agent_id"] == ["Zé"]
-            assert result["session_id"] == ["01JP14ZPH4VGS3BRVDAR3CKM67"]
-            assert result["workspace"] == ["workspace1"]
-    
-    def test_get_filter_options_query_error(self, monkeypatch):
-        """Test handling of query execution errors."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        class TestCursor:
-            def execute(self, query, params=None):
-                raise Exception("Query execution error")
-            def close(self):
-                pass
-                
-        class TestConnection:
-            def cursor(self):
-                return TestCursor()
-            def close(self):
-                pass
-        
-        with patch("psycopg2.connect", return_value=TestConnection()):
-            result = LlmOperationCollector.get_filter_options()
-            assert result == {}
+# === Tests =========================================================
+
+def test_init_dbsession(monkeypatch):
+    """Test that init_dbsession properly sets up the DB connection and engine."""
+    monkeypatch.setenv("CONNECTION_STRING", "sqlite:///:memory:")
+    collector = LlmOperationCollector().init_dbsession()
+    assert collector._table_initialized is True
+    assert collector.engine is not None
+    assert collector.DBSession is not None
 
 
-# --- Get Metrics Summary Tests ---
-class TestLlmOperationCollectorGetMetricsSummary:
-    """Tests for the get_metrics_summary method."""
-    
-    def test_get_metrics_summary_no_connection_string(self, monkeypatch):
-        """Test behavior when no PG_CONNECTION_STRING is available."""
-        monkeypatch.delenv("PG_CONNECTION_STRING", raising=False)
-        result = LlmOperationCollector.get_metrics_summary()
-        assert result == {}
-    
-    def test_get_metrics_summary_connection_error(self, monkeypatch):
-        """Test handling of database connection errors."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        with patch("psycopg2.connect") as mock_connect:
-            mock_connect.side_effect = Exception("Connection error")
-            result = LlmOperationCollector.get_metrics_summary()
-            assert result == {}
-    
-    @pytest.mark.parametrize(
-        "filters,expected_where_parts",
-        [
-            (
-                {"agent_id": "Zé"}, 
-                ["s.agent_id = %(agent_id)s"]
-            ),
-            (
-                {"session_id": "01JP14ZPH4VGS3BRVDAR3CKM67"}, 
-                ["s.session_id = %(session_id)s"]
-            ),
-            (
-                {"workspace": "workspace1"}, 
-                ["s.workspace = %(workspace)s"]
-            ),
-        ]
+def test_clean_completion_args():
+    """Test that _clean_completion_args removes the 'api_key' key."""
+    args = {"param": "value", "api_key": "secret123"}
+    cleaned = LlmOperationCollector._clean_completion_args(args)
+    assert "api_key" not in cleaned
+    assert cleaned.get("param") == "value"
+
+
+def test_record_completion_file_storage(in_memory_collector):
+    """
+    Test that record_completion:
+      - Cleans the arguments,
+      - Appends the new record to the root,
+      - Writes the record to the file (using JSON format).
+    """
+    args = {"param": "value", "api_key": "should_be_removed"}
+    record = in_memory_collector.record_completion(
+        completion_args=args,
+        operation_type="completion",
+        provider="test_provider",
+        response="test response",
+        session_id="session1",
+        workspace="workspace1",
+        agent_id="agent1",
+        action_id="action1",
+        input_tokens=10,
+        output_tokens=5,
+        cost=0.05,
+        latency_ms=100,
+        error_message=""
     )
-    def test_get_metrics_summary_filter_application(self, monkeypatch, filters, expected_where_parts):
-        """Test that filters are correctly applied to the metrics query."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        executed_queries = []
-        executed_params = []
-        
-        class TestDictCursor:
-            def execute(self, query, params=None):
-                executed_queries.append(query)
-                executed_params.append(params)
-            def fetchone(self):
-                # Return values for the new summary query keys.
-                return {
-                    "total_operations": 100,
-                    "avg_latency_ms": 150.5,
-                    "total_input_tokens": 5000,
-                    "total_output_tokens": 3000,
-                    "total_tokens": 8000,
-                    "total_cost": 0.25
-                }
-            def fetchall(self):
-                # For provider/model distributions (not applicable here)
-                return []
-            def close(self):
-                pass
-                
-        class TestConnection:
-            def cursor(self, cursor_factory=None):
-                return TestDictCursor()
-            def close(self):
-                pass
-        
-        with patch("psycopg2.connect", return_value=TestConnection()):
-            with patch("psycopg2.extras.DictCursor"):
-                result = LlmOperationCollector.get_metrics_summary(**filters)
-                # At least one query (the main summary) should be executed.
-                assert len(executed_queries) >= 1
-                main_query = executed_queries[0]
-                for part in expected_where_parts:
-                    assert part in main_query
-                # Check expected result fields for the new summary query.
-                assert result["total_operations"] == 100
-                assert result["avg_latency_ms"] == 150.5
-                assert result["total_input_tokens"] == 5000
-                assert result["total_output_tokens"] == 3000
-                assert result["total_tokens"] == 8000
-                assert result["total_cost"] == 0.25
+    # Verify the record was appended in memory.
+    assert record in in_memory_collector.root
+
+    # Verify the file storage. (The _store_to_file method writes a JSON array.)
+    with open(in_memory_collector.storage_path, "r", encoding=DEFAULT_ENCODING) as f:
+        data = json.loads(f.read())
+    # Look for our record by its operation_id.
+    found = any(item.get("operation_id") == record.operation_id for item in data)
+    assert found
+
+    # Also ensure the sensitive key was removed in the stored JSON.
+    for item in data:
+        if item.get("operation_id") == record.operation_id:
+            # completion_args was JSON-dumped, so load it back to check.
+            completion_args = json.loads(item["completion_args"])
+            assert "api_key" not in completion_args
+
+
+def test_record_completion_db(monkeypatch, tmp_path):
+    """
+    Test that record_completion inserts records into the database.
+    (Here we use an in-memory DB so that the same collector instance is used.)
+    """
+    monkeypatch.setenv("CONNECTION_STRING", "sqlite:///:memory:")
+    collector = LlmOperationCollector().init_dbsession()
+    storage_file = tmp_path / "observability.json"
+    collector.storage_path = str(storage_file)
+
+    args = {"param": "value", "api_key": "secret123"}
+    record = collector.record_completion(
+        completion_args=args,
+        operation_type="completion",
+        provider="test_provider",
+        response="test response db",
+        session_id="session_db",
+        workspace="workspace_db",
+        agent_id="agent_db",
+        action_id="action_db",
+        input_tokens=15,
+        output_tokens=7,
+        cost=0.10,
+        latency_ms=150,
+        error_message=""
+    )
+    # _last_inserted_record should match.
+    assert collector._last_inserted_record == record.operation_id
+
+    # Use the collector’s DBSession to query the inserted records.
+    session_local = collector.DBSession()
+    db_sess = session_local.query(Session).filter_by(session_id=record.session_id).first()
+    assert db_sess is not None
+
+    db_message = session_local.query(Message).filter_by(operation_id=record.operation_id).first()
+    assert db_message is not None
+
+    db_metric = session_local.query(Metric).filter_by(operation_id=record.operation_id).first()
+    assert db_metric is not None
+
+    session_local.close()
+
+
+def test_polars_from_file(file_based_db_collector, tmp_path):
+    """
+    Test that polars_from_file returns a non-empty DataFrame when the file contains valid records.
+    We simulate file storage by writing a JSON list of a dummy record.
+    """
+    # Create a dummy record dictionary (mimicking a serialized LlmOperationRecord)
+    dummy_record = {
+        "session_id": "sess1",
+        "workspace": "ws1",
+        "agent_id": "agent1",
+        "action_id": "act1",
+        "timestamp": "2025-03-18T00:00:00Z",
+        "operation_id": str(ulid.ulid()),
+        "operation_type": "completion",
+        "provider": "test",
+        "model": "dummy",
+        "system_prompt": "",
+        "user_prompt": "",
+        "response": "ok",
+        "success": True,
+        "assistant_message": "",
+        "history_messages": "",
+        "temperature": "",
+        "max_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cost": 0.0,
+        "latency_ms": 100.0,
+        "error_message": "",
+        "completion_args": json.dumps({"param": "value"}, indent=4)
+    }
+    # Write the dummy record as a JSON list to the storage file.
+    with open(file_based_db_collector.storage_path, "w", encoding=DEFAULT_ENCODING) as f:
+        f.write(json.dumps([dummy_record]))
     
-    def test_get_metrics_summary_query_error(self, monkeypatch):
-        """Test handling of query execution errors."""
-        test_conn_str = "postgresql://user:pass@localhost/test_db"
-        monkeypatch.setenv("PG_CONNECTION_STRING", test_conn_str)
-        
-        class TestDictCursor:
-            def execute(self, query, params=None):
-                raise Exception("Query execution error")
-            def close(self):
-                pass
-                
-        class TestConnection:
-            def cursor(self, cursor_factory=None):
-                return TestDictCursor()
-            def close(self):
-                pass
-        
-        with patch("psycopg2.connect", return_value=TestConnection()):
-            with patch("psycopg2.extras.DictCursor"):
-                result = LlmOperationCollector.get_metrics_summary()
-                assert result == {}
+    df = LlmOperationCollector.polars_from_file(file_based_db_collector.storage_path)
+    assert isinstance(df, pl.DataFrame)
+    assert not df.is_empty()
+    assert "session_id" in df.columns
+
+
+def test_polars_from_db(monkeypatch, tmp_path):
+    """
+    Test that polars_from_db returns a DataFrame that includes the inserted record.
+    Here we use a file-based SQLite DB so that a new instance (created by the class method)
+    sees the inserted record.
+    """
+    db_file = tmp_path / "test.db"
+    db_url = "sqlite:///" + str(db_file)
+    monkeypatch.setenv("CONNECTION_STRING", db_url)
+    
+    # Use file-based DB collector to insert a record.
+    collector = LlmOperationCollector().init_dbsession()
+    storage_file = tmp_path / "observability.json"
+    collector.storage_path = str(storage_file)
+    
+    args = {"param": "value", "api_key": "secret123"}
+    collector.record_completion(
+        completion_args=args,
+        operation_type="completion",
+        provider="db_provider",
+        response="db response",
+        session_id="sess_db",
+        workspace="ws_db",
+        agent_id="agent_db",
+        action_id="action_db",
+        input_tokens=20,
+        output_tokens=10,
+        cost=0.20,
+        latency_ms=200,
+        error_message=""
+    )
+    # Patch __init__ so that new instances used in the class method have a valid DBSession.
+    patch_init_with_db(monkeypatch, db_url)
+    
+    df = LlmOperationCollector.polars_from_db()
+    assert isinstance(df, pl.DataFrame)
+    assert not df.is_empty()
+    expected_cols = ["session_id", "workspace", "agent_id", "action_id", "operation_id"]
+    for col in expected_cols:
+        assert col in df.columns
+
+
+def test_get_filter_options(monkeypatch, tmp_path):
+    """
+    Test that get_filter_options returns unique filter values for agent_id, session_id, and workspace.
+    """
+    db_file = tmp_path / "test.db"
+    db_url = "sqlite:///" + str(db_file)
+    monkeypatch.setenv("CONNECTION_STRING", db_url)
+    
+    collector = LlmOperationCollector().init_dbsession()
+    storage_file = tmp_path / "observability.json"
+    collector.storage_path = str(storage_file)
+    
+    # Insert two records with distinct values.
+    args = {"param": "value"}
+    collector.record_completion(
+        completion_args=args,
+        operation_type="completion",
+        provider="provider1",
+        response="resp1",
+        session_id="sess1",
+        workspace="ws1",
+        agent_id="agent1",
+        action_id="action1",
+        input_tokens=5,
+        output_tokens=3,
+        cost=0.05,
+        latency_ms=100,
+        error_message=""
+    )
+    collector.record_completion(
+        completion_args=args,
+        operation_type="completion",
+        provider="provider2",
+        response="resp2",
+        session_id="sess2",
+        workspace="ws2",
+        agent_id="agent2",
+        action_id="action2",
+        input_tokens=8,
+        output_tokens=4,
+        cost=0.08,
+        latency_ms=120,
+        error_message=""
+    )
+    patch_init_with_db(monkeypatch, db_url)
+    
+    filters = LlmOperationCollector.get_filter_options()
+    assert "agent_id" in filters
+    assert "session_id" in filters
+    assert "workspace" in filters
+    assert "agent1" in filters["agent_id"]
+    assert "agent2" in filters["agent_id"]
+    assert "sess1" in filters["session_id"]
+    assert "sess2" in filters["session_id"]
+    assert "ws1" in filters["workspace"]
+    assert "ws2" in filters["workspace"]
+
+
+def test_get_metrics_summary(monkeypatch, tmp_path):
+    """
+    Test that get_metrics_summary aggregates metrics correctly.
+    """
+    db_file = tmp_path / "test.db"
+    db_url = "sqlite:///" + str(db_file)
+    monkeypatch.setenv("CONNECTION_STRING", db_url)
+    
+    collector = LlmOperationCollector().init_dbsession()
+    storage_file = tmp_path / "observability.json"
+    collector.storage_path = str(storage_file)
+    
+    args = {"param": "value"}
+    collector.record_completion(
+        completion_args=args,
+        operation_type="completion",
+        provider="provider_summary",
+        response="summary response",
+        session_id="sess_sum",
+        workspace="ws_sum",
+        agent_id="agent_sum",
+        action_id="action_sum",
+        input_tokens=30,
+        output_tokens=20,
+        cost=0.50,
+        latency_ms=250,
+        error_message=""
+    )
+    patch_init_with_db(monkeypatch, db_url)
+    
+    summary = LlmOperationCollector.get_metrics_summary(
+        agent_id="agent_sum",
+        session_id="sess_sum",
+        workspace="ws_sum"
+    )
+    assert "total_operations" in summary
+    assert summary["total_operations"] >= 1
+    assert "avg_latency_ms" in summary
+    assert summary["avg_latency_ms"] > 0
+    assert "total_input_tokens" in summary
+    assert summary["total_input_tokens"] >= 30
+    assert "total_cost" in summary
+    assert summary["total_cost"] >= 0.50
