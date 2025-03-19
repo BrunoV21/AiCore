@@ -29,9 +29,11 @@ extras_require = {
         "polars==1.24.0",
         "pyarrow==19.0.1"
     ],
-    "pg": [
+    "sql": [
         "psycopg2==2.9.10",
-        "python-dotenv==1.0.1"
+        "pyodbc==5.2.0",
+        "python-dotenv==1.0.1",
+        "SQLAlchemy==2.0.36"
     ],
     "all": [
         "dash==2.18.2",
@@ -39,9 +41,11 @@ extras_require = {
         "pandas==2.2.3",
         "plotly==5.18.0",
         "polars==1.24.0",
-        "pyarrow==19.0.1",      
+        "pyarrow==19.0.1",
         "psycopg2==2.9.10",
-        "python-dotenv==1.0.1"
+        "pyodbc==5.2.0",
+        "python-dotenv==1.0.1",
+        "SQLAlchemy==2.0.36"
     ]
 }
 
