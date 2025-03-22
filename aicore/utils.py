@@ -4,6 +4,12 @@ import requests
 import time
 
 from aicore.logger import _logger
+from aicore.const import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_WAIT_MIN,
+    DEFAULT_WAIT_MAX,
+    DEFAULT_WAIT_EXP_MULTIPLIER
+)
 
 def is_rate_limited(exception):
     """
@@ -53,10 +59,14 @@ def retry_on_rate_limit(func):
     """
     # Create a tenacity-decorated function.
     decorated = retry(
-        stop=stop_after_attempt(5),                   # Retry up to 5 times
-        wait=wait_exponential(multiplier=1, min=1, max=60),  # Exponential backoff
-        retry=retry_if_exception(is_rate_limited),      # Only retry for 429 errors
-        before_sleep=wait_for_retry                     # Handle dynamic waiting based on Retry-After
+        stop=stop_after_attempt(DEFAULT_MAX_ATTEMPTS), # Retry up to 5 times
+        wait=wait_exponential(
+            multiplier=DEFAULT_WAIT_EXP_MULTIPLIER,    # Exponential backoff
+            min=DEFAULT_WAIT_MIN,
+            max=DEFAULT_WAIT_MAX
+        ),
+        retry=retry_if_exception(is_rate_limited),     # Only retry for 429 errors
+        before_sleep=wait_for_retry                    # Handle dynamic waiting based on Retry-After
     )(func)
 
     @wraps(func)

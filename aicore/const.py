@@ -22,6 +22,12 @@ STREAM_END_TOKEN = "</end>"
 
 DEFAULT_ENCODING = "utf8"
 
+# Tenacity constants
+DEFAULT_MAX_ATTEMPTS = os.getenv("MAX_ATTEMPTS") or 5
+DEFAULT_WAIT_MIN = os.getenv("WAIT_MIN") or 1
+DEFAULT_WAIT_MAX = os.getenv("WAIT_MAX") or 60
+DEFAULT_WAIT_EXP_MULTIPLIER = os.getenv("WAIT_EXP_MULTIPLIER") or 1
+
 # Observability constants
 DEFAULT_OBSERVABILITY_DIR = os.getenv("OBSERVABILITY_DIR") or "observability_data"
 DEFAULT_OBSERVABILITY_FILE = os.getenv("OBSERVABILITY_FILE") or "llm_operations.json"
