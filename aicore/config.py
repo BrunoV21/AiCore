@@ -46,7 +46,7 @@ class Config(BaseModel):
             FileNotFoundError: If the configuration file doesn't exist.
         """
         if config_path is None:
-            config_path = os.getenv("CONFIG_PATH") or DEFAULT_CONFIG_PATH
+            config_path = DEFAULT_CONFIG_PATH
         config_path = Path(config_path)
 
         if not os.path.exists(config_path):

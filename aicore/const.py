@@ -1,7 +1,8 @@
+import os
 
-DEFAULT_CONFIG_PATH = "./config/config.yml"
+DEFAULT_CONFIG_PATH = os.getenv("CONFIG_PATH") or "./config/config.yml"
 
-DEFAULT_LOGS_DIR = "logs"
+DEFAULT_LOGS_DIR = os.getenv("LOGS_PATH") or "logs"
 
 SUPPORTED_REASONER_PROVIDERS = ["groq", "openrouter", "nvidia"]
 
@@ -22,7 +23,7 @@ STREAM_END_TOKEN = "</end>"
 DEFAULT_ENCODING = "utf8"
 
 # Observability constants
-DEFAULT_OBSERVABILITY_DIR = "observability_data"
-DEFAULT_OBSERVABILITY_FILE = "llm_operations.json"
-DEFAULT_DASHBOARD_PORT = 8050
-DEFAULT_DASHBOARD_HOST = "127.0.0.1"
+DEFAULT_OBSERVABILITY_DIR = os.getenv("OBSERVABILITY_DIR") or "observability_data"
+DEFAULT_OBSERVABILITY_FILE = os.getenv("OBSERVABILITY_FILE") or "llm_operations.json"
+DEFAULT_DASHBOARD_PORT = os.getenv("DASHBOARD_PORT") or 8050
+DEFAULT_DASHBOARD_HOST = os.getenv("DASHBOARD_HOST") or "127.0.0.1"
