@@ -169,7 +169,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-
+.files/
+.chainlit/
 config/config.yml
 
 */storage/

@@ -1,0 +1,2 @@
+aicore @ git+https://github.com/BrunoV21/AiCore@0.1.8
+chainlit==2.1.0
