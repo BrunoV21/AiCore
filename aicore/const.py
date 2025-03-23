@@ -38,5 +38,3 @@ DEFAULT_WAIT_EXP_MULTIPLIER = os.getenv("WAIT_EXP_MULTIPLIER") or 1
 # Observability constants
 DEFAULT_OBSERVABILITY_DIR = os.getenv("OBSERVABILITY_DIR") or "observability_data"
 DEFAULT_OBSERVABILITY_FILE = os.getenv("OBSERVABILITY_FILE") or "llm_operations.json"
-DEFAULT_DASHBOARD_PORT = os.getenv("DASHBOARD_PORT") or 8050
-DEFAULT_DASHBOARD_HOST = os.getenv("DASHBOARD_HOST") or "127.0.0.1"

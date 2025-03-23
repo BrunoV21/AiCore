@@ -58,14 +58,9 @@ async def main():
     if storage.get_all_records().is_empty():
         await generate_sample_data(llm)
     
-    # Create and launch the dashboard
-    print(f"Starting observability dashboard at http://{config.observability.dashboard_host}:{config.observability.dashboard_port}")
-    dashboard = ObservabilityDashboard(
-        storage=storage,
-        title="AI Core Observability Dashboard"
-    )
-    
-    dashboard.run_server(debug=True, port=config.observability.dashboard_port, host=config.observability.dashboard_host)
+    dashboard = ObservabilityDashboard(from_local_records_only=True)
+    print(dashboard.df)
+    dashboard.run_server()
 
 if __name__ == "__main__":
     asyncio.run(main())
