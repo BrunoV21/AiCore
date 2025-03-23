@@ -194,8 +194,8 @@ class ObservabilityDashboard:
                                     dcc.Graph(id='requests-time-series')
                                 ], style={'flex': '1', 'padding': '10px'}),
                                 html.Div([
-                                    html.H3("Success Rate by Provider"),
-                                    dcc.Graph(id='success-rate-chart')
+                                    html.H3("Insuccess Rate by Provider"),
+                                    dcc.Graph(id='insuccess-rate-chart')
                                 ], style={'flex': '1', 'padding': '10px'})
                             ], style={'display': 'flex'}),
 
@@ -326,7 +326,7 @@ class ObservabilityDashboard:
                         # Row 3
                         html.Div([
                             html.Div([
-                                html.H3("Agent Action Success Rate"),
+                                html.H3("Agent Action Insuccess Rate"),
                                 dcc.Graph(id='agent-action-succes')
                             ], style={'flex': '1', 'padding': '10px'}),
                             html.Div([
@@ -377,7 +377,7 @@ class ObservabilityDashboard:
                                     },
                                     style_data_conditional=[
                                         {'if': {'row_index': 'odd'}, 'backgroundColor': '#2a2a2a'},
-                                        {'if': {'filter_query': '{success} = false', 'column_id': 'success'},
+                                        {'if': {'filter_query': '{insuccess} = false', 'column_id': 'insuccess'},
                                         'backgroundColor': '#5c1e1e', 'color': 'white'}
                                     ],
                                     filter_action="native",
@@ -449,7 +449,7 @@ class ObservabilityDashboard:
                 # Overview Tab
                 Output('overview-metrics', 'children'),
                 Output('requests-time-series', 'figure'),
-                Output('success-rate-chart', 'figure'),
+                Output('insuccess-rate-chart', 'figure'),
                 Output('provider-model-sunburst', 'figure'),
                 Output('model-distribution', 'figure'),
                 
@@ -527,23 +527,22 @@ class ObservabilityDashboard:
             )
             requests_ts_fig.update_traces(mode='lines+markers')
             
-            # Success rate by provider
-            success_by_provider = filtered_df.group_by("provider").agg(
-                pl.col("success").mean().mul(100).round(1).alias("success_rate"),
+            # Insuccess rate by provider
+            insuccess_by_provider = filtered_df.group_by("provider").agg(
+                (100 - pl.col("success").mean().mul(100).round(1)).alias("insuccess_rate"),
                 pl.len().alias("count")
             )
-            success_rate_fig = px.bar(
-                success_by_provider, 
+            insuccess_rate_fig = px.bar(
+                insuccess_by_provider, 
                 x='provider', 
-                y='success_rate',
-                color='success_rate',
+                y='insuccess_rate',
+                color='insuccess_rate',
                 color_continuous_scale='RdYlGn',
-                text='success_rate',
+                text='insuccess_rate',
                 template=TEMPLATE
             )
-            success_rate_fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-            success_rate_fig.update_layout(yaxis_title="Success Rate (%)")
-            
+            insuccess_rate_fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            insuccess_rate_fig.update_layout(yaxis_title="Insuccess Rate (%)")
             # Provider-Model Sunburst chart (fixed with hierarchical path)
             provider_model = filtered_df.group_by(["provider", "model"]).agg(
                 pl.len().alias("count")
@@ -841,16 +840,16 @@ class ObservabilityDashboard:
                     title="No agent data available"
                 )
             
-            # Agent performance (success rate)
+            # Agent performance (insuccess rate)
             if agent_data.height > 0:
                 agent_perf = agent_data.group_by("agent_id").agg(
-                    pl.col("success").mean().mul(100).round(1).alias("success_rate"),
+                    (100 - pl.col("success").mean().mul(100).round(1)).alias("insuccess_rate"),
                     pl.col("latency_ms").mean().alias("avg_latency"),
                     pl.len().alias("count")
                 )
                 agent_perf_fig = px.scatter(
                     agent_perf,
-                    x='success_rate',
+                    x='insuccess_rate',
                     y='avg_latency',
                     size='count',
                     hover_name='agent_id',
@@ -859,13 +858,13 @@ class ObservabilityDashboard:
                     title="Agent Performance"
                 )
                 agent_perf_fig.update_layout(
-                    xaxis_title="Success Rate (%)",
+                    xaxis_title="Insuccess Rate (%)",
                     yaxis_title="Avg Latency (ms)"
                 )
             else:
                 agent_perf_fig = px.scatter(
-                    {"success_rate": [0], "avg_latency": [0], "count": [0], "agent_id": ["No agent data"]},
-                    x='success_rate',
+                    {"insuccess_rate": [0], "avg_latency": [0], "count": [0], "agent_id": ["No agent data"]},
+                    x='insuccess_rate',
                     y='avg_latency',
                     size='count',
                     hover_name='agent_id',
@@ -1013,24 +1012,24 @@ class ObservabilityDashboard:
                         yaxis_title="Number of Executions"
                     )
                     
-                    # Action success rate by agent
-                    action_success_by_agent = action_data.group_by(["agent_id", "action_id"]).agg(
-                        pl.col("success").mean().mul(100).round(1).alias("success_rate"),
+                    # Action insuccess rate by agent
+                    action_insuccess_by_agent = action_data.group_by(["agent_id", "action_id"]).agg(
+                        (100-pl.col("success").mean().mul(100).round(1)).alias("insuccess_rate"),
                         pl.len().alias("count")
                     )
-                    action_success_fig = px.scatter(
-                        action_success_by_agent,
+                    action_insuccess_fig = px.scatter(
+                        action_insuccess_by_agent,
                         x='agent_id',
-                        y='success_rate',
+                        y='insuccess_rate',
                         size='count',
                         color='action_id',
                         hover_name='action_id',
                         template=TEMPLATE,
-                        title="Action Success Rate by Agent"
+                        title="Action Insuccess Rate by Agent"
                     )
-                    action_success_fig.update_layout(
+                    action_insuccess_fig.update_layout(
                         xaxis_title="Agent ID",
-                        yaxis_title="Success Rate (%)"
+                        yaxis_title="Insuccess Rate (%)"
                     )
                     
                     # Action latency by agent
@@ -1116,10 +1115,10 @@ class ObservabilityDashboard:
                         template=TEMPLATE,
                         title="No action data available"
                     )
-                    action_success_fig = px.scatter(
-                        {"agent_id": ["No action data"], "success_rate": [0], "count": [0], "action_id": ["None"]},
+                    action_insuccess_fig = px.scatter(
+                        {"agent_id": ["No action data"], "insuccess_rate": [0], "count": [0], "action_id": ["None"]},
                         x="agent_id",
-                        y="success_rate",
+                        y="insuccess_rate",
                         template=TEMPLATE,
                         title="No action data available"
                     )
@@ -1154,10 +1153,10 @@ class ObservabilityDashboard:
                     template=TEMPLATE,
                     title="No action data available"
                 )
-                action_success_fig = px.scatter(
-                    {"agent_id": ["No action data"], "success_rate": [0], "count": [0], "action_id": ["None"]},
+                action_insuccess_fig = px.scatter(
+                    {"agent_id": ["No action data"], "insuccess_rate": [0], "count": [0], "action_id": ["None"]},
                     x="agent_id",
-                    y="success_rate",
+                    y="insuccess_rate",
                     template=TEMPLATE,
                     title="No action data available"
                 )
@@ -1200,7 +1199,7 @@ class ObservabilityDashboard:
             
             return (
                 # Overview Tab
-                overview_metrics, requests_ts_fig, success_rate_fig, sunburst_fig, model_fig,
+                overview_metrics, requests_ts_fig, insuccess_rate_fig, sunburst_fig, model_fig,
                 
                 # Performance Tab
                 performance_metrics , latency_fig, latency_provider_fig, latency_model_fig, latency_timeline_fig,
@@ -1214,7 +1213,7 @@ class ObservabilityDashboard:
                 # Agent Analysis Tab
                 agent_analysis_metrics, agent_dist_fig, agent_perf_fig,
                 combined_tokens_fig, agent_cost_fig, 
-                action_success_fig, action_latency_fig, action_tokens_fig, action_cost_fig,
+                action_insuccess_fig, action_latency_fig, action_tokens_fig, action_cost_fig,
                 
                 # Additional Observability Plot
                 op_type_fig,
@@ -1247,8 +1246,8 @@ class ObservabilityDashboard:
     def _create_overview_metrics(self, df):
         """Create dynamic overview metrics from dataframe."""
         total_requests = len(df)
-        successful_count = len([_ for _ in df["success"] if _])
-        success_rate = successful_count / total_requests * 100 if total_requests > 0 else 0
+        insuccessful_count = len([_ for _ in df["success"] if not(_)])
+        insuccess_rate = insuccessful_count / total_requests * 100 if total_requests > 0 else 0
         avg_latency = df["latency_ms"].mean() if total_requests > 0 else 0
 
         unique_providers = len(df["provider"].unique())
@@ -1270,7 +1269,7 @@ class ObservabilityDashboard:
         }
 
         return html.Div([
-            # First row: Total Requests, Success Rate, and Avg. Latency
+            # First row: Total Requests, Insuccess Rate, and Avg. Latency
             html.Div([
                 html.Div([
                     html.H4("📊 Total Requests", style={"color": "#ffffff", "marginBottom": "5px"}),
@@ -1278,9 +1277,9 @@ class ObservabilityDashboard:
                     html.P("Requests processed", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
-                    html.H4("✅ Success Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
-                    html.H2(f"{success_rate:.1f}%", style={"color": "#28a745"}),
-                    html.P(f"{successful_count} of {total_requests} succeeded", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                    html.H4("❌ Insuccess Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{insuccess_rate:.1f}%", style={"color": "#28a745"}),
+                    html.P(f"{total_requests - insuccessful_count} of {total_requests} succeeded", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
                     html.H4("⏱️ Avg. Latency", style={"color": "#ffffff", "marginBottom": "5px"}),
@@ -1501,9 +1500,9 @@ class ObservabilityDashboard:
             top_action = "N/A"
             top_action_count = 0
 
-        # Compute agent-specific success rate
-        successful_agent_requests = len([_ for _ in agent_df["success"] if _])
-        agent_success_rate = successful_agent_requests / total_agent_requests * 100 if total_agent_requests > 0 else 0
+        # Compute agent-specific insuccess rate
+        insuccessful_agent_requests = len([_ for _ in agent_df["success"] if not(_)])
+        agent_insuccess_rate = insuccessful_agent_requests / total_agent_requests * 100 if total_agent_requests > 0 else 0
 
         card_style = {
             "backgroundColor": "#1E1E2F",
@@ -1531,7 +1530,7 @@ class ObservabilityDashboard:
                 ], className="metric-card", style=card_style),
             ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"}),
 
-            # Second row: Top Agent and Agent Success Rate
+            # Second row: Top Agent and Agent Insuccess Rate
             html.Div([
                 html.Div([
                     html.H4("🏆 Top Agent", style={"color": "#ffffff", "marginBottom": "5px"}),
@@ -1539,9 +1538,9 @@ class ObservabilityDashboard:
                     html.P("Most active agent", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
-                    html.H4("✅ Agent Success Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
-                    html.H2(f"{agent_success_rate:.1f}%", style={"color": "#28a745"}),
-                    html.P("Success rate of agent requests", style={"color": "#cccccc", "fontSize": "0.9rem"})
+                    html.H4("❌ Agent Insuccess Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
+                    html.H2(f"{agent_insuccess_rate:.1f}%", style={"color": "#28a745"}),
+                    html.P("Insuccess rate of agent requests", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
                     html.H4("🌟 Top Action", style={"color": "#ffffff", "marginBottom": "5px"}),
@@ -1590,6 +1589,8 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
+    # TODO dynamically change insuccess rate colour based on % #ffc107
+    # TODO investigtate Operations Data table css for better visualization and textboxes expansions
     # TODO add number of actions into overview -> change sucess rate by provider n -> sunburst with operation type and action
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
