@@ -38,7 +38,7 @@ async def initialize_llm_session(session_id: str, config: Optional[LlmConfig] = 
             os.environ["CONFIG_PATH"] = CONFIG_PATH
             config = Config.from_yaml()
             llm = Llm.from_config(config.llm)
-            
+        llm.session_id = session_id
         llm_sessions[session_id] = llm
         return llm
     except Exception as e:

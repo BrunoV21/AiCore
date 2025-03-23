@@ -1,8 +1,8 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import json
 from typing import Optional
 
-from services.llm_service import initialize_llm_session, simulate_llm_response, run_concurrent_tasks
+from services.llm_service import initialize_llm_session, trim_messages, run_concurrent_tasks
 from aicore.const import SPECIAL_TOKENS, STREAM_END_TOKEN
 import ulid
 
@@ -36,6 +36,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id : Optional[str]=No
             data = await websocket.receive_text()
             message = data
             history.append(message)
+            history = trim_messages(history, llm.tokenizer)
             response = []
             async for chunk in run_concurrent_tasks(
                 llm,
