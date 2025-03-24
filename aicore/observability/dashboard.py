@@ -1278,7 +1278,7 @@ class ObservabilityDashboard:
                 ], className="metric-card", style=card_style),
                 html.Div([
                     html.H4("❌ Insuccess Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
-                    html.H2(f"{insuccess_rate:.1f}%", style={"color": "#28a745"}),
+                    html.H2(f"{insuccess_rate:.1f}%", style={"color": "#28a745" if not insuccess_rate else "#ffc107"}),
                     html.P(f"{total_requests - insuccessful_count} of {total_requests} succeeded", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
@@ -1365,7 +1365,7 @@ class ObservabilityDashboard:
                 ], className="metric-card", style=card_style),
                 html.Div([
                     html.H4("❌ Failed Requests", style={"color": "#ffffff", "marginBottom": "5px"}),
-                    html.H2(f"{failed_requests}", style={"color": "#ffc107"}),
+                    html.H2(f"{failed_requests}", style={"color": "#28a745" if not failed_requests else "#ffc107"}),
                     html.P("Requests that did not succeed", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style)
             ], style={"display": "flex", "flexWrap": "wrap", "justifyContent": "space-around"})
@@ -1539,7 +1539,7 @@ class ObservabilityDashboard:
                 ], className="metric-card", style=card_style),
                 html.Div([
                     html.H4("❌ Agent Insuccess Rate", style={"color": "#ffffff", "marginBottom": "5px"}),
-                    html.H2(f"{agent_insuccess_rate:.1f}%", style={"color": "#28a745"}),
+                    html.H2(f"{agent_insuccess_rate:.1f}%", style={"color": "#28a745" if not agent_insuccess_rate else "#ffc107"}),
                     html.P("Insuccess rate of agent requests", style={"color": "#cccccc", "fontSize": "0.9rem"})
                 ], className="metric-card", style=card_style),
                 html.Div([
@@ -1589,7 +1589,6 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
-    # TODO dynamically change insuccess rate colour based on % #ffc107
     # TODO investigtate Operations Data table css for better visualization and textboxes expansions
     # TODO add number of actions into overview -> change sucess rate by provider n -> sunburst with operation type and action
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
