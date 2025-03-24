@@ -17,6 +17,35 @@ EXTERNAL_STYLESHEETS = [
 ]
 TEMPLATE = "plotly_dark"
 
+MESSAGES_TEMPLATE = """
+### {row}. **timestam**: {timestamp}
+---
+**History:
+```text
+{history}
+```
+---
+**System**:
+```text
+{system}
+```
+---
+**Assitant**:
+```text
+{assistant}
+```
+---
+**Prompt**
+```text
+{prompt}
+```
+---
+**Response**
+```text
+{response}
+```
+"""
+
 class ObservabilityDashboard:
     """
     Dashboard for visualizing LLM operation data.
@@ -354,36 +383,39 @@ class ObservabilityDashboard:
                     dcc.Tab(label='⚙️ Operations Data', value='operations-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div([
+                                dbc.Alert(id='tbl_out'),
                                 dash_table.DataTable(
-                                    id='operations-table',
-                                    page_size=15,
-                                    style_table={'overflowX': 'auto'},
-                                    style_cell={
-                                        'textAlign': 'left',
-                                        'padding': '10px',
-                                        'minWidth': '100px', 'maxWidth': '300px',
-                                        'whiteSpace': 'nowrap',  # Prevents wrapping
-                                        'overflow': 'hidden',  # Hides overflow text
-                                        'textOverflow': 'ellipsis',  # Shows ellipsis for overflow text
-                                        'backgroundColor': '#333',
-                                        'color': 'white',
-                                        'height': '24px',  # Defines row height (adjust based on font size)
-                                        'cursor': 'pointer'  # Indicates clickability
-                                    },
-                                    style_header={
-                                        'backgroundColor': '#444',
-                                        'fontWeight': 'bold',
-                                        'color': 'white'
-                                    },
-                                    style_data_conditional=[
-                                        {'if': {'row_index': 'odd'}, 'backgroundColor': '#2a2a2a'},
-                                        {'if': {'filter_query': '{insuccess} = false', 'column_id': 'insuccess'},
-                                        'backgroundColor': '#5c1e1e', 'color': 'white'}
-                                    ],
-                                    filter_action="native",
-                                    sort_action="native",
-                                    sort_mode="multi",
-                                )
+                                        id='operations-table',
+                                        row_selectable="multi",  # Allow multiple rows to be selected
+                                        selected_rows=[],        # Initial selection (empty)
+                                        page_size=15,
+                                        style_table={'overflowX': 'auto'},
+                                        style_cell={
+                                            'textAlign': 'left',
+                                            'padding': '10px',
+                                            'minWidth': '100px', 'maxWidth': '300px',
+                                            'whiteSpace': 'nowrap',
+                                            'overflow': 'hidden',
+                                            'textOverflow': 'ellipsis',
+                                            'backgroundColor': '#333',
+                                            'color': 'white',
+                                            'height': '24px',
+                                            'cursor': 'pointer'
+                                        },
+                                        style_header={
+                                            'backgroundColor': '#444',
+                                            'fontWeight': 'bold',
+                                            'color': 'white'
+                                        },
+                                        style_data_conditional=[
+                                            {'if': {'row_index': 'odd'}, 'backgroundColor': '#2a2a2a'},
+                                            {'if': {'filter_query': '{insuccess} = false', 'column_id': 'insuccess'},
+                                            'backgroundColor': '#5c1e1e', 'color': 'white'}
+                                        ],
+                                        filter_action="native",
+                                        sort_action="native",
+                                        sort_mode="multi",
+                                    )
                             ], className="table-container")
                         ], className="tab-content")
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"})
@@ -402,6 +434,38 @@ class ObservabilityDashboard:
         def update_time(n_clicks, n_intervals):
             last_updated = self.fetch_df()
             return f"Last updated: {last_updated}"
+        
+        @self.app.callback(
+            Output('operations-table', 'selected_rows'),
+            Output('tbl_out', 'children'),
+            # The current list of selected rows is needed to update the selection state
+            # when a new cell is clicked.
+            Input('operations-table', 'active_cell'),
+            State('operations-table', 'selected_rows')
+        )
+        def update_selection(active_cell, selected_rows):
+            if active_cell:
+                row_index = active_cell['row']
+                # Automatically add the clicked row to the selection if not already selected.
+                if row_index not in selected_rows:
+                    selected_rows.append(row_index)
+                # Optionally, you could toggle the row selection if desired:
+                else:
+                    selected_rows.remove(row_index)
+                
+                contents = "---\n\n".join([
+                    MESSAGES_TEMPLATE.format(
+                    row=row,
+                    timestamp=self.df[row]["timestamp"],
+                    history=self.df[row]["history_messages"],
+                    system=self.df[row]["system_prompt"],
+                    assistant=self.df[row]["assistant_message"],
+                    prompt=self.df[row]["user_prompt"],
+                    response=self.df[row]["response"]
+                ) for row in selected_rows
+                ])
+                return selected_rows, contents
+            return selected_rows, "Click a cell to select its row."
         
         @self.app.callback(
             [Output('provider-dropdown', 'options'),
@@ -1595,5 +1659,5 @@ if __name__ == "__main__":
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
     od = ObservabilityDashboard(from_local_records_only=True)
-    print(od.df)
+    print(od.df[0])
     od.run_server()
