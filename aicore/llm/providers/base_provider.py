@@ -1,6 +1,6 @@
 
 from aicore.llm.config import LlmConfig
-from aicore.logger import _logger, default_stream_handler, adefault_stream_handler
+from aicore.logger import _logger, default_stream_handler
 from aicore.const import REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
@@ -343,9 +343,7 @@ class LlmBaseProvider(BaseModel):
                 action_id :Optional[str]=None) -> Union[str, Dict]:
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
-            prompt = self.model_to_str(prompt)       
-
-        stream_handler = stream_handler or default_stream_handler
+            prompt = self.model_to_str(prompt)
         
         # Start tracking operation time
         start_time = time.time()
@@ -413,7 +411,7 @@ class LlmBaseProvider(BaseModel):
                         img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
                         json_output: bool = False,
                         stream: bool = True,
-                        stream_handler: Optional[Callable[[str], None]] = adefault_stream_handler,
+                        stream_handler: Optional[Callable[[str], None]] = default_stream_handler,
                         agent_id: Optional[str]=None,
                         action_id :Optional[str]=None
                         ) -> Union[str, Dict]:
@@ -421,7 +419,7 @@ class LlmBaseProvider(BaseModel):
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
 
-        stream_handler = stream_handler or adefault_stream_handler
+        stream_handler = stream_handler or default_stream_handler
         
         # Start tracking operation time
         start_time = time.time()
