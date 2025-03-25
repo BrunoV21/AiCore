@@ -798,22 +798,21 @@ class ObservabilityDashboard:
                     title="No cost data available"
                 )
             
-            # Cost per token
-            cost_per_token = filtered_df.filter(
-                (pl.col("cost") > 0) & (pl.col("total_tokens") > 0)
-            ).with_columns(
-                cost_per_token=(pl.col("cost") / pl.col("total_tokens")) * 1000
+            # Average cost per request
+            avg_cost_per_request = filtered_df.filter(
+                pl.col("cost") > 0  # Ensure valid cost values
             ).group_by("model").agg(
-                pl.col("cost_per_token").mean().alias("avg_cost_per_1k")
+                pl.col("cost").mean().alias("avg_cost_per_request")
             )
-            cost_per_token_fig = px.bar(
-                cost_per_token, 
+
+            # Create bar chart
+            avg_cost_per_request_fig = px.bar(
+                avg_cost_per_request, 
                 x="model", 
-                y="avg_cost_per_1k", 
+                y="avg_cost_per_request", 
                 template=TEMPLATE,
-                title="Cost per 1K Tokens by Model"
+                title="Average Cost per Request by Model"
             )
-            cost_per_token_fig.update_layout(yaxis_title="Cost per 1K Tokens ($)")
             
             # Agent Analysis Tab
             # Agent Analysis metrics
@@ -1270,7 +1269,7 @@ class ObservabilityDashboard:
                 token_usage_metrics, token_efficiency_fig, token_model_fig, token_dist_fig, cost_fig,
                 
                 # Cost Analysis Tab
-                cost_analysis_metrics, cost_sunburst_fig, cost_per_token_fig,
+                cost_analysis_metrics, cost_sunburst_fig, avg_cost_per_request_fig,
                 
                 # Agent Analysis Tab
                 agent_analysis_metrics, agent_dist_fig, agent_perf_fig,
