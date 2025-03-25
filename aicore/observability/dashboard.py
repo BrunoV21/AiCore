@@ -1261,7 +1261,7 @@ class ObservabilityDashboard:
             )
             
             # Operations Data Tab
-            display_columns = [col for col in filtered_df.columns if col not in ["day", "hour", "minute"]]
+            display_columns = [col for col in filtered_df.columns if col not in ["date", "day", "hour", "minute"]]
             table_data = filtered_df.select(display_columns).to_dicts()[::-1]
             table_columns = [{"name": i, "id": i} for i in display_columns]
             
