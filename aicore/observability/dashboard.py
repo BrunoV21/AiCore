@@ -415,6 +415,8 @@ class ObservabilityDashboard:
                                         sort_mode="multi",
                                     )
                             ], className="table-container"),
+                            html.Button("Clear Selection", id="clear-button", n_clicks=0, style={"backgroundColor": "#d84616", "color": "white"}),
+                            html.Pre(),
                             html.Pre(id='tbl_out', style={"whiteSpace": "pre-wrap", "fontFamily": "monospace", "marginLeft": "20px"})
                         ], className="tab-content")
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"})
@@ -437,13 +439,16 @@ class ObservabilityDashboard:
         @self.app.callback(
             Output('operations-table', 'selected_rows'),
             Output('tbl_out', 'children'),
+            Output('operations-table', 'active_cell'),
             # The current list of selected rows is needed to update the selection state
             # when a new cell is clicked.
             Input('operations-table', 'active_cell'),
             Input('operations-table', 'page_current'),
-            State('operations-table', 'selected_rows')
+            Input("clear-button", "n_clicks"),
+            State('operations-table', 'selected_rows'),
         )
-        def update_selection(active_cell, page_current, selected_rows):
+        def update_selection(active_cell, page_current, n_clicks, selected_rows):
+            # If the clear button is clicked, reset selection
             if active_cell:
                 row_index = active_cell['row'] + page_current * PAGE_SIZE
                 # Automatically add the clicked row to the selection if not already selected.
@@ -452,7 +457,9 @@ class ObservabilityDashboard:
                 # Optionally, you could toggle the row selection if desired:
                 else:
                     selected_rows.remove(row_index)
-                
+                    active_cell['row'] = selected_rows[-1] - page_current * PAGE_SIZE if selected_rows else None
+
+            if selected_rows:
                 contents = f"\n\n{MULTISEP}".join([
                     MESSAGES_TEMPLATE.format(
                     SEP=SEP,
@@ -467,8 +474,8 @@ class ObservabilityDashboard:
                     response=self.df[row]["response"][0]
                 ) for row in selected_rows[::-1]
                 ])
-                return selected_rows, contents
-            return selected_rows, "Click a cell to select its row."
+                return selected_rows, contents, active_cell
+            return selected_rows, "Click a cell to select its row.", active_cell
         
         @self.app.callback(
             [Output('provider-dropdown', 'options'),
