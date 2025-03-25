@@ -51,7 +51,7 @@ extras_require = {
 
 setuptools.setup(
     name="aicore",
-    version="0.1.9",
+    version="0.1.85",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
     description="A unified interface for interacting with various LLM and embedding providers, with observability tools.",
