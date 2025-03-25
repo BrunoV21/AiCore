@@ -35,6 +35,9 @@ def default_stream_handler(message :str)->str:
         return
     print(message, end="")
 
+async def adefault_stream_handler(message :str)->str:
+    default_stream_handler(message)
+
 class LogEntry(BaseModel):
     session_id: str = ""
     message: str
