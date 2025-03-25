@@ -18,6 +18,8 @@ EXTERNAL_STYLESHEETS = [
 ]
 TEMPLATE = "plotly_dark"
 
+PAGE_SIZE = 30
+
 MULTISEP = "-----------------------------------------------------------------------" 
 
 SEP = "============================="
@@ -383,7 +385,8 @@ class ObservabilityDashboard:
                                         id='operations-table',
                                         row_selectable="multi",  # Allow multiple rows to be selected
                                         selected_rows=[],        # Initial selection (empty)
-                                        page_size=15,
+                                        page_current=0,
+                                        page_size=PAGE_SIZE,
                                         style_table={'overflowX': 'auto'},
                                         style_cell={
                                             'textAlign': 'left',
@@ -437,11 +440,12 @@ class ObservabilityDashboard:
             # The current list of selected rows is needed to update the selection state
             # when a new cell is clicked.
             Input('operations-table', 'active_cell'),
+            Input('operations-table', 'page_current'),
             State('operations-table', 'selected_rows')
         )
-        def update_selection(active_cell, selected_rows):
+        def update_selection(active_cell, page_current, selected_rows):
             if active_cell:
-                row_index = active_cell['row']
+                row_index = active_cell['row'] + page_current * PAGE_SIZE
                 # Automatically add the clicked row to the selection if not already selected.
                 if row_index not in selected_rows:
                     selected_rows.append(row_index)
