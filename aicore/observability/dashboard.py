@@ -18,25 +18,26 @@ EXTERNAL_STYLESHEETS = [
 ]
 TEMPLATE = "plotly_dark"
 
-SEP = "-------------------------------------------------------------------"
+MULTISEP = "------------------------------------------------" 
+
+SEP = "============================="
 
 MESSAGES_TEMPLATE = """
 {row}. TIMESTAMP: {timestamp}
 {agent}{action}
-{SEP}
-History:
+{SEP} HISTORY ===============================
 {history}
-{SEP}
-System:
+
+{SEP} SYSTEM ================================
 {system}
-{SEP}
-Assistant:
+
+{SEP} ASSISTANT =============================
 {assistant}
-{SEP}
-Prompt:
+
+{SEP} PROMPT ================================
 {prompt}
-{SEP}
-Response:
+
+{SEP} RESPONSE ==============================
 {response}
 """
 
@@ -448,7 +449,7 @@ class ObservabilityDashboard:
                 else:
                     selected_rows.remove(row_index)
                 
-                contents = f"{SEP}\n\n".join([
+                contents = f"{MULTISEP}\n\n".join([
                     MESSAGES_TEMPLATE.format(
                     SEP=SEP,
                     row=row,
