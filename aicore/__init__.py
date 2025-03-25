@@ -12,21 +12,13 @@ from aicore.llm import Llm, LlmConfig
 from aicore.embeddings import Embeddings, EmbeddingsConfig
 from aicore.logger import Logger, _logger
 
-# Export observability module components
-from aicore.observability import (
-    LlmOperationCollector,
-    ObservabilityDashboard
-)
-
 __all__ = [
     "Config",
     "Llm",
     "LlmConfig",
     "Embeddings",
     "EmbeddingsConfig",
-    "Logger",
-    "LlmOperationCollector",
-    "ObservabilityDashboard"
+    "Logger"
 ]
 
 __version__ = "0.1.9"
