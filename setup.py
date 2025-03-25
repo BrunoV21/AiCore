@@ -50,7 +50,7 @@ extras_require = {
 }
 
 setuptools.setup(
-    name="aicore",
+    name="core-ai",
     version="0.1.85",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
