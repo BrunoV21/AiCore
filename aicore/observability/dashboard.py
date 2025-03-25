@@ -84,7 +84,8 @@ class ObservabilityDashboard:
         self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_db()
         if self.df is None:
             self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path)
-        self.add_day_col()
+        self.add_day_col()        
+        self.df  = self.df [::-1]
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     def add_day_col(self):
@@ -1262,7 +1263,7 @@ class ObservabilityDashboard:
             
             # Operations Data Tab
             display_columns = [col for col in filtered_df.columns if col not in ["date", "day", "hour", "minute"]]
-            table_data = filtered_df.select(display_columns).to_dicts()[::-1]
+            table_data = filtered_df.select(display_columns).to_dicts()
             table_columns = [{"name": i, "id": i} for i in display_columns]
             
             return (
