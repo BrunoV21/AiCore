@@ -18,6 +18,7 @@ DEFAULT_PRICINGS = {
     "mistral-mistral-embed": {"input": 0.1, "output": 0},
     "mistral-pixtral-12b": {"input": 0.15, "output": 0.15},
     "mistral-mistral-nemo": {"input": 0.15, "output": 0.15},
+    "gemini-gemini-2.5-pro-exp-03-25": {"input": 0, "output": 0},
     "gemini-gemini-2.0-flash-exp": {"input": 0, "output": 0},
     "gemini-gemini-2.0-flash-thinking-exp-01-21": {"input": 0, "output": 0},
     "gemini-gemini-2.0-flash": {"input": 0.10, "output": 0.4},
