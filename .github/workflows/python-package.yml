@@ -4,6 +4,7 @@ on:
     types: [published, created, edited]
   push:
     branches: [ "main" ]
+    tags: [ "*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -47,7 +48,7 @@ jobs:
   security:
     name: Security Check
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || inputs.run_security
+    if: startsWith(github.ref, 'refs/tags/') || inputs.run_security
     steps:
       - uses: actions/checkout@main
       - name: Run Safety CLI to check for vulnerabilities
