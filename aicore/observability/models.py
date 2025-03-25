@@ -6,7 +6,7 @@ Base = declarative_base()
 
 # SQLAlchemy models
 class Session(Base):
-    __tablename__ = 'sessions'
+    __tablename__ = 'Session'
     
     session_id = Column(String, primary_key=True)
     workspace = Column(String)
@@ -16,10 +16,10 @@ class Session(Base):
     messages = relationship("Message", back_populates="session")
 
 class Message(Base):
-    __tablename__ = 'messages'
+    __tablename__ = 'Message'
     
     operation_id = Column(String, primary_key=True)
-    session_id = Column(String, ForeignKey('sessions.session_id'))
+    session_id = Column(String, ForeignKey('Session.session_id'))
     action_id = Column(String)
     timestamp = Column(String)
     system_prompt = Column(Text)
@@ -35,9 +35,9 @@ class Message(Base):
     metrics = relationship("Metric", back_populates="message", uselist=False)
 
 class Metric(Base):
-    __tablename__ = 'metrics'
+    __tablename__ = 'Metric'
     
-    operation_id = Column(String, ForeignKey('messages.operation_id'), primary_key=True)
+    operation_id = Column(String, ForeignKey('Message.operation_id'), primary_key=True)
     operation_type = Column(String)
     provider = Column(String)
     model = Column(String)
