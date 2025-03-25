@@ -18,34 +18,26 @@ EXTERNAL_STYLESHEETS = [
 ]
 TEMPLATE = "plotly_dark"
 
+SEP = "-------------------------------------------------------------------"
+
 MESSAGES_TEMPLATE = """
-## {row}. **timestamp**: {timestamp}
-### {agent}{action}
----
-**History**:
-```text
+{row}. TIMESTAMP: {timestamp}
+{agent}{action}
+{SEP}
+History:
 {history}
-```
----
-**System**:
-```text
+{SEP}
+System:
 {system}
-```
----
-**Assistant**:
-```text
+{SEP}
+Assistant:
 {assistant}
-```
----
-**Prompt**
-```text
+{SEP}
+Prompt:
 {prompt}
-```
----
-**Response**
-```text
+{SEP}
+Response:
 {response}
-```
 """
 
 class ObservabilityDashboard:
@@ -419,7 +411,7 @@ class ObservabilityDashboard:
                                         sort_mode="multi",
                                     )
                             ], className="table-container"),
-                            dcc.Markdown(id='tbl_out')
+                            html.Pre(id='tbl_out', style={"whiteSpace": "pre-wrap", "fontFamily": "monospace", "marginLeft": "20px"})
                         ], className="tab-content")
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"})
                 ]),
@@ -456,8 +448,9 @@ class ObservabilityDashboard:
                 else:
                     selected_rows.remove(row_index)
                 
-                contents = "---\n\n".join([
+                contents = f"{SEP}\n\n".join([
                     MESSAGES_TEMPLATE.format(
+                    SEP=SEP,
                     row=row,
                     timestamp=self.df[row]["timestamp"][0],
                     agent=self.df[row]["agent_id"][0],
