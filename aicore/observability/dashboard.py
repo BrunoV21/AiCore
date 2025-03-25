@@ -18,7 +18,7 @@ EXTERNAL_STYLESHEETS = [
 ]
 TEMPLATE = "plotly_dark"
 
-MULTISEP = "------------------------------------------------" 
+MULTISEP = "-----------------------------------------------------------------------" 
 
 SEP = "============================="
 
@@ -449,7 +449,7 @@ class ObservabilityDashboard:
                 else:
                     selected_rows.remove(row_index)
                 
-                contents = f"{MULTISEP}\n\n".join([
+                contents = f"\n\n{MULTISEP}".join([
                     MESSAGES_TEMPLATE.format(
                     SEP=SEP,
                     row=row,
