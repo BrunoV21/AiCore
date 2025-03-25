@@ -467,7 +467,7 @@ class ObservabilityDashboard:
                     assistant=self.df[row]["assistant_message"][0],
                     prompt=self.df[row]["user_prompt"][0],
                     response=self.df[row]["response"][0]
-                ) for row in selected_rows
+                ) for row in selected_rows[::-1]
                 ])
                 return selected_rows, contents
             return selected_rows, "Click a cell to select its row."
