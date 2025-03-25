@@ -66,7 +66,10 @@ class Llm(BaseModel):
     
     @session_id.setter
     def session_id(self, value :str):
-        self.provider.session_id = value
+        if value:
+            self.provider.session_id = value
+            if self._logger_fn:
+                self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=value)
 
     @computed_field
     def workspace(self)->Optional[str]:
