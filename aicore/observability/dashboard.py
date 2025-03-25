@@ -1,5 +1,6 @@
 from aicore.observability.collector import LlmOperationCollector
 
+import json
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
@@ -18,9 +19,10 @@ EXTERNAL_STYLESHEETS = [
 TEMPLATE = "plotly_dark"
 
 MESSAGES_TEMPLATE = """
-### {row}. **timestam**: {timestamp}
+## {row}. **timestamp**: {timestamp}
+### {agent}{action}
 ---
-**History:
+**History**:
 ```text
 {history}
 ```
@@ -30,7 +32,7 @@ MESSAGES_TEMPLATE = """
 {system}
 ```
 ---
-**Assitant**:
+**Assistant**:
 ```text
 {assistant}
 ```
@@ -383,7 +385,6 @@ class ObservabilityDashboard:
                     dcc.Tab(label='⚙️ Operations Data', value='operations-tab', className="custom-tab", selected_className="custom-tab-selected", children=[
                         html.Div([
                             html.Div([
-                                dbc.Alert(id='tbl_out'),
                                 dash_table.DataTable(
                                         id='operations-table',
                                         row_selectable="multi",  # Allow multiple rows to be selected
@@ -416,7 +417,8 @@ class ObservabilityDashboard:
                                         sort_action="native",
                                         sort_mode="multi",
                                     )
-                            ], className="table-container")
+                            ], className="table-container"),
+                            dcc.Markdown(id='tbl_out')
                         ], className="tab-content")
                     ], style={"backgroundColor": "#1E1E2F", "color": "white"}, selected_style={"backgroundColor": "#373888", "color": "white"})
                 ]),
@@ -456,12 +458,14 @@ class ObservabilityDashboard:
                 contents = "---\n\n".join([
                     MESSAGES_TEMPLATE.format(
                     row=row,
-                    timestamp=self.df[row]["timestamp"],
-                    history=self.df[row]["history_messages"],
-                    system=self.df[row]["system_prompt"],
-                    assistant=self.df[row]["assistant_message"],
-                    prompt=self.df[row]["user_prompt"],
-                    response=self.df[row]["response"]
+                    timestamp=self.df[row]["timestamp"][0],
+                    agent=self.df[row]["agent_id"][0],
+                    action=f" @ {self.df[row]['action_id'][0]}" if self.df[row]['action_id'][0] else "",
+                    history=json.dumps(self.df[row]["history_messages"][0], indent=4),
+                    system=self.df[row]["system_prompt"][0],
+                    assistant=self.df[row]["assistant_message"][0],
+                    prompt=self.df[row]["user_prompt"][0],
+                    response=self.df[row]["response"][0]
                 ) for row in selected_rows
                 ])
                 return selected_rows, contents
@@ -1653,7 +1657,6 @@ class ObservabilityDashboard:
         self.app.scripts.config.serve_locally = True
 
 if __name__ == "__main__":
-    # TODO investigtate Operations Data table css for better visualization and textboxes expansions
     # TODO add number of actions into overview -> change sucess rate by provider n -> sunburst with operation type and action
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
