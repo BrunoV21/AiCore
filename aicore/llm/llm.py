@@ -5,7 +5,7 @@ from pathlib import Path
 from enum import Enum
 from ulid import ulid
 
-from aicore.logger import _logger
+from aicore.logger import _logger, Logger
 from aicore.utils import retry_on_rate_limit
 from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.usage import UsageInfo
@@ -68,7 +68,7 @@ class Llm(BaseModel):
     def session_id(self, value :str):
         if value:
             self.provider.session_id = value
-            if self._logger_fn:
+            if isinstance(self._logger_fn, Logger):
                 self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=value)
 
     @computed_field
