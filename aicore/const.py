@@ -30,10 +30,10 @@ SPECIAL_TOKENS = [
 DEFAULT_ENCODING = "utf8"
 
 # Tenacity constants
-DEFAULT_MAX_ATTEMPTS = os.getenv("MAX_ATTEMPTS") or 5
-DEFAULT_WAIT_MIN = os.getenv("WAIT_MIN") or 1
-DEFAULT_WAIT_MAX = os.getenv("WAIT_MAX") or 60
-DEFAULT_WAIT_EXP_MULTIPLIER = os.getenv("WAIT_EXP_MULTIPLIER") or 1
+DEFAULT_MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "0")) or 5
+DEFAULT_WAIT_MIN = int(os.getenv("WAIT_MIN", "0")) or 1
+DEFAULT_WAIT_MAX = int(os.getenv("WAIT_MAX", "0")) or 60
+DEFAULT_WAIT_EXP_MULTIPLIER = int(os.getenv("WAIT_EXP_MULTIPLIER", "0")) or 1
 
 # Observability constants
 DEFAULT_OBSERVABILITY_DIR = os.getenv("OBSERVABILITY_DIR") or "observability_data"
