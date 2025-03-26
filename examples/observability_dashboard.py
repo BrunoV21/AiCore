@@ -11,7 +11,7 @@ import time
 import asyncio
 from aicore.config import Config
 from aicore.llm import Llm
-from aicore.observability import ObservabilityDashboard, OperationStorage
+from aicore.observability import ObservabilityDashboard
 
 # Function to generate sample LLM requests for demonstration
 async def generate_sample_data(llm: Llm, num_requests: int = 5):
@@ -46,20 +46,15 @@ async def generate_sample_data(llm: Llm, num_requests: int = 5):
 
 async def main():
     # Load configuration
-    config_path = os.getenv("CONFIG_PATH", "./config/config_example_observability.yml")
+    config_path = os.getenv("CONFIG_PATH", "./config/config.yml")
     print(f"Loading configuration from: {config_path}")
     config = Config.from_yaml(config_path)
     
     # Initialize LLM with configuration
-    llm = Llm.from_config(config.llm)
-    
-    # Generate sample data if storage is empty
-    storage = OperationStorage()
-    if storage.get_all_records().is_empty():
-        await generate_sample_data(llm)
-    
+    llm = Llm.from_config(config.llm)    
     dashboard = ObservabilityDashboard(from_local_records_only=True)
-    print(dashboard.df)
+    if dashboard.df.is_empty():
+        await generate_sample_data(llm)
     dashboard.run_server()
 
 if __name__ == "__main__":
