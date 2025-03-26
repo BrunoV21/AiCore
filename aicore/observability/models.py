@@ -1,10 +1,9 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ForeignKey, desc
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
-# SQLAlchemy models
 class Session(Base):
     __tablename__ = 'Session'
     
@@ -12,8 +11,8 @@ class Session(Base):
     workspace = Column(String)
     agent_id = Column(String)
     
-    # Relationships
-    messages = relationship("Message", back_populates="session", lazy="selectin")
+    # Fix: Use lowercase "messages" to match ORM expectations
+    messages = relationship("Message", back_populates="session")
 
 class Message(Base):
     __tablename__ = 'Message'
@@ -30,9 +29,11 @@ class Message(Base):
     completion_args = Column(Text)
     error_message = Column(Text)
     
-    # Relationships
-    session = relationship("Session", back_populates="messages", lazy="selectin")
-    metrics = relationship("Metric", back_populates="message", uselist=False, lazy="selectin")
+    # Fix: Use lowercase "session"
+    session = relationship("Session", back_populates="messages")
+    
+    # Fix: Use lowercase "metric"
+    metric = relationship("Metric", back_populates="message", uselist=False)
 
 class Metric(Base):
     __tablename__ = 'Metric'
@@ -42,7 +43,7 @@ class Metric(Base):
     provider = Column(String)
     model = Column(String)
     success = Column(Boolean)
-    temperature = Column(String)
+    temperature = Column(Float)
     max_tokens = Column(Integer)
     input_tokens = Column(Integer)
     output_tokens = Column(Integer)
@@ -50,5 +51,5 @@ class Metric(Base):
     cost = Column(Float)
     latency_ms = Column(Float)
     
-    # Relationships
-    message = relationship("Message", back_populates="metrics", lazy="selectin")
+    # Fix: Use lowercase "message"
+    message = relationship("Message", back_populates="metric")
