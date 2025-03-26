@@ -59,6 +59,10 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/BrunoV21/AiCore",
     packages=setuptools.find_packages(),
+    include_package_data=True,  # Ensure non-Python files are included
+    package_data={
+        "aicore.observability": ["assets/styles.css"]  # Specify the exact file path
+    },
     install_requires=install_requires,
     extras_require=extras_require,
     classifiers=(
