@@ -51,7 +51,10 @@ class LlmBaseProvider(BaseModel):
     
     def validate_config(self, exception :Exception):
         try:
-            assert self.config.model in self.client.models.list(), ModelError.from_model(self.config.model, self.config.provider)
+            models = self.client.models.list()
+            models = [model.id for model in models.data]
+            if self.config.model not in models:
+                raise ModelError.from_model(self.config.model, self.config.provider, models)
         except exception as e:
             raise AuthenticationError(
                 provider=self.config.provider,
