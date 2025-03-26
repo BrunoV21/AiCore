@@ -1,8 +1,7 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from pydantic import model_validator
-from groq import Groq, AsyncGroq
-from groq import AuthenticationError as GroqAuthenticationError
+from groq import Groq, AsyncGroq, AuthenticationError
 from groq.types.chat import ChatCompletion
 from typing import Self, Optional
 import tiktoken
@@ -15,7 +14,7 @@ class GroqLlm(LlmBaseProvider):
         self.client :Groq = Groq(
             api_key=self.config.api_key
         )
-        self.validate_api_key()        
+        self.validate_config(AuthenticationError)
         _aclient = AsyncGroq(
             api_key=self.config.api_key
         )
@@ -33,15 +32,6 @@ class GroqLlm(LlmBaseProvider):
         ).encode
 
         return self
-    
-    def validate_api_key(self):
-        try:
-            self.client.models.list()
-        except GroqAuthenticationError as e:
-            raise AuthenticationError(
-                provider=self.config.provider,
-                message=str(e)
-            )
     
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         usage = chunk.usage

@@ -4,6 +4,7 @@ from aicore.logger import _logger, default_stream_handler
 from aicore.const import REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
+from aicore.models import AuthenticationError, ModelError
 from aicore.observability.collector import LlmOperationCollector
 from typing import Any, Dict, Optional, Literal, List, Union, Callable
 from pydantic import BaseModel, RootModel, Field
@@ -47,6 +48,15 @@ class LlmBaseProvider(BaseModel):
     @property
     def aclient(self):
         return self._aclient
+    
+    def validate_config(self, exception :Exception):
+        try:
+            assert self.config.model in self.client.models.list(), ModelError.from_model(self.config.model, self.config.provider)
+        except exception as e:
+            raise AuthenticationError(
+                provider=self.config.provider,
+                message=str(e)
+            )
     
     @client.setter
     def aclient(self, aclient: Any):

@@ -1,7 +1,6 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.logger import default_stream_handler
 from aicore.const import STREAM_START_TOKEN, STREAM_END_TOKEN, REASONING_STOP_TOKEN
-from aicore.models import AuthenticationError
 from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
@@ -18,7 +17,7 @@ class MistralLlm(LlmBaseProvider):
         self.client :Mistral = Mistral(
             api_key=self.config.api_key
         )
-        self.validate_api_key()
+        self.validate_config(models.SDKError)
         ### Suspect Misral will always stream by default
         self.completion_fn = self.client.chat.stream
         self.acompletion_fn = self.client.chat.stream_async
@@ -30,15 +29,6 @@ class MistralLlm(LlmBaseProvider):
         ).encode
 
         return self
-    
-    def validate_api_key(self):
-        try:
-            self.client.models.list()
-        except models.SDKError as e:
-            raise AuthenticationError(
-                provider=self.config.provider,
-                message=str(e)
-            )
     
     def normalize(self, chunk:CompletionEvent, completion_id :Optional[str]=None)->CompletionResponseStreamChoice:
         data = chunk.data

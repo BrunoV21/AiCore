@@ -3,9 +3,7 @@ from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
 from pydantic import model_validator
 from typing import Self, Optional, Dict, Union, List
-from anthropic.types import Message
-from anthropic import Anthropic, AsyncAnthropic
-from anthropic import AuthenticationError as AnthropicAuthenticationError
+from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
 from functools import partial
 
 class AnthropicLlm(LlmBaseProvider):
@@ -32,7 +30,7 @@ class AnthropicLlm(LlmBaseProvider):
             api_key=self.config.api_key
         )
         self.client :Anthropic = _client
-        self.validate_api_key()
+        self.validate_config(AuthenticationError)
         _aclient :AsyncAnthropic = AsyncAnthropic(
             api_key=self.config.api_key
         )
@@ -50,15 +48,6 @@ class AnthropicLlm(LlmBaseProvider):
         self._handle_thinking_models()
 
         return self
-    
-    def validate_api_key(self):
-        try:
-            self.client.models.list()
-        except AnthropicAuthenticationError as e:
-            raise AuthenticationError(
-                provider=self.config.provider,
-                message=str(e)
-            )
 
     def normalize(self, event, completion_id :Optional[str]=None):
         """  async for event in stream:

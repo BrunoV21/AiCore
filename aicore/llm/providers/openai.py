@@ -1,8 +1,6 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
-from aicore.models import AuthenticationError
 from pydantic import model_validator
-from openai import OpenAI, AsyncOpenAI
-from openai import AuthenticationError as OpenAiAuthenticationError
+from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
 from typing import Self, Optional
 import tiktoken
@@ -21,7 +19,7 @@ class OpenAiLlm(LlmBaseProvider):
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        self.validate_api_key()
+        self.validate_config(AuthenticationError)
         self.aclient = _aclient
         self.completion_fn = self.client.chat.completions.create
         self.acompletion_fn = _aclient.chat.completions.create
@@ -39,15 +37,6 @@ class OpenAiLlm(LlmBaseProvider):
         self._handle_reasoning_models()
 
         return self
-    
-    def validate_api_key(self):
-        try:
-            self.client.models.list()
-        except OpenAiAuthenticationError as e:
-            raise AuthenticationError(
-                provider=self.config.provider,
-                message=str(e)
-            )
     
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         usage = chunk.usage
