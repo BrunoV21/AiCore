@@ -79,7 +79,8 @@ class ObservabilityDashboard:
         self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_db()
         if self.df is None:
             self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path)
-        self.add_day_col()        
+        if not self.df.is_empty():
+            self.add_day_col()
         self.df  = self.df [::-1]
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -1298,6 +1299,8 @@ class ObservabilityDashboard:
     def filter_data(self, start_date, end_date, session_id, workspace, provider, model, agent_id, action_id):
         """Filter dataframe based on selected filters."""
         filtered_df = self.df.clone()
+        if filtered_df.is_empty():
+            return filtered_df
         start_date = datetime.fromisoformat(start_date)
         end_date = datetime.fromisoformat(end_date) + timedelta(days=1)
         args = []
@@ -1667,5 +1670,5 @@ if __name__ == "__main__":
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
     od = ObservabilityDashboard(from_local_records_only=True)
-    print(od.df[0])
+    print(od.df)
     od.run_server()

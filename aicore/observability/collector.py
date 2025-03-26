@@ -263,7 +263,8 @@ class LlmOperationCollector(RootModel):
                 obj = cls(root=json.loads(f.read()))
         try:
             import polars as pl
-            return pl.from_dicts(obj.model_dump())
+            dicts = obj.model_dump()
+            return pl.from_dicts(dicts) if dicts else pl.DataFrame()
         except ModuleNotFoundError:
             print("pip install -r requirements-dashboard.txt")
             return None
