@@ -30,6 +30,8 @@ extras_require = {
         "pyarrow==19.0.1"
     ],
     "sql": [
+        "aioodbc==0.5.0",
+        "asyncpg==0.30.0",
         "psycopg2==2.9.10",
         "pyodbc==5.2.0",
         "python-dotenv==1.0.1",
