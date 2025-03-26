@@ -43,7 +43,7 @@ class OpenAiLlm(LlmBaseProvider):
     def validate_api_key(self):
         try:
             self.client.models.list()
-        except AuthenticationError as e:
+        except OpenAiAuthenticationError as e:
             raise AuthenticationError(
                 provider=self.config.provider,
                 message=str(e)
