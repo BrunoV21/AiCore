@@ -54,6 +54,11 @@ class LlmBaseProvider(BaseModel):
             models = self.client.models.list()
             models = [model.id for model in models.data]
             if self.config.model not in models:
+                if self.config.model.endswith("-latest"):
+                    model_id = "-".join(self.config.model.split("-")[:-1])
+                    models_id = ["-".join(model.split("-")[:-1]) for model in models]
+                    if model_id in models_id:
+                        return
                 raise ModelError.from_model(self.config.model, self.config.provider, models)
         except exception as e:
             raise AuthenticationError(
