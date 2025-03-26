@@ -479,7 +479,7 @@ class LlmBaseProvider(BaseModel):
             latency_ms = (end_time - start_time) * 1000
             
             if self.collector:
-                self.collector.record_completion(
+                await self.collector.arecord_completion(
                     provider=self.config.provider,
                     operation_type="acompletion",
                     completion_args=completion_args,
