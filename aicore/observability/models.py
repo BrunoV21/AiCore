@@ -13,7 +13,7 @@ class Session(Base):
     agent_id = Column(String)
     
     # Relationships
-    messages = relationship("Message", back_populates="session")
+    messages = relationship("Message", back_populates="session", lazy="selectin")
 
 class Message(Base):
     __tablename__ = 'Message'
@@ -31,8 +31,8 @@ class Message(Base):
     error_message = Column(Text)
     
     # Relationships
-    session = relationship("Session", back_populates="messages")
-    metrics = relationship("Metric", back_populates="message", uselist=False)
+    session = relationship("Session", back_populates="messages", lazy="selectin")
+    metrics = relationship("Metric", back_populates="message", uselist=False, lazy="selectin")
 
 class Metric(Base):
     __tablename__ = 'Metric'
@@ -51,4 +51,4 @@ class Metric(Base):
     latency_ms = Column(Float)
     
     # Relationships
-    message = relationship("Message", back_populates="metrics")
+    message = relationship("Message", back_populates="metrics", lazy="selectin")
