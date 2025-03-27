@@ -81,7 +81,6 @@ class ObservabilityDashboard:
             self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path)
         if not self.df.is_empty():
             self.add_day_col()
-        self.df  = self.df [::-1]
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     def add_day_col(self):
@@ -91,7 +90,7 @@ class ObservabilityDashboard:
             day=pl.col("date").dt.date(),
             hour=pl.col("date").dt.hour(),
             minute=pl.col("date").dt.minute()
-        )
+        ).sort("date", descending=True)
     
     def _setup_layout(self):
         """Set up the dashboard layout with tabs."""
