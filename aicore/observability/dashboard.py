@@ -500,7 +500,7 @@ class ObservabilityDashboard:
         def update_dropdowns(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions):
             """Update dropdown options based on available data, filtering by workspace if provided."""
             if self.df.is_empty():
-                return [], [], [], [], []
+                return [], [], [], [], [], []
             # Compute workspace options from the full dataframe
             workspaces = self.df["workspace"].unique().to_list()
             workspace_options = [{'label': w, 'value': w} for w in workspaces]
