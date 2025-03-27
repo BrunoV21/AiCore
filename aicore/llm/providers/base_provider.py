@@ -1,7 +1,7 @@
 
 from aicore.llm.config import LlmConfig
 from aicore.logger import _logger, default_stream_handler
-from aicore.const import REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN
+from aicore.const import REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS
 from aicore.llm.utils import parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
 from aicore.models import AuthenticationError, ModelError
@@ -51,6 +51,8 @@ class LlmBaseProvider(BaseModel):
     
     def validate_config(self, exception :Exception):
         try:
+            if self.config.model in CUSTOM_MODELS:
+                return
             models = self.client.models.list()
             models = [model.id for model in models.data]
             if self.config.model not in models:

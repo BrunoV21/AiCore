@@ -1,8 +1,15 @@
 import os
+import json
 
 DEFAULT_CONFIG_PATH = os.getenv("CONFIG_PATH") or "./config/config.yml"
 
 DEFAULT_LOGS_DIR = os.getenv("LOGS_PATH") or "logs"
+
+try:
+    CUSTOM_MODELS = json.loads(os.getenv("CUSTOM_MODELS", "[]"))
+except json.JSONDecodeError:
+    print("\033[93m[WARNING] Passed CUSTOM_MODELS env var could not be parsed into JSON\033[0m")
+    CUSTOM_MODELS = []
 
 SUPPORTED_REASONER_PROVIDERS = ["groq", "openrouter", "nvidia"]
 
