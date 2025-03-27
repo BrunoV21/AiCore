@@ -1,7 +1,7 @@
 
 # AiCore Project
 [![GitHub Stars](https://img.shields.io/github/stars/BrunoV21/AiCore?style=social)](https://github.com/BrunoV21/AiCore/stargazers)
-[![GitHub Downloads](https://img.shields.io/github/downloads/BrunoV21/AiCore/total?color=blue)](https://github.com/BrunoV21/AiCore/releases)
+[![PyPI Downloads](https://static.pepy.tech/badge/core-for-ai)](https://pepy.tech/projects/core-for-ai)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/core-for-ai?style=flat)
 [![Pydantic v2](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/pydantic/pydantic/main/docs/badge/v2.json)](https://pydantic.dev)
 
