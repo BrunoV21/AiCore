@@ -1,3 +1,15 @@
+.dashboard-wrapper {
+  padding: 25px;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner table {
+  font-size: 0.7em !important;
+}
+
+.dash-table-container .previous-next-container button.previous-page, .dash-table-container .previous-next-container button.next-page, .dash-table-container .previous-next-container button.first-page, .dash-table-container .previous-next-container button.last-page {
+  padding: 5px 10px 5px 10px !important;
+}
+
 .Select-control {
     background-color: rgb(25, 25, 25) !important;
     color:white;

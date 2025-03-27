@@ -416,6 +416,7 @@ class ObservabilityDashboard:
                                         sort_mode="multi",
                                     )
                             ], className="table-container"),
+                            html.Pre(),
                             html.Button("Clear Selection", id="clear-button", n_clicks=0, style={"backgroundColor": "#d84616", "color": "white"}),
                             html.Pre(),
                             html.Pre(id='tbl_out', style={"whiteSpace": "pre-wrap", "fontFamily": "monospace", "marginLeft": "20px"})
@@ -1669,6 +1670,6 @@ if __name__ == "__main__":
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
-    od = ObservabilityDashboard(from_local_records_only=True)
+    od = ObservabilityDashboard()#from_local_records_only=True)
     print(od.df)
     od.run_server()
