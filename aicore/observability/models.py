@@ -7,7 +7,7 @@ Base = declarative_base()
 class Session(Base):
     __tablename__ = 'Session'
     
-    session_id = Column(String, primary_key=True)
+    session_id = Column(String(255), primary_key=True)  # Specify a fixed length
     workspace = Column(String)
     agent_id = Column(String)
     
@@ -17,8 +17,8 @@ class Session(Base):
 class Message(Base):
     __tablename__ = 'Message'
     
-    operation_id = Column(String, primary_key=True)
-    session_id = Column(String, ForeignKey('Session.session_id'))
+    operation_id = Column(String(255), primary_key=True)  # Specify a fixed length
+    session_id = Column(String(255), ForeignKey('Session.session_id'))
     action_id = Column(String)
     timestamp = Column(String)
     system_prompt = Column(Text)
@@ -38,7 +38,7 @@ class Message(Base):
 class Metric(Base):
     __tablename__ = 'Metric'
     
-    operation_id = Column(String, ForeignKey('Message.operation_id'), primary_key=True)
+    operation_id = Column(String(255), ForeignKey('Message.operation_id'), primary_key=True)  # Specify a fixed length
     operation_type = Column(String)
     provider = Column(String)
     model = Column(String)
