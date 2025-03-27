@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List, Union, Literal, Self
 import ulid
 from pydantic import BaseModel, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
 
+from aicore.logger import _logger
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
 from aicore.observability.models import Base, Session, Message, Metric
 
@@ -192,7 +193,7 @@ class LlmOperationCollector(RootModel):
                     self.aDBSession = async_sessionmaker(bind=self.async_engine, class_=AsyncSession)
                 
             except Exception as e:
-                    print(f"Database connection failed: {str(e)}")
+                    _logger.logger.warning(f"Database connection failed: {str(e)}")
 
         except ModuleNotFoundError:
             raise ModuleNotFoundError("pip install aicore[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
@@ -286,7 +287,7 @@ class LlmOperationCollector(RootModel):
             dicts = obj.model_dump()
             return pl.from_dicts(dicts) if dicts else pl.DataFrame()
         except ModuleNotFoundError:
-            print("pip install -r requirements-dashboard.txt")
+            _logger.logger.warning("pip install -r requirements-dashboard.txt")
             return None
     
     def _handle_record(
@@ -359,7 +360,7 @@ class LlmOperationCollector(RootModel):
             try:
                 self._insert_record_to_db(record)
             except Exception as e:
-                print(f"Error inserting record to DB: {str(e)}")
+                _logger.logger.error(f"Error inserting record to DB: {str(e)}")
         
         return record
     
@@ -391,13 +392,15 @@ class LlmOperationCollector(RootModel):
             try:
                 await self._a_insert_record_to_db(record)
             except Exception as e:
-                print(f"Error inserting record to DB: {str(e)}")
+                _logger.logger.error(f"Error inserting record to DB: {str(e)}")
         
         return record
     
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database using SQLAlchemy."""
         if not self.DBSession:
+            if self.aDBSession:
+                _logger.logger.warning("You have configured an async connection to a db but are trying to establish a sync one. Pass CONNECTION_STRING env var.")
             return
             
         serialized = record.serialize_model()
@@ -459,6 +462,8 @@ class LlmOperationCollector(RootModel):
     async def _a_insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database asynchronously."""
         if not self.aDBSession:
+            if self.DBSession:
+                _logger.logger.warning("You have configured a sync connection to a db but are trying to establish an async one. Pass ASYNC_CONNECTION_STRING env var.")
             return
 
         serialized = record.serialize_model()
@@ -534,7 +539,7 @@ class LlmOperationCollector(RootModel):
             import polars as pl
             from sqlalchemy import desc
         except ModuleNotFoundError:
-            print("pip install aicore[all] for Polars and sql integration")
+            _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
             return None
         
         try:
@@ -588,7 +593,7 @@ class LlmOperationCollector(RootModel):
             return pl.from_dicts(records)
             
         except Exception as e:
-            print(f"Error executing database query: {str(e)}")
+            _logger.logger.warning(f"Error executing database query: {str(e)}")
             if 'session' in locals():
                 session.close()
             return None
@@ -611,7 +616,7 @@ class LlmOperationCollector(RootModel):
             from sqlalchemy import desc, select
             from sqlalchemy.ext.asyncio import AsyncSession
         except ModuleNotFoundError:
-            print("pip install aicore[all] for Polars and sql integration")
+            _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
             return None
         
         async with cls.aDBSession() as session:
@@ -659,7 +664,7 @@ class LlmOperationCollector(RootModel):
                 records = [dict(row._asdict()) for row in rows]
                 return pl.from_dicts(records)
             except Exception as e:
-                print(f"Error executing database query: {str(e)}")
+                _logger.logger.error(f"Error executing database query: {str(e)}")
                 return None
             
     @classmethod
@@ -674,7 +679,7 @@ class LlmOperationCollector(RootModel):
         try:
             import polars as pl
         except ModuleNotFoundError:
-            print("pip install aicore[all] for Polars and sql integration")
+            _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
             return None
         cls = cls()
         if cls.DBSession and cls.engine:
@@ -694,7 +699,7 @@ class LlmOperationCollector(RootModel):
         try:
             from sqlalchemy import distinct
         except ModuleNotFoundError:
-            print("pip install aicore for SQLAlchemy integration")
+            _logger.logger.warning("pip install aicore for SQLAlchemy integration")
             return {}
         
         try:
@@ -728,7 +733,7 @@ class LlmOperationCollector(RootModel):
             return filter_options
             
         except Exception as e:
-            print(f"Error retrieving filter options: {str(e)}")
+            _logger.logger.error(f"Error retrieving filter options: {str(e)}")
             if 'session' in locals():
                 session.close()
             return {}
@@ -745,7 +750,7 @@ class LlmOperationCollector(RootModel):
         try:
             from sqlalchemy import func
         except ModuleNotFoundError:
-            print("pip install aicore for SQLAlchemy integration")
+            _logger.logger.warning("pip install aicore for SQLAlchemy integration")
             return {}
         
         try:
@@ -788,7 +793,7 @@ class LlmOperationCollector(RootModel):
             }
             
         except Exception as e:
-            print(f"Error executing metrics query: {str(e)}")
+            _logger.logger.error(f"Error executing metrics query: {str(e)}")
             if 'session' in locals():
                 session.close()
             return {}
