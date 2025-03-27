@@ -3,6 +3,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/BrunoV21/AiCore?style=social)](https://github.com/BrunoV21/AiCore/stargazers)
 [![PyPI Downloads](https://static.pepy.tech/badge/core-for-ai)](https://pepy.tech/projects/core-for-ai)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/core-for-ai?style=flat)
+![PyPI - Version](https://img.shields.io/pypi/v/core-for-ai?style=flat)
 [![Pydantic v2](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/pydantic/pydantic/main/docs/badge/v2.json)](https://pydantic.dev)
 
 This project provides a framework for integrating various language models and embedding providers. It supports both synchronous and asynchronous operations for generating text completions and embeddings. 
