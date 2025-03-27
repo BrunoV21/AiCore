@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from aicore.llm.llm import Llm
 from aicore.llm.config import LlmConfig
 import json
@@ -109,9 +109,10 @@ def llm_config_gemini():
 def llm_config_nvidia():
     return LlmConfig(provider="nvidia", api_key="test_key", model="nemotron-4")
 
+@patch('aicore.llm.providers.base_provider.LlmBaseProvider.validate_config')
 @pytest.mark.parametrize("provider_name", ["openai", "groq", "gemini", "mistral", "nvidia"])
 @pytest.mark.asyncio
-async def test_llm_complete(provider_name,  mock_openai, mock_mistral, llm_config_openai,
+async def test_llm_complete(mock_validate_config, provider_name,  mock_openai, mock_mistral, llm_config_openai,
         llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia):
     
     config = {
@@ -125,6 +126,7 @@ async def test_llm_complete(provider_name,  mock_openai, mock_mistral, llm_confi
     if provider_name == "mistral":
         mock_openai = mock_mistral
     
+    mock_validate_config.return_value = None
     # Initialize Llm with the given configuration
     llm = Llm.from_config(config)
 
@@ -149,9 +151,10 @@ async def test_llm_complete(provider_name,  mock_openai, mock_mistral, llm_confi
         mock_openai.complete.assert_called_once()
         mock_openai.acomplete.assert_called_once()
 
+@patch('aicore.llm.providers.base_provider.LlmBaseProvider.validate_config')
 @pytest.mark.parametrize("provider_name", ["openai", "groq", "gemini", "mistral", "nvidia"])
 @pytest.mark.asyncio
-async def test_llm_complete_json(provider_name, mock_openai_json, mock_mistral_json, llm_config_openai,
+async def test_llm_complete_json(mock_validate_config, provider_name, mock_openai_json, mock_mistral_json, llm_config_openai,
         llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia):
     
     config = {
@@ -165,6 +168,7 @@ async def test_llm_complete_json(provider_name, mock_openai_json, mock_mistral_j
     if provider_name == "mistral":
         mock_openai_json = mock_mistral_json
     
+    mock_validate_config.return_value = None
     # Initialize Llm with the given configuration
     llm = Llm.from_config(config)
 
@@ -190,9 +194,10 @@ async def test_llm_complete_json(provider_name, mock_openai_json, mock_mistral_j
         mock_openai_json.complete.assert_called_once()
         mock_openai_json.acomplete.assert_called_once()
 
+@patch('aicore.llm.providers.base_provider.LlmBaseProvider.validate_config')
 @pytest.mark.parametrize("provider_name", ["openai", "mistral", "gemini", "groq", "nvidia"])
 @pytest.mark.asyncio
-async def test_llm_tokenizer(provider_name, llm_config_openai, llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia, mock_gemini_tokenizer):
+async def test_llm_tokenizer(mock_validate_config, provider_name, llm_config_openai, llm_config_mistral, llm_config_groq, llm_config_gemini, llm_config_nvidia, mock_gemini_tokenizer):
     config = {
         "openai": llm_config_openai,
         "mistral": llm_config_mistral,
@@ -201,6 +206,7 @@ async def test_llm_tokenizer(provider_name, llm_config_openai, llm_config_mistra
         "nvidia": llm_config_nvidia
     }[provider_name]    
     
+    mock_validate_config.return_value = None
     llm = Llm.from_config(config)
 
     if provider_name == "gemini":
