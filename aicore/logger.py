@@ -34,6 +34,7 @@ def default_stream_handler(message :str)->str:
             print("\n")
         return
     print(message, end="")
+    return message
 
 class LogEntry(BaseModel):
     session_id: str = ""
