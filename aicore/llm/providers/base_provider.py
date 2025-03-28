@@ -184,7 +184,8 @@ class LlmBaseProvider(BaseModel):
         """
         pass stop token to completion fn
         """
-        self.session_id = session_id
+        if self.session_id:
+            self.session_id = session_id
         self.worspace = workspace
         self.completion_fn = partial(self.completion_fn, stop=stop_thinking_token)
         self.acompletion_fn = self.async_partial(self.acompletion_fn, stop=stop_thinking_token)

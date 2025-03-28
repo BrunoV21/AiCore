@@ -84,6 +84,8 @@ class Llm(BaseModel):
         if self._logger_fn is None:
             if self.session_id is None:
                 self.session_id = ulid()
+                if self.reasoner:
+                    self.reasoner.session_id = self.session_id
             self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=self.session_id)
         return self._logger_fn
 
