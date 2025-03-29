@@ -67,6 +67,7 @@ class Config(BaseModel):
         Raises:
             ValueError: If any required environment variable is missing or empty.
         """
+        obj = cls()
 
         embeddings_required_keys = ["EMBEDDINGS_PROVIDER", "EMBEDDINGS_API_KEY", "EMBEDDINGS_MODEL"]
         embeddings_values = {key: cls.get_env_var(key, required=False) for key in embeddings_required_keys}
@@ -80,6 +81,7 @@ class Config(BaseModel):
                 model=embeddings_values["EMBEDDINGS_MODEL"],
                 base_url=cls.get_env_var("EMBEDDINGS_BASE_URL", required=False),
             )
+            obj.embeddings = embeddings_config
 
         llm_required_keys = ["LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL"]
         llm_values = {key: cls.get_env_var(key, required=False) for key in llm_required_keys}
@@ -95,5 +97,9 @@ class Config(BaseModel):
                 temperature=float(cls.get_env_var("LLM_TEMPERATURE", required=False) or 0),
                 max_tokens=int(cls.get_env_var("LLM_MAX_TOKENS", required=False) or 12000),
             )
+            obj.llm = llm_config
 
-        return cls(embeddings=embeddings_config, llm=llm_config)
+        if not (embeddings_config or llm_config):
+            raise ValueError("One of embeddings or llm configs must be passed")
+
+        return obj
