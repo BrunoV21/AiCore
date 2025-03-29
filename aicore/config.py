@@ -59,6 +59,8 @@ class Config(BaseModel):
         It ensures all required fields are present and raises an error if any mandatory field is missing.
         Optional fields are included if set in the environment.
         
+        If all required fields for a specific config (embeddings or llm) are missing, that config is set to None.
+        
         Returns:
             Config: An instance of the Config class with values from environment variables.
         
@@ -66,20 +68,32 @@ class Config(BaseModel):
             ValueError: If any required environment variable is missing or empty.
         """
 
-        embeddings_config = EmbeddingsConfig(
-            provider=cls.get_env_var("EMBEDDINGS_PROVIDER"),
-            api_key=cls.get_env_var("EMBEDDINGS_API_KEY"),
-            model=cls.get_env_var("EMBEDDINGS_MODEL"),
-            base_url=cls.get_env_var("EMBEDDINGS_BASE_URL", required=False),
-        )
+        embeddings_required_keys = ["EMBEDDINGS_PROVIDER", "EMBEDDINGS_API_KEY", "EMBEDDINGS_MODEL"]
+        embeddings_values = {key: cls.get_env_var(key, required=False) for key in embeddings_required_keys}
+        
+        if all(value is None for value in embeddings_values.values()):
+            embeddings_config = None
+        else:
+            embeddings_config = EmbeddingsConfig(
+                provider=embeddings_values["EMBEDDINGS_PROVIDER"],
+                api_key=embeddings_values["EMBEDDINGS_API_KEY"],
+                model=embeddings_values["EMBEDDINGS_MODEL"],
+                base_url=cls.get_env_var("EMBEDDINGS_BASE_URL", required=False),
+            )
 
-        llm_config = LlmConfig(
-            provider=cls.get_env_var("LLM_PROVIDER"),
-            api_key=cls.get_env_var("LLM_API_KEY"),
-            model=cls.get_env_var("LLM_MODEL"),
-            base_url=cls.get_env_var("LLM_BASE_URL", required=False),
-            temperature=float(cls.get_env_var("LLM_TEMPERATURE", required=False) or 0),
-            max_tokens=int(cls.get_env_var("LLM_MAX_TOKENS", required=False) or 12000),
-        )
+        llm_required_keys = ["LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL"]
+        llm_values = {key: cls.get_env_var(key, required=False) for key in llm_required_keys}
+        
+        if all(value is None for value in llm_values.values()):
+            llm_config = None
+        else:
+            llm_config = LlmConfig(
+                provider=llm_values["LLM_PROVIDER"],
+                api_key=llm_values["LLM_API_KEY"],
+                model=llm_values["LLM_MODEL"],
+                base_url=cls.get_env_var("LLM_BASE_URL", required=False),
+                temperature=float(cls.get_env_var("LLM_TEMPERATURE", required=False) or 0),
+                max_tokens=int(cls.get_env_var("LLM_MAX_TOKENS", required=False) or 12000),
+            )
 
         return cls(embeddings=embeddings_config, llm=llm_config)
