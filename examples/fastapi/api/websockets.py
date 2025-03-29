@@ -14,7 +14,6 @@ active_histories = {}
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id : Optional[str]=None):
-    print("Here")
     await websocket.accept()
 
     if not session_id:
