@@ -42,3 +42,44 @@ class Config(BaseModel):
             yaml_config['observability'] = {}
             
         return cls(**yaml_config)
+    
+    @staticmethod
+    def get_env_var(key: str, required: bool = True) -> Optional[str]:
+        value = os.getenv(key)
+        if required and not value:
+            raise ValueError(f"Environment variable {key} is required but not set or empty.")
+        return value
+    
+    @classmethod
+    def from_environment(cls) -> "Config":
+        """
+        Load configuration from environment variables.
+        
+        This method initializes a Config object using environment variables.
+        It ensures all required fields are present and raises an error if any mandatory field is missing.
+        Optional fields are included if set in the environment.
+        
+        Returns:
+            Config: An instance of the Config class with values from environment variables.
+        
+        Raises:
+            ValueError: If any required environment variable is missing or empty.
+        """
+
+        embeddings_config = EmbeddingsConfig(
+            provider=cls.get_env_var("EMBEDDINGS_PROVIDER"),
+            api_key=cls.get_env_var("EMBEDDINGS_API_KEY"),
+            model=cls.get_env_var("EMBEDDINGS_MODEL"),
+            base_url=cls.get_env_var("EMBEDDINGS_BASE_URL", required=False),
+        )
+
+        llm_config = LlmConfig(
+            provider=cls.get_env_var("LLM_PROVIDER"),
+            api_key=cls.get_env_var("LLM_API_KEY"),
+            model=cls.get_env_var("LLM_MODEL"),
+            base_url=cls.get_env_var("LLM_BASE_URL", required=False),
+            temperature=float(cls.get_env_var("LLM_TEMPERATURE", required=False) or 0),
+            max_tokens=int(cls.get_env_var("LLM_MAX_TOKENS", required=False) or 12000),
+        )
+
+        return cls(embeddings=embeddings_config, llm=llm_config)

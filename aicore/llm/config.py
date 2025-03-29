@@ -7,7 +7,7 @@ from aicore.pricing import PricingConfig
 class LlmConfig(BaseModel):
     provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter"]
     api_key :str
-    model :Optional[str]=None
+    model :str
     base_url :Optional[str]=None
     temperature :float=0
     max_tokens :int=12000
