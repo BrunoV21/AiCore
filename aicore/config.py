@@ -72,7 +72,7 @@ class Config(BaseModel):
         embeddings_required_keys = ["EMBEDDINGS_PROVIDER", "EMBEDDINGS_API_KEY", "EMBEDDINGS_MODEL"]
         embeddings_values = {key: cls.get_env_var(key, required=False) for key in embeddings_required_keys}
         
-        if all(value is None for value in embeddings_values.values()):
+        if all(not value for value in embeddings_values.values()):
             embeddings_config = None
         else:
             embeddings_config = EmbeddingsConfig(
@@ -86,7 +86,7 @@ class Config(BaseModel):
         llm_required_keys = ["LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL"]
         llm_values = {key: cls.get_env_var(key, required=False) for key in llm_required_keys}
         
-        if all(value is None for value in llm_values.values()):
+        if all(not value for value in llm_values.values()):
             llm_config = None
         else:
             llm_config = LlmConfig(
