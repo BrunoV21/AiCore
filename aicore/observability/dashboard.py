@@ -111,7 +111,6 @@ class ObservabilityDashboard:
                 ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}),
                 html.Div([
                     html.Div([
-                        html.H3("Global Filters", style={"color": "white", "margin-bottom": "15px"}),
                         # Workspace and Session in the same row
                         html.Div([
                             html.Div([
