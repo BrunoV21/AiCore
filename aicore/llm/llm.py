@@ -6,7 +6,7 @@ from enum import Enum
 from ulid import ulid
 
 from aicore.logger import _logger, Logger
-from aicore.utils import retry_on_rate_limit
+from aicore.utils import retry_on_rate_limit, raise_on_balance_error
 from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.usage import UsageInfo
 from aicore.llm.config import LlmConfig
@@ -161,6 +161,7 @@ class Llm(BaseModel):
         return prefix_prompt
     
     @retry_on_rate_limit
+    @raise_on_balance_error
     def complete(self,
                  prompt :Union[str, BaseModel, RootModel],
                  system_prompt :Optional[Union[str, List[str]]]=None,
@@ -180,6 +181,7 @@ class Llm(BaseModel):
         return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id, action_id)
     
     @retry_on_rate_limit
+    @raise_on_balance_error
     async def acomplete(self,
                  prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
                  system_prompt :Optional[Union[str, List[str]]]=None,
