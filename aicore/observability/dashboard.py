@@ -445,11 +445,23 @@ class ObservabilityDashboard:
             Input('operations-table', 'active_cell'),
             Input('operations-table', 'page_current'),
             Input("clear-button", "n_clicks"),
+            Input("refresh-button", "n_clicks"),
+            Input("interval-component", "n_intervals"),
+            Input('date-picker-range', 'start_date'),
+            Input('date-picker-range', 'end_date'),
+            Input('session-dropdown', 'value'),
+            Input('workspace-dropdown', 'value'),
+            Input('provider-dropdown', 'value'),
+            Input('model-dropdown', 'value'),
+            Input('agent-dropdown', 'value'),
+            Input('action-dropdown', 'value'),
             State('operations-table', 'selected_rows'),
         )
-        def update_selection(active_cell, page_current, n_clicks, selected_rows):
+        def update_selection(active_cell, page_current, n_clicks,
+                             refresh_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions,
+                             selected_rows):
             # If the clear button is clicked, reset selection
-            if active_cell:
+            if active_cell and page_current is not None:
                 row_index = active_cell['row'] + page_current * PAGE_SIZE
                 # Automatically add the clicked row to the selection if not already selected.
                 if row_index not in selected_rows:
@@ -460,18 +472,19 @@ class ObservabilityDashboard:
                     active_cell['row'] = selected_rows[-1] - page_current * PAGE_SIZE if selected_rows else None
 
             if selected_rows:
+                df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
                 contents = f"\n\n{MULTISEP}".join([
                     MESSAGES_TEMPLATE.format(
                     SEP=SEP,
                     row=row,
-                    timestamp=self.df[row]["timestamp"][0],
-                    agent=self.df[row]["agent_id"][0],
-                    action=f" @ {self.df[row]['action_id'][0]}" if self.df[row]['action_id'][0] else "",
-                    history=json.dumps(self.df[row]["history_messages"][0], indent=4),
-                    system=self.df[row]["system_prompt"][0],
-                    assistant=self.df[row]["assistant_message"][0],
-                    prompt=self.df[row]["user_prompt"][0],
-                    response=self.df[row]["response"][0]
+                    timestamp=df_filtered[row]["timestamp"][0],
+                    agent=df_filtered[row]["agent_id"][0],
+                    action=f" @ {df_filtered[row]['action_id'][0]}" if df_filtered[row]['action_id'][0] else "",
+                    history=json.dumps(df_filtered[row]["history_messages"][0], indent=4),
+                    system=df_filtered[row]["system_prompt"][0],
+                    assistant=df_filtered[row]["assistant_message"][0],
+                    prompt=df_filtered[row]["user_prompt"][0],
+                    response=df_filtered[row]["response"][0]
                 ) for row in selected_rows[::-1]
                 ])
                 return selected_rows, contents, active_cell
