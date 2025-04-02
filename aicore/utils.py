@@ -71,9 +71,9 @@ def retry_on_rate_limit(func):
     )(func)
 
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         try:
-            return await decorated(*args, **kwargs)
+            return decorated(*args, **kwargs)
         except Exception as e:
             # If a BalanceError was raised inside, let it propagate.
             if isinstance(e, BalanceError):
@@ -88,9 +88,9 @@ def raise_on_balance_error(func):
     the error indicates insufficient credit balance.
     """
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         try:
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
         except Exception as e:
             if is_out_of_balance(e):
                 error_message = str(e)
