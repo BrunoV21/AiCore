@@ -1,0 +1,36 @@
+```txt
+# Supported Language Model Providers
+
+This file serves as a centralized reference for the language model providers supported within the AiCore framework.
+
+## Providers
+
+1. **Anthropic**  
+   - Provides access to Anthropic’s models (e.g., Claude) using the Anthropic API.
+
+2. **OpenAI**  
+   - Integrates with OpenAI’s models (e.g., GPT-3.5-turbo, GPT-4) and supports both synchronous and asynchronous operations.
+
+3. **Mistral**  
+   - Supports open-source LLMs via the Mistral provider offering streaming completions and custom tokenization.
+
+4. **Groq**  
+   - Utilizes Groq’s API to access specialized models, including those used for reasoning tasks.
+
+5. **Gemini**  
+   - Integrates with Gemini LLMs; adapts token counting and other specifics for Gemini’s environment.
+
+6. **Nvidia**  
+   - Provides access to Nvidia-hosted models with constraints on output tokens and specialized cost structures.
+
+7. **OpenRouter**  
+   - Acts as an abstraction layer, routing requests to appropriate providers (such as OpenAI, Nvidia, etc.).
+
+## Usage in AiCore
+
+- Providers are instantiated via configuration settings defined in AiCore's configuration files.
+- Each provider adheres to a standardized interface as defined in the base provider modules.
+- For implementation details, review the modules under `aicore/llm/providers/`.
+
+This document is intended to assist developers in understanding and utilizing the available language model providers within AiCore.
+```
