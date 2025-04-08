@@ -322,6 +322,9 @@ class LlmBaseProvider(BaseModel):
 
         if self._is_reasoner:
             default_stream_handler(REASONING_STOP_TOKEN)
+        else:
+            default_stream_handler(STREAM_END_TOKEN)
+
         response = "".join(message)
         return response
     
