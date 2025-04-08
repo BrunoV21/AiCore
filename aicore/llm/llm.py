@@ -19,7 +19,8 @@ from aicore.llm.providers import (
     MistralLlm, 
     NvidiaLlm,
     GroqLlm,
-    GeminiLlm
+    GeminiLlm,
+    DeepSeekLlm
 )
 
 class Providers(Enum):
@@ -30,6 +31,7 @@ class Providers(Enum):
     NVIDIA :NvidiaLlm=NvidiaLlm
     GROQ :GroqLlm=GroqLlm
     GEMINI :GeminiLlm=GeminiLlm
+    DEEPSEEK :DeepSeekLlm=DeepSeekLlm
 
     def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
         """
