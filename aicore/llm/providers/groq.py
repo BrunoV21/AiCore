@@ -2,7 +2,7 @@ from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from pydantic import model_validator
 from groq import Groq, AsyncGroq, AuthenticationError
-from groq.types.chat import ChatCompletion
+from groq.types.chat import ChatCompletionChunk
 from typing import Self, Optional
 import tiktoken
 
@@ -33,12 +33,12 @@ class GroqLlm(LlmBaseProvider):
 
         return self
     
-    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
-        usage = chunk.usage
-        if usage is not None:
+    def normalize(self, chunk :ChatCompletionChunk, completion_id :Optional[str]=None):
+        x_usage = chunk.x_groq
+        if x_usage is not None and x_usage.usage is not None:
             self.usage.record_completion(
-                prompt_tokens=usage.prompt_tokens,
-                response_tokens=usage.completion_tokens,
+                prompt_tokens=x_usage.usage.prompt_tokens,
+                response_tokens=x_usage.usage.completion_tokens,
                 completion_id=completion_id or chunk.id
             )
         return chunk.choices
