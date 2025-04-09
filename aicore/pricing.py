@@ -41,8 +41,8 @@ DEFAULT_PRICINGS = {
     "groq-mistral-saba-24b": {"input": 0.79, "output": 0.79},
     ### daily discount time and caching not taken into account
     ### https://api-docs.deepseek.com/quick_start/pricing
-    "deeepseek-deepseek-reasoner": {"input": 0.55, "output": 2.10, "cached": 0.14},
-    "deeepseek-deepseek-chat": {"input": 0.27, "output": 1.10, "cached": 0.07}
+    "deepseek-deepseek-reasoner": {"input": 0.55, "output": 2.10, "cached": 0.14},
+    "deepseek-deepseek-chat": {"input": 0.27, "output": 1.10, "cached": 0.07}
 }
 
 class PricingConfig(BaseModel):
@@ -51,6 +51,7 @@ class PricingConfig(BaseModel):
     """
     input :float
     output :float=0
+    cached :float=0
 
     @classmethod
     def from_model_providers(cls, model :str, provider :str)->"PricingConfig":
