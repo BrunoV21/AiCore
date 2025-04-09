@@ -32,6 +32,8 @@ class MockChunk:
     def __init__(self, chunk_content):
         self.choices = [MockChoices(chunk_content)]
         self.usage = None
+        self.x_groq = None
+
 class MockMistralChunk:
     def __init__(self, data):
         self.data = MockData(data)
