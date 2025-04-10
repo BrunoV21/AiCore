@@ -47,6 +47,7 @@ class Metric(Base):
     max_tokens = Column(Integer)
     input_tokens = Column(Integer)
     output_tokens = Column(Integer)
+    cached_tokens = Column(Integer) 
     total_tokens = Column(Integer)
     cost = Column(Float)
     latency_ms = Column(Float)

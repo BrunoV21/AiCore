@@ -24,6 +24,7 @@ class LlmOperationRecord(BaseModel):
     provider: str
     input_tokens: Optional[int] = 0
     output_tokens: Optional[int] = 0
+    cached_tokens: Optional[int] = 0
     cost: Optional[float] = 0
     latency_ms: float
     error_message: Optional[str] = ""
@@ -152,6 +153,7 @@ class LlmOperationRecord(BaseModel):
             "max_tokens": self.max_tokens,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "cached_tokens": self.cached_tokens,
             "total_tokens": self.total_tokens,
             "cost": self.cost,
             "latency_ms": self.latency_ms,
@@ -302,6 +304,7 @@ class LlmOperationCollector(RootModel):
         action_id: Optional[str] = None,
         input_tokens: Optional[int] = 0,
         output_tokens: Optional[int] = 0,
+        cached_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None
@@ -318,7 +321,8 @@ class LlmOperationCollector(RootModel):
             provider=provider,
             operation_type=operation_type,
             input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            output_tokens=output_tokens if not cached_tokens else output_tokens + cached_tokens,
+            cached_tokens=cached_tokens,
             cost=cost,
             latency_ms=latency_ms or 0,
             error_message=error_message,
@@ -331,7 +335,7 @@ class LlmOperationCollector(RootModel):
         
         self.root.append(record)
 
-        return record        
+        return record
 
     def record_completion(
         self,
@@ -345,6 +349,7 @@ class LlmOperationCollector(RootModel):
         action_id: Optional[str] = None,
         input_tokens: Optional[int] = 0,
         output_tokens: Optional[int] = 0,
+        cached_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None
@@ -353,7 +358,7 @@ class LlmOperationCollector(RootModel):
         record = self._handle_record(
             completion_args, operation_type, provider, response, 
             session_id, workspace, agent_id, action_id, 
-            input_tokens, output_tokens, cost, latency_ms, error_message
+            input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message
         )
         
         if self.engine and self.DBSession:
@@ -376,6 +381,7 @@ class LlmOperationCollector(RootModel):
         action_id: Optional[str] = None,
         input_tokens: Optional[int] = 0,
         output_tokens: Optional[int] = 0,
+        cached_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None
@@ -384,7 +390,7 @@ class LlmOperationCollector(RootModel):
         record = self._handle_record(
             completion_args, operation_type, provider, response, 
             session_id, workspace, agent_id, action_id, 
-            input_tokens, output_tokens, cost, latency_ms, error_message
+            input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message
         )
         
         if self.async_engine and self.aDBSession:
@@ -444,6 +450,7 @@ class LlmOperationCollector(RootModel):
                 max_tokens=serialized['max_tokens'],
                 input_tokens=serialized['input_tokens'],
                 output_tokens=serialized['output_tokens'],
+                cached_tokens=serialized['cached_tokens'],
                 total_tokens=serialized['total_tokens'],
                 cost=serialized['cost'],
                 latency_ms=serialized['latency_ms']
@@ -509,6 +516,7 @@ class LlmOperationCollector(RootModel):
                     max_tokens=serialized['max_tokens'],
                     input_tokens=serialized['input_tokens'],
                     output_tokens=serialized['output_tokens'],
+                    cached_tokens=serialized['cached_tokens'],
                     total_tokens=serialized['total_tokens'],
                     cost=serialized['cost'],
                     latency_ms=serialized['latency_ms']
@@ -554,7 +562,7 @@ class LlmOperationCollector(RootModel):
                 Message.completion_args, Message.error_message,
                 Metric.operation_type, Metric.provider, Metric.model, 
                 Metric.success, Metric.temperature, Metric.max_tokens, 
-                Metric.input_tokens, Metric.output_tokens, Metric.total_tokens,
+                Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
                 Metric.cost, Metric.latency_ms
             ).join(Message, Session.session_id == Message.session_id
             ).join(Metric, Message.operation_id == Metric.operation_id)
@@ -631,7 +639,7 @@ class LlmOperationCollector(RootModel):
                         Message.completion_args, Message.error_message,
                         Metric.operation_type, Metric.provider, Metric.model, 
                         Metric.success, Metric.temperature, Metric.max_tokens, 
-                        Metric.input_tokens, Metric.output_tokens, Metric.total_tokens,
+                        Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
                         Metric.cost, Metric.latency_ms
                     )
                     .join(Message, Session.session_id == Message.session_id)
@@ -684,7 +692,7 @@ class LlmOperationCollector(RootModel):
         cls = cls()
         if cls.DBSession and cls.engine:
             return cls._polars_from_db(cls, agent_id, action_id, session_id, workspace, start_date, end_date)
-        elif cls.aDBSession and cls.async_engine:            
+        elif cls.aDBSession and cls.async_engine:
             df = asyncio.run(cls._apolars_from_db(cls, agent_id, action_id, session_id, workspace, start_date, end_date))
             return df
         else:
