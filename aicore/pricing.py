@@ -32,7 +32,7 @@ DEFAULT_PRICINGS = {
     "gemini-gemini-2.0-flash-thinking-exp-01-21": {"input": 0, "output": 0},
     "gemini-gemini-2.0-flash": {"input": 0.10, "output": 0.4},
     "gemini-gemini-2.0-flash-lite": {"input": 0.075, "output": 0.3},
-    "gemini-gemini-2.5-pro-preview-03-25": {"input": 1.25, "output": 10},
+    "gemini-gemini-2.5-pro-preview-03-25": {"input": 1.25, "output": 10, "dynamic": {"threshold": 200000, "pricing": {"input": 2.5, "output": 15}}},
     ### https://groq.com/pricing/
     "groq-meta-llama/llama-4-scout-17b-16e-instruct": {"input": 0.11, "output": 0.34},
     "groq-meta-llama/llama-4-maverick-17b-128e-instruct": {"input": 0.5, "output": 0.77},

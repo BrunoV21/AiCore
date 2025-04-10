@@ -43,11 +43,11 @@ class CompletionUsage(BaseModel):
 
             if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
                 pricing = pricing.happy_hour.pricing
+            
+            if pricing.dynamic is not None and prompt_tokens + response_tokens > pricing.dynamic.threshold:
+                pricing = pricing.dynamic.pricing
 
             cost = pricing.input * prompt_tokens + pricing.output * response_tokens + pricing.cached * cached_tokens + cache_write_tokens * pricing.cache_write
-            
-            if pricing.dynamic is not None:
-                ...
             
             cost *= 1e-6
         return cls(
