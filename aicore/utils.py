@@ -16,7 +16,9 @@ def is_rate_limited(exception):
     if isinstance(exception, requests.exceptions.HTTPError):
         if getattr(exception, "response", None) and exception.response.status_code == 429:
             return True
-        elif getattr((exception, "response", None)) and "overload" in exception.response.text:
+        elif getattr(exception, "response", None) and "overload" in exception.response.text:
+            return True
+        elif getattr(exception, "response", None) and "overload" in exception.response.text:
             return True
     if "429" in str(exception):
         return True
