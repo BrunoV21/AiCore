@@ -1,11 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+from datetime import datetime, timedelta
+from typing import Optional, Any
+import pytz
 
 DEFAULT_PRICINGS = {
     ### https://www.anthropic.com/pricing#anthropic-api
     ### caching not taken into account
-    "anthropic-claude-3-7-sonnet-latest": {"input": 3, "output": 15},
-    "anthropic-claude-3-5-sonnet-latest": {"input": 3, "output": 15},
-    "anthropic-claude-3-5-haiku-latest": {"input": 0.8, "output": 4},
+    "anthropic-claude-3-7-sonnet-latest": {"input": 3, "output": 15, "cached": 0.30, "cache_write": 3.75},
+    "anthropic-claude-3-5-sonnet-latest": {"input": 3, "output": 15, "cached": 0.30, "cache_write": 3.75},
+    "anthropic-claude-3-5-haiku-latest": {"input": 0.8, "output": 4, "cached": 1, "cache_write": 0.08},
     ### automatic caching pricing not taken into account
     ### https://openai.com/api/pricing/
     "openai-gpt-4o": {"input": 2.5, "output": 10, "cached": 1.25},
@@ -41,9 +44,53 @@ DEFAULT_PRICINGS = {
     "groq-mistral-saba-24b": {"input": 0.79, "output": 0.79},
     ### daily discount time and caching not taken into account
     ### https://api-docs.deepseek.com/quick_start/pricing
-    "deepseek-deepseek-reasoner": {"input": 0.55, "output": 2.10, "cached": 0.14},
-    "deepseek-deepseek-chat": {"input": 0.27, "output": 1.10, "cached": 0.07}
+    "deepseek-deepseek-reasoner": {"input": 0.55, "output": 2.10, "cached": 0.14, "happy_hour": {"start": "16:30", "finish": "00:30", "pricing": {"input": 0.135, "output": 0.55, "cached": 0.035}}},
+    "deepseek-deepseek-chat": {"input": 0.27, "output": 1.10, "cached": 0.07, "happy_hour": {"start": "16:30", "finish": "00:30", "pricing": {"input": 0.135, "output": 0.55, "cached": 0.035}}}
 }
+
+class HappyHour(BaseModel):
+    start :datetime
+    finish :datetime
+    pricing :"PricingConfig"
+
+    @model_validator( mode="before")
+    @classmethod
+    def parse_time_strings(cls, kwargs: dict) -> dict:
+        parsed_args = {}
+        for key, value in kwargs.items():
+            if key == "pricing":
+                parsed_args[key] = value
+                continue
+
+            if isinstance(value, datetime):
+                # If already a datetime, ensure it's UTC
+                if value.tzinfo is None:
+                    parsed_args[key] = value.replace(tzinfo=pytz.UTC)
+                    continue
+                parsed_args[key] = value.astimezone(pytz.UTC)
+                
+            elif isinstance(value, str):
+                try:
+                    # Parse time string (e.g. "16:30")
+                    time_obj = datetime.strptime(value, "%H:%M").time()
+                    # Get today's date in UTC
+                    today = datetime.now(pytz.UTC).date()
+                    # Combine date and time
+                    naive_dt = datetime.combine(today, time_obj)
+                    # Handle overnight case (e.g. finish time is next day)
+                    if key == 'finish' and time_obj.hour < 12:
+                        naive_dt += timedelta(days=1)
+                    # Make timezone aware
+                    parsed_args[key] = naive_dt.replace(tzinfo=pytz.UTC)
+                    
+                except ValueError as e:
+                    raise ValueError(f"Invalid time format: {value}. Expected HH:MM") from e
+                        
+        return parsed_args
+
+class DynamicPricing(BaseModel):
+    threshold :int
+    pricing :"PricingConfig"
 
 class PricingConfig(BaseModel):
     """
@@ -52,6 +99,9 @@ class PricingConfig(BaseModel):
     input :float
     output :float=0
     cached :float=0
+    cache_write :float=0
+    happy_hour :Optional[HappyHour]=None
+    dynamic :Optional[DynamicPricing]=None
 
     @classmethod
     def from_model_providers(cls, model :str, provider :str)->"PricingConfig":

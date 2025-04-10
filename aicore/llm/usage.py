@@ -2,6 +2,7 @@ from aicore.pricing import PricingConfig
 
 from pydantic import BaseModel, RootModel, Field, computed_field
 from typing import Optional, List, Union
+from datetime import datetime, timezone
 from collections import defaultdict
 from ulid import ulid
 
@@ -9,6 +10,7 @@ class CompletionUsage(BaseModel):
     completion_id :Optional[str]=Field(default_factory=ulid)
     prompt_tokens :int
     response_tokens :int
+    cached_tokens :int=0
     cost :Optional[float]=0
 
     @property
@@ -32,15 +34,27 @@ class CompletionUsage(BaseModel):
         completion_id :str,
         prompt_tokens :int,
         response_tokens :int,
+        cached_tokens :int=0,
+        cache_write_tokens :int=0,
         cost :Optional[float]=0,
         pricing :Optional[PricingConfig]=None)->"CompletionUsage":
+
         if pricing is not None:
-            cost = pricing.input * prompt_tokens + pricing.output * response_tokens
+
+            if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
+                pricing = pricing.happy_hour.pricing
+
+            cost = pricing.input * prompt_tokens + pricing.output * response_tokens + pricing.cached * cached_tokens + cache_write_tokens * pricing.cache_write
+            
+            if pricing.dynamic is not None:
+                ...
+            
             cost *= 1e-6
         return cls(
             completion_id=completion_id,
             prompt_tokens=prompt_tokens,
             response_tokens=response_tokens,
+            cached_tokens=cached_tokens,
             cost=cost,
         )
     
@@ -61,6 +75,8 @@ class UsageInfo(RootModel):
     def record_completion(self,
                 prompt_tokens :int,
                 response_tokens :int,
+                cached_tokens :int=0,
+                cache_write_tokens :int=0,
                 completion_id :Optional[str]=None
         ):
         if completion_id is None and self.root:
@@ -68,6 +84,8 @@ class UsageInfo(RootModel):
         self.root.append(CompletionUsage.from_pricing_info(
             completion_id=completion_id,
             prompt_tokens=prompt_tokens,
+            cached_tokens=cached_tokens,
+            cache_write_tokens=cache_write_tokens,
             response_tokens=response_tokens,
             pricing=self.pricing
         ))
