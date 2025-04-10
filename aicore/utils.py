@@ -1,6 +1,7 @@
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from functools import wraps
 import requests
+import asyncio
 import time
 
 from aicore.models import BalanceError
@@ -12,19 +13,22 @@ from aicore.const import (
     DEFAULT_WAIT_EXP_MULTIPLIER
 )
 
-def is_rate_limited(exception):
+def should_retry(exception: Exception) -> bool:
+    """Return True if the request should be retried (i.e., error is not 400)"""
+    # First check if it's a balance error (400)
+    if is_out_of_balance(exception):
+        return False
+    
+    if "400" in str(exception):
+        return False
+
+    # Then check if it's an HTTP 400 error (but not balance-related)
     if isinstance(exception, requests.exceptions.HTTPError):
-        if getattr(exception, "response", None) and exception.response.status_code == 429:
-            return True
-        elif getattr(exception, "response", None) and "overload" in exception.response.text:
-            return True
-        elif getattr(exception, "response", None) and "overload" in exception.response.text:
-            return True
-    if "429" in str(exception):
-        return True
-    elif "overload" in str(exception).lower():
-        return True
-    return False
+        if getattr(exception, "response", None) and exception.response.status_code == 400:
+            return False 
+    
+    # For all other cases, retry
+    return True
 
 def get_provider(exception_str) -> str:
     if "Anthropic" in exception_str:
@@ -51,20 +55,48 @@ def is_out_of_balance(exception: Exception) -> bool:
     return False
 
 def wait_for_retry(retry_state):
+    """Log retry information before sleeping"""
+    attempt_number = retry_state.attempt_number
+    next_attempt_in = retry_state.next_action.sleep  # Time until next retry in seconds
+    
     last_exception = retry_state.outcome.exception()
+    exception_str = str(last_exception)
+    
+    # Handle Retry-After header if present (for rate limiting)
+    retry_after = None
     if hasattr(last_exception, "response") and last_exception.response is not None:
         if last_exception.response.status_code == 429:
             retry_after = last_exception.response.headers.get("Retry-After")
             if retry_after and retry_after.isdigit():
-                wait_time = int(retry_after)
-                _logger.logger.error(f"Rate limited! Waiting for {wait_time} seconds before retrying...")
-                time.sleep(wait_time)
+                next_attempt_in = int(retry_after)
+    
+    # Format the wait time for display
+    if next_attempt_in >= 1:
+        wait_time_str = f"{next_attempt_in:.1f} seconds"
+    else:
+        wait_time_str = f"{next_attempt_in*1000:.0f} milliseconds"
+    
+    
+    if attempt_number == DEFAULT_MAX_ATTEMPTS:
+        _logger.logger.warning(
+            f"Attempt {attempt_number}/{DEFAULT_MAX_ATTEMPTS} failed."
+        )
+    else:
+        # Log the warning message
+        _logger.logger.warning(
+            f"Attempt {attempt_number}/{DEFAULT_MAX_ATTEMPTS} failed. "
+            f"Retrying in {wait_time_str}. Error: {exception_str}"
+        )
+        
+        # Sleep if there's a Retry-After header
+        if retry_after and retry_after.isdigit():
+            time.sleep(next_attempt_in)
 
-def retry_on_rate_limit(func):
+def retry_on_failure(func):
     """
-    Async-aware decorator for retrying API calls only on 429 errors.
+    Async-aware decorator for retrying API calls on all errors except 400 errors.
+    Logs retry attempts with wait times.
     """
-    # Using tenacity's retry for async functions.
     decorated = retry(
         stop=stop_after_attempt(DEFAULT_MAX_ATTEMPTS),
         wait=wait_exponential(
@@ -72,21 +104,35 @@ def retry_on_rate_limit(func):
             min=DEFAULT_WAIT_MIN,
             max=DEFAULT_WAIT_MAX
         ),
-        retry=retry_if_exception(is_rate_limited),
+        retry=retry_if_exception(should_retry),
         before_sleep=wait_for_retry
     )(func)
 
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    async def async_wrapper(*args, **kwargs):
+        try:
+            return await decorated(*args, **kwargs)
+        except Exception as e:
+            if isinstance(e, BalanceError):
+                raise e
+            _logger.logger.error(
+                f"Function {func.__name__} failed with error: {str(e)}"
+            )
+            return None
+    
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
         try:
             return decorated(*args, **kwargs)
         except Exception as e:
-            # If a BalanceError was raised inside, let it propagate.
             if isinstance(e, BalanceError):
-                raise
-            _logger.logger.error(f"Function {func.__name__} failed after retries with error: {e}")
+                raise e
+            _logger.logger.error(
+                f"Function {func.__name__} failed with error: {str(e)}"
+            )
             return None
-    return wrapper
+
+    return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
 
 def raise_on_balance_error(func):
     """
@@ -94,7 +140,18 @@ def raise_on_balance_error(func):
     the error indicates insufficient credit balance.
     """
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    async def async_wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            if is_out_of_balance(e):
+                error_message = str(e)
+                provider = get_provider(error_message)
+                raise BalanceError(provider=provider, message=error_message, status_code=400)
+            raise e
+    
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as e:
@@ -102,5 +159,6 @@ def raise_on_balance_error(func):
                 error_message = str(e)
                 provider = get_provider(error_message)
                 raise BalanceError(provider=provider, message=error_message, status_code=400)
-            raise
-    return wrapper
+            raise e
+
+    return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper

@@ -2,7 +2,7 @@ from pydantic import BaseModel, model_validator
 from typing import Self, List
 from enum import Enum
 
-from aicore.utils import retry_on_rate_limit
+from aicore.utils import retry_on_failure
 from aicore.embeddings.config import EmbeddingsConfig
 from aicore.embeddings.providers import (
     EmbeddingsBaseProvider,
@@ -57,11 +57,11 @@ class Embeddings(BaseModel):
     def from_config(cls, config :EmbeddingsConfig)->"Embeddings":
         return cls(config=config)
     
-    @retry_on_rate_limit
+    @retry_on_failure
     def generate(self, text_batches :List[str]):
         return self.provider.generate(text_batches)
     
-    @retry_on_rate_limit
+    @retry_on_failure
     async def agenerate(self, text_batches :List[str]):
         ### Carefull wtih async to avoid getting ratelimited
         return await self.provider.agenerate(text_batches)
