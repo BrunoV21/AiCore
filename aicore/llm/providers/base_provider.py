@@ -196,8 +196,6 @@ class LlmBaseProvider(BaseModel):
             "role": role,
             "content": self._message_content(prompt, img_b64_str)
         }
-        if role == "assistant" and self.config.provider == "mistral" and _last:
-            message_body["prefix"] = True
         return message_body
 
     @staticmethod
@@ -233,8 +231,7 @@ class LlmBaseProvider(BaseModel):
         if system_prompt is not None:
             messages.append(self._message_body(system_prompt, role="system"))
 
-    @staticmethod
-    def _handle_special_sys_prompt_anthropic(args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
+    def _handle_special_sys_prompt_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
         """placeholder to be overwritten by the anthropic provider"""
         pass
 

@@ -5,7 +5,7 @@ from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistralai import Mistral, CompletionEvent, CompletionResponseStreamChoice, models
-from typing import Self, Optional, Union, List
+from typing import Self, Optional, Union, List, Literal, Dict
 import tiktoken
 
 #TODO replace Tiktoken with Mistral tekken encoder when it is updated to work on python 3.13#
@@ -39,6 +39,15 @@ class MistralLlm(LlmBaseProvider):
                 completion_id=completion_id or data.id
             )
         return data.choices
+    
+    def _message_body(self, prompt: Union[List[str], str], role: Literal["user", "system", "assistant"] = "user", img_b64_str: Optional[List[str]] = None, _last: Optional[bool] = False) -> Dict:
+        message_body = {
+            "role": role,
+            "content": self._message_content(prompt, img_b64_str)
+        }
+        if role == "assistant" and _last:
+            message_body["prefix"] = True
+        return message_body
     
     def _stream(self, stream, prefix_prompt :Optional[Union[str, List[str]]]=None)->str:
         message = []

@@ -2,7 +2,7 @@ from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
 from pydantic import model_validator
-from typing import Self, Optional, Dict, Union, List
+from typing import Self, Optional, Dict, Union, List, Literal
 from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
 from functools import partial
 
@@ -112,13 +112,22 @@ class AnthropicLlm(LlmBaseProvider):
 
     def _handle_system_prompt(self,
             messages :list,
-            system_prompt: Optional[Union[List[str], str]] = None):                
+            system_prompt: Optional[Union[List[str], str]] = None):
         pass
 
-    @staticmethod
-    def _handle_special_sys_prompt_anthropic(args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
+    def _handle_special_sys_prompt_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
         if system_prompt:
-            args["system"] = "\n".join(system_prompt) if isinstance(system_prompt, list) else system_prompt
+            if getattr(self.config, "cache_control"):
+                system_prompt = [system_prompt] if isinstance(system_prompt, str) else system_prompt
+                args["system"] = [
+                    {
+                        "type": "text",
+                        "text": prompt,
+                        "cache_control": {"type": "ephemeral"}
+                    } for prompt in system_prompt
+                ]
+            else:
+                args["system"] = "\n".join(system_prompt) if isinstance(system_prompt, list) else system_prompt
 
     def _handle_thinking_models(self):
         thinking = getattr(self.config, "thinking", None)
