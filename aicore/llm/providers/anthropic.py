@@ -117,15 +117,20 @@ class AnthropicLlm(LlmBaseProvider):
 
     def _handle_special_sys_prompt_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
         if system_prompt:
-            if getattr(self.config, "cache_control"):
+            if getattr(self.config, "cache_control", None):
+                cached_system_prompts_index :list = getattr(self.config, "cache_control")
+                assert isinstance(cached_system_prompts_index, list), "cache_control param must be a list of ints"
                 system_prompt = [system_prompt] if isinstance(system_prompt, str) else system_prompt
-                args["system"] = [
-                    {
+                processed_system_prompts = []
+                for i, prompt in enumerate(system_prompt):
+                    prompt =  {
                         "type": "text",
                         "text": prompt,
-                        "cache_control": {"type": "ephemeral"}
-                    } for prompt in system_prompt
-                ]
+                    }
+                    if i in cached_system_prompts_index:
+                        prompt["cache_control"] = {"type": "ephemeral"}
+                    processed_system_prompts.append(prompt)
+                args["system"] = processed_system_prompts
             else:
                 args["system"] = "\n".join(system_prompt) if isinstance(system_prompt, list) else system_prompt
 
