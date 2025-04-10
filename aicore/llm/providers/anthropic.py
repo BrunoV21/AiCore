@@ -68,9 +68,14 @@ class AnthropicLlm(LlmBaseProvider):
         if event_type == "message_start":
             input_tokens = event.message.usage.input_tokens
             output_tokens = event.message.usage.output_tokens
+            cache_write_tokens = event.message.usage.cache_creation_input_tokens
+            cached_tokens = event.message.usage.cache_read_input_tokens
+            ### https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
             self.usage.record_completion(
                 prompt_tokens=input_tokens,
                 response_tokens=output_tokens,
+                cached_tokens=cached_tokens,
+                cache_write_tokens=cache_write_tokens,
                 completion_id=completion_id or event.message.id
             )
         elif event_type == "content_block_delta":
