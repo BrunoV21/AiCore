@@ -1,7 +1,7 @@
 
 from aicore.llm.config import LlmConfig
 from aicore.logger import _logger, default_stream_handler
-from aicore.const import REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS
+from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS
 from aicore.llm.utils import parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
 from aicore.models import AuthenticationError, ModelError
@@ -298,24 +298,34 @@ class LlmBaseProvider(BaseModel):
         return completion_args
     
     @staticmethod
-    def _handle_stream_messages(_chunk, message)->list:
+    def _handle_stream_messages(_chunk, message, _skip=False)->bool:
         chunk_message = _chunk[0].delta.content or ""
         default_stream_handler(chunk_message)
-        message.append(chunk_message)
+        if chunk_message == REASONING_START_TOKEN:
+            _skip = True
+        message.append(chunk_message) if not _skip else ...
+        if chunk_message == REASONING_STOP_TOKEN:
+            _skip = False
+        return _skip
     
     @staticmethod
-    async def _handle_astream_messages(_chunk, logger_fn, message)->list:
+    async def _handle_astream_messages(_chunk, logger_fn, message, _skip=False)->bool:
         chunk_message = _chunk[0].delta.content or  ""
         await logger_fn(chunk_message)
-        message.append(chunk_message)
+        if chunk_message == REASONING_START_TOKEN:
+            _skip = True
+        message.append(chunk_message) if not _skip else ... 
+        if chunk_message == REASONING_STOP_TOKEN:
+            _skip = False
+        return _skip
 
     def _stream(self, stream, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
-        message = []
-
+        message = [] 
+        _skip = False
         for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
-                self._handle_stream_messages(_chunk, message)
+                _skip = self._handle_stream_messages(_chunk, message, _skip)
 
         if self._is_reasoner:
             default_stream_handler(REASONING_STOP_TOKEN)
@@ -327,12 +337,12 @@ class LlmBaseProvider(BaseModel):
     
     async def _astream(self, stream, logger_fn, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
         message = []
-    
+        _skip = False
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
-                await self._handle_astream_messages(_chunk, logger_fn, message)
+                _skip = await self._handle_astream_messages(_chunk, logger_fn, message, _skip)
         
         if self._is_reasoner:
             await logger_fn(REASONING_STOP_TOKEN)

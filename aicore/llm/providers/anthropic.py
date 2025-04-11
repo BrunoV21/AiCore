@@ -89,7 +89,7 @@ class AnthropicLlm(LlmBaseProvider):
             )
 
     @staticmethod
-    def _handle_stream_messages(event, message)->list:
+    def _handle_stream_messages(event, message, _skip=False)->bool:
         delta = event.delta
         chunk_message = getattr(delta, "text", "")
         chunk_thinking = getattr(delta, "thinking", None)
@@ -98,9 +98,10 @@ class AnthropicLlm(LlmBaseProvider):
         default_stream_handler(chunk_stream)
         if chunk_message:
             message.append(chunk_message)
+        return False
     
     @staticmethod
-    async def _handle_astream_messages(event, logger_fn, message)->list:
+    async def _handle_astream_messages(event, logger_fn, message, _skip=False)->bool:
         delta = event.delta
         chunk_message = getattr(delta, "text", "")
         chunk_thinking = getattr(delta, "thinking", None)
@@ -109,6 +110,7 @@ class AnthropicLlm(LlmBaseProvider):
         await logger_fn(chunk_stream)
         if chunk_message:
             message.append(chunk_message)
+        return False
 
     def _handle_system_prompt(self,
             messages :list,
