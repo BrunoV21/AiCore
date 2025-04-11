@@ -298,26 +298,25 @@ class LlmBaseProvider(BaseModel):
         return completion_args
     
     @staticmethod
-    def _handle_stream_messages(_chunk, message, _skip=False)->bool:
-        chunk_message = _chunk[0].delta.content or ""
-        default_stream_handler(chunk_message)
-        if chunk_message == REASONING_START_TOKEN:
-            _skip = True
-        message.append(chunk_message) if not _skip else ...
-        if chunk_message == REASONING_STOP_TOKEN:
-            _skip = False
-        return _skip
-    
-    @staticmethod
-    async def _handle_astream_messages(_chunk, logger_fn, message, _skip=False)->bool:
-        chunk_message = _chunk[0].delta.content or  ""
-        await logger_fn(chunk_message)
+    def _handle_reasoning_steps(chunk_message, message, _skip)->bool:
         if chunk_message == REASONING_START_TOKEN:
             _skip = True
         message.append(chunk_message) if not _skip else ... 
         if chunk_message == REASONING_STOP_TOKEN:
-            _skip = False
+            _skip = False        
         return _skip
+
+    @classmethod
+    def _handle_stream_messages(cls, _chunk, message, _skip=False)->bool:
+        chunk_message = _chunk[0].delta.content or ""
+        default_stream_handler(chunk_message)
+        return cls._handle_reasoning_steps(chunk_message, message, _skip)
+    
+    @classmethod
+    async def _handle_astream_messages(cls, _chunk, logger_fn, message, _skip=False)->bool:
+        chunk_message = _chunk[0].delta.content or  ""
+        await logger_fn(chunk_message)
+        return cls._handle_reasoning_steps(chunk_message, message, _skip)
 
     def _stream(self, stream, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
         message = [] 

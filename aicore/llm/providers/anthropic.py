@@ -88,8 +88,8 @@ class AnthropicLlm(LlmBaseProvider):
                 completion_id=completion_id
             )
 
-    @staticmethod
-    def _handle_stream_messages(event, message, _skip=False)->bool:
+    @classmethod
+    def _handle_stream_messages(cls, event, message, _skip=False)->bool:
         delta = event.delta
         chunk_message = getattr(delta, "text", "")
         chunk_thinking = getattr(delta, "thinking", None)
@@ -100,8 +100,8 @@ class AnthropicLlm(LlmBaseProvider):
             message.append(chunk_message)
         return False
     
-    @staticmethod
-    async def _handle_astream_messages(event, logger_fn, message, _skip=False)->bool:
+    @classmethod
+    async def _handle_astream_messages(cls, event, logger_fn, message, _skip=False)->bool:
         delta = event.delta
         chunk_message = getattr(delta, "text", "")
         chunk_thinking = getattr(delta, "thinking", None)
