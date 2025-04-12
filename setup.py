@@ -15,6 +15,7 @@ install_requires = [
     "openai==1.66.3",
     "tenacity==9.0.0",
     "tiktoken==0.9.0",
+    "deepseek-tokenizer==0.1.3",
     "pydantic==2.10.3",
     "PyYAML==6.0.2",
     "ulid==1.1"
