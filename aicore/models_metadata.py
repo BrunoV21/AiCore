@@ -1,0 +1,80 @@
+from pydantic import BaseModel, model_validator
+from datetime import datetime, timedelta
+from typing import Optional, Dict
+import pytz
+import json
+
+from aicore.const import METADATA_JSON, DEFAULT_ENCODING
+
+with open(METADATA_JSON, "r", encoding=DEFAULT_ENCODING) as _file:    
+    ### https://www.anthropic.com/pricing#anthropic-api
+    ### https://openai.com/api/pricing/    
+    ### https://mistral.ai/products/la-plateforme#pricing
+    ### https://groq.com/pricing/    
+    ### https://api-docs.deepseek.com/quick_start/pricing
+    MODELS_METADATA :Dict = json.load(_file)
+
+class HappyHour(BaseModel):
+    start :datetime
+    finish :datetime
+    pricing :"PricingConfig"
+
+    @model_validator( mode="before")
+    @classmethod
+    def parse_time_strings(cls, kwargs: dict) -> dict:
+        parsed_args = {}
+        for key, value in kwargs.items():
+            if key == "pricing":
+                parsed_args[key] = value
+                continue
+
+            if isinstance(value, datetime):
+                # If already a datetime, ensure it's UTC
+                if value.tzinfo is None:
+                    parsed_args[key] = value.replace(tzinfo=pytz.UTC)
+                    continue
+                parsed_args[key] = value.astimezone(pytz.UTC)
+                
+            elif isinstance(value, str):
+                try:
+                    # Parse time string (e.g. "16:30")
+                    time_obj = datetime.strptime(value, "%H:%M").time()
+                    # Get today's date in UTC
+                    today = datetime.now(pytz.UTC).date()
+                    # Combine date and time
+                    naive_dt = datetime.combine(today, time_obj)
+                    # Handle overnight case (e.g. finish time is next day)
+                    if key == 'finish' and time_obj.hour < 12:
+                        naive_dt += timedelta(days=1)
+                    # Make timezone aware
+                    parsed_args[key] = naive_dt.replace(tzinfo=pytz.UTC)
+                    
+                except ValueError as e:
+                    raise ValueError(f"Invalid time format: {value}. Expected HH:MM") from e
+                        
+        return parsed_args
+
+class DynamicPricing(BaseModel):
+    threshold :int
+    pricing :"PricingConfig"
+
+class PricingConfig(BaseModel):
+    """
+    pricing ($) per 1M tokens
+    """
+    input :float
+    output :float=0
+    cached :float=0
+    cache_write :float=0
+    happy_hour :Optional[HappyHour]=None
+    dynamic :Optional[DynamicPricing]=None
+    
+class ModelMetaData(BaseModel):
+    context_window :int=128000
+    max_tokens :int=8192
+    pricing :Optional[PricingConfig]=None
+
+METADATA :Dict[str, ModelMetaData] = {
+    model: ModelMetaData(**metadata)
+    for model, metadata in MODELS_METADATA.items()
+}

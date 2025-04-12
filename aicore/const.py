@@ -1,5 +1,8 @@
 import os
 import json
+from pathlib import Path
+
+METADATA_JSON = Path(os.path.abspath(os.path.dirname(__file__))) / "models_metadata.json"
 
 DEFAULT_CONFIG_PATH = os.getenv("CONFIG_PATH") or "./config/config.yml"
 
