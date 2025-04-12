@@ -65,6 +65,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,  # Ensure non-Python files are included
     package_data={
+        "aicore": ["models_metadata.json"],
         "aicore.observability": ["assets/styles.css"]  # Specify the exact file path
     },
     install_requires=install_requires,

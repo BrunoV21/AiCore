@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 from pydantic import BaseModel
-from aicore.pricing import PricingConfig
+from aicore.models_metadata import PricingConfig
 
 class EmbeddingsConfig(BaseModel):
     provider :Literal["gemini", "groq", "mistral", "nvidia", "openai"]
