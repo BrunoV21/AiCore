@@ -1,25 +1,26 @@
 from pydantic import BaseModel, model_validator
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, Literal
 import pytz
 import json
 
 from aicore.const import METADATA_JSON, DEFAULT_ENCODING
 
+# Note: For testing purposes, this can be mocked to load different metadata
 with open(METADATA_JSON, "r", encoding=DEFAULT_ENCODING) as _file:    
     ### https://www.anthropic.com/pricing#anthropic-api
     ### https://openai.com/api/pricing/    
     ### https://mistral.ai/products/la-plateforme#pricing
     ### https://groq.com/pricing/    
     ### https://api-docs.deepseek.com/quick_start/pricing
-    MODELS_METADATA :Dict = json.load(_file)
+    MODELS_METADATA: Dict = json.load(_file)
 
 class HappyHour(BaseModel):
-    start :datetime
-    finish :datetime
-    pricing :"PricingConfig"
+    start: datetime
+    finish: datetime
+    pricing: "PricingConfig"
 
-    @model_validator( mode="before")
+    @model_validator(mode="before")
     @classmethod
     def parse_time_strings(cls, kwargs: dict) -> dict:
         parsed_args = {}
@@ -55,26 +56,32 @@ class HappyHour(BaseModel):
         return parsed_args
 
 class DynamicPricing(BaseModel):
-    threshold :int
-    pricing :"PricingConfig"
+    threshold: int
+    pricing: "PricingConfig"
+    type: Literal["flat", "percentage"] = "flat"  # For testing different discount models
 
 class PricingConfig(BaseModel):
     """
     pricing ($) per 1M tokens
     """
-    input :float
-    output :float=0
-    cached :float=0
-    cache_write :float=0
-    happy_hour :Optional[HappyHour]=None
-    dynamic :Optional[DynamicPricing]=None
+    input: float
+    output: float = 0
+    cached: float = 0
+    cache_write: float = 0
+    happy_hour: Optional[HappyHour] = None
+    dynamic: Optional[DynamicPricing] = None
+    currency: str = "USD"  # For validation in tests
     
 class ModelMetaData(BaseModel):
-    context_window :int=128000
-    max_tokens :int=8192
-    pricing :Optional[PricingConfig]=None
+    context_window: int = 128000
+    max_tokens: int = 8192
+    pricing: Optional[PricingConfig] = None
 
-METADATA :Dict[str, ModelMetaData] = {
+METADATA: Dict[str, ModelMetaData] = {
     model: ModelMetaData(**metadata)
     for model, metadata in MODELS_METADATA.items()
 }
+
+def get_model_metadata(model_name: str) -> Optional[ModelMetaData]:
+    """Helper function to get metadata for a specific model."""
+    return METADATA.get(model_name)

@@ -1,6 +1,6 @@
 from aicore.models_metadata import PricingConfig
 
-from pydantic import BaseModel, RootModel, Field, computed_field
+from pydantic import BaseModel, RootModel, Field, computed_field, ConfigDict
 from typing import Optional, List, Union
 from datetime import datetime, timezone
 from collections import defaultdict
@@ -8,6 +8,8 @@ from ulid import ulid
 
 class CompletionUsage(BaseModel):
     completion_id :Optional[str]=Field(default_factory=ulid)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
     prompt_tokens :int
     response_tokens :int
     cached_tokens :int=0
@@ -37,11 +39,12 @@ class CompletionUsage(BaseModel):
         cached_tokens :int=0,
         cache_write_tokens :int=0,
         cost :Optional[float]=0,
-        pricing :Optional[PricingConfig]=None)->"CompletionUsage":
+        pricing :Optional[PricingConfig]=None,
+        current_time: Optional[datetime] = None)->"CompletionUsage":
 
         if pricing is not None:
-
-            if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
+            current_time = current_time or datetime.now(timezone.utc)
+            if pricing.happy_hour is not None and pricing.happy_hour.start <= current_time <= pricing.happy_hour.finish:
                 pricing = pricing.happy_hour.pricing
             
             if pricing.dynamic is not None and prompt_tokens + response_tokens > pricing.dynamic.threshold:
@@ -64,6 +67,7 @@ class CompletionUsage(BaseModel):
 
 class UsageInfo(RootModel):
     root :List[CompletionUsage]=[]
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     _pricing :Optional[PricingConfig]=None
 
     @classmethod
@@ -77,7 +81,8 @@ class UsageInfo(RootModel):
                 response_tokens :int,
                 cached_tokens :int=0,
                 cache_write_tokens :int=0,
-                completion_id :Optional[str]=None
+                completion_id :Optional[str]=None,
+                current_time: Optional[datetime] = None
         ):
         if completion_id is None and self.root:
             completion_id = self.latest_completion.completion_id
@@ -87,7 +92,8 @@ class UsageInfo(RootModel):
             cached_tokens=cached_tokens,
             cache_write_tokens=cache_write_tokens,
             response_tokens=response_tokens,
-            pricing=self.pricing
+            pricing=self.pricing,
+            current_time=current_time
         ))
 
     @computed_field
