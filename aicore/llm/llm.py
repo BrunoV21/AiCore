@@ -20,7 +20,8 @@ from aicore.llm.providers import (
     NvidiaLlm,
     GroqLlm,
     GeminiLlm,
-    DeepSeekLlm
+    DeepSeekLlm,
+    GrokLlm
 )
 
 class Providers(Enum):
@@ -30,6 +31,7 @@ class Providers(Enum):
     MISTRAL :MistralLlm=MistralLlm
     NVIDIA :NvidiaLlm=NvidiaLlm
     GROQ :GroqLlm=GroqLlm
+    GROK :GrokLlm=GrokLlm 
     GEMINI :GeminiLlm=GeminiLlm
     DEEPSEEK :DeepSeekLlm=DeepSeekLlm
 

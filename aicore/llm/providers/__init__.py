@@ -5,6 +5,7 @@ from aicore.llm.providers.nvidia import NvidiaLlm
 from aicore.llm.providers.anthropic import AnthropicLlm
 from aicore.llm.providers.openai import OpenAiLlm
 from aicore.llm.providers.openrouter import OpenRouterLlm
+from aicore.llm.providers.grok import GrokLlm
 from aicore.llm.providers.deepseek import DeepSeekLlm
 from aicore.llm.providers.base_provider import LlmBaseProvider
 
@@ -14,6 +15,7 @@ __all__ = [
     "GroqLlm",
     "OpenAiLlm",
     "OpenRouterLlm",
+    "GrokLlm",
     "MistralLlm",
     "NvidiaLlm",
     "DeepSeekLlm",
