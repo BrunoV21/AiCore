@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 import pytz
 
+from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models_metadata import PricingConfig, HappyHour, DynamicPricing
 from aicore.llm.usage import CompletionUsage, UsageInfo
 from aicore.llm.config import LlmConfig
@@ -220,21 +221,23 @@ class TestLlmIntegration:
     def test_llm_with_pricing(self, mock_llm_config, static_pricing_config):
         """Test LLM integration with pricing config"""
         mock_llm_config.pricing = static_pricing_config
-        llm = Llm(config=mock_llm_config)
-        
-        # Mock the provider's complete method
-        with patch.object(llm.provider, 'complete', return_value="test response") as mock_complete:
-            response = llm.complete("test prompt")
-            
-            mock_complete.assert_called_once()
-            assert response == "test response"
-            assert llm.usage.pricing == static_pricing_config
+
+        # Patch validate_config before Llm is initialized
+        with patch.object(LlmBaseProvider, 'validate_config', return_value=None):
+            llm = Llm(config=mock_llm_config)
+            with patch.object(Llm, 'complete', return_value="test response") as mock_complete:
+                response = llm.complete("test prompt")
+                
+                mock_complete.assert_called_once()
+                assert response == "test response"
+                assert llm.usage.pricing == static_pricing_config
 
     def test_usage_info_attached(self, mock_llm_config):
         """Test UsageInfo is properly attached to LLM instance"""
-        llm = Llm(config=mock_llm_config)
-        assert isinstance(llm.usage, UsageInfo)
-        assert llm.usage.pricing is None
+        with patch.object(LlmBaseProvider, 'validate_config', return_value=None):
+            llm = Llm(config=mock_llm_config)
+            assert isinstance(llm.usage, UsageInfo)
+            assert llm.usage.pricing is None
 
 
 class TestEdgeCases:
