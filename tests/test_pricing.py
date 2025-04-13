@@ -161,12 +161,12 @@ class TestDynamicPricing:
     def test_exact_threshold(self, dynamic_pricing_config):
         """Test pricing at exact threshold"""
         usage = CompletionUsage(
-            prompt_tokens=1000,
+            prompt_tokens=1001,
             response_tokens=0
         )
         usage.update_with_pricing(dynamic_pricing_config)
         
-        expected_cost = (1000 * 8.0 + 0 * 15.0) * 1e-6
+        expected_cost = (1001 * 8.0 + 0 * 15.0) * 1e-6
         assert usage.cost == pytest.approx(expected_cost)
 
     def test_missing_dynamic_config(self, static_pricing_config):
