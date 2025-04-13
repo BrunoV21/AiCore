@@ -12,6 +12,7 @@ class CompletionUsage(BaseModel):
     prompt_tokens: int
     response_tokens: int
     cached_tokens: int = 0
+    cache_write_tokens: int = 0
     cost: Optional[float] = 0
 
     @property
@@ -72,15 +73,24 @@ class CompletionUsage(BaseModel):
             prompt_tokens=prompt_tokens,
             response_tokens=response_tokens,
             cached_tokens=cached_tokens,
+            cache_write_tokens=cache_write_tokens,
             cost=cost,
         )
     
     def update_with_pricing(self, pricing: PricingConfig):
-        """Updates the cost based on the given pricing config if not already set."""
+        """Updates the cost based on the given pricing config if not already set. Does not take into account cost of cache writing"""
         if not self.cost:
+            if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
+                pricing = pricing.happy_hour.pricing
+            
+            if pricing.dynamic is not None and self.prompt_tokens + self.response_tokens > pricing.dynamic.threshold:
+                pricing = pricing.dynamic.pricing
+            
             self.cost = (
                 pricing.input * self.prompt_tokens 
                 + pricing.output * self.response_tokens
+                + pricing.cached * self.cached_tokens
+                + pricing.cache_write * self.cache_write_tokens
             ) * 1e-6
 
 class UsageInfo(RootModel):
@@ -155,7 +165,7 @@ class UsageInfo(RootModel):
         if self._is_aggregated():
             return self.root
         
-        aggregated = defaultdict(lambda: {"prompt_tokens": 0, "response_tokens": 0})
+        aggregated = defaultdict(lambda: {"prompt_tokens": 0, "response_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0})
         unique_items = []
         seen_ids = set()
         items_to_aggregate = []
@@ -172,6 +182,8 @@ class UsageInfo(RootModel):
             comp_id = item.completion_id
             aggregated[comp_id]["prompt_tokens"] += item.prompt_tokens
             aggregated[comp_id]["response_tokens"] += item.response_tokens
+            aggregated[comp_id]["cached_tokens"] += item.cached_tokens
+            aggregated[comp_id]["cache_write_tokens"] += item.cache_write_tokens
         
         result = unique_items.copy()
         for comp_id, tokens in aggregated.items():
@@ -181,6 +193,8 @@ class UsageInfo(RootModel):
                         completion_id=comp_id,
                         prompt_tokens=item.prompt_tokens + tokens["prompt_tokens"],
                         response_tokens=item.response_tokens + tokens["response_tokens"],
+                        cached_tokens=item.cached_tokens + tokens["cached_tokens"],
+                        cache_write_tokens=item.cache_write_tokens + tokens["cache_write_tokens"],
                         pricing=self.pricing
                     )
                     break
