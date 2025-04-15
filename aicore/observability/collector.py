@@ -189,7 +189,7 @@ class LlmOperationCollector(RootModel):
                 if conn_str:
                     self.engine = create_engine(conn_str)
                     self.DBSession = sessionmaker(bind=self.engine)
-                    Base.extras.create_all(self.engine)
+                    Base.metadata.create_all(self.engine)
                     self._table_initialized = True 
                 # Async Engine
                 if async_conn_str:
