@@ -51,6 +51,7 @@ class Metric(Base):
     total_tokens = Column(Integer)
     cost = Column(Float)
     latency_ms = Column(Float)
+    extras = Column(Text)
     
     # Fix: Use lowercase "message"
     message = relationship("Message", back_populates="metric")

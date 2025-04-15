@@ -28,6 +28,7 @@ class LlmOperationRecord(BaseModel):
     cost: Optional[float] = 0
     latency_ms: float
     error_message: Optional[str] = ""
+    extras: Union[Dict[str, Any], str] = ""
     completion_args: Union[Dict[str, Any], str]
     response: Optional[Union[str, Dict, List]] = ""
 
@@ -51,7 +52,7 @@ class LlmOperationRecord(BaseModel):
         else:
             raise TypeError("response param must be [str] or [json serializable obj]")
 
-    @field_validator("completion_args")
+    @field_validator(*["completion_args", "extras"])
     @classmethod
     def json_laods_response(cls, args: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(args, str):
@@ -66,7 +67,7 @@ class LlmOperationRecord(BaseModel):
         self.workspace = self.workspace or os.environ.get("WORKSPACE", "")
         return self
 
-    @field_serializer("completion_args", when_used='json')
+    @field_serializer(*["completion_args", "extras"], when_used='json')
     def json_dump_completion_args(self, completion_args: Dict[str, Any]) -> str:
         return json.dumps(completion_args, indent=4)
 
@@ -158,7 +159,8 @@ class LlmOperationRecord(BaseModel):
             "cost": self.cost,
             "latency_ms": self.latency_ms,
             "error_message": self.error_message,
-            "completion_args": json.dumps(self.completion_args, indent=4)
+            "completion_args": json.dumps(self.completion_args, indent=4),
+            "extras": json.dumps(self.extras)
         }
     
 
@@ -187,7 +189,7 @@ class LlmOperationCollector(RootModel):
                 if conn_str:
                     self.engine = create_engine(conn_str)
                     self.DBSession = sessionmaker(bind=self.engine)
-                    Base.metadata.create_all(self.engine)
+                    Base.extras.create_all(self.engine)
                     self._table_initialized = True 
                 # Async Engine
                 if async_conn_str:
@@ -307,7 +309,8 @@ class LlmOperationCollector(RootModel):
         cached_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        extras: Optional[Dict[str, Any]] = None
     ) -> LlmOperationRecord:
         # Clean request args
         cleaned_args = self._clean_completion_args(completion_args)
@@ -327,9 +330,9 @@ class LlmOperationCollector(RootModel):
             latency_ms=latency_ms or 0,
             error_message=error_message,
             completion_args=cleaned_args,
-            response=response
+            response=response,
+            extras=extras or {}
         )
-        
         if self.storage_path:
             self._store_to_file(record)
         
@@ -352,13 +355,14 @@ class LlmOperationCollector(RootModel):
         cached_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        extras: Optional[str] = None
     ) -> LlmOperationRecord:
         # Clean request args
         record = self._handle_record(
             completion_args, operation_type, provider, response, 
             session_id, workspace, agent_id, action_id, 
-            input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message
+            input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
         
         if self.engine and self.DBSession:
@@ -384,13 +388,14 @@ class LlmOperationCollector(RootModel):
         cached_tokens: Optional[int] = 0,
         cost: Optional[float] = 0,
         latency_ms: Optional[float] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        extras: Optional[str] = None
     ) -> LlmOperationRecord:
         # Clean request args
         record = self._handle_record(
             completion_args, operation_type, provider, response, 
             session_id, workspace, agent_id, action_id, 
-            input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message
+            input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
         
         if self.async_engine and self.aDBSession:
@@ -438,7 +443,6 @@ class LlmOperationCollector(RootModel):
                 error_message=serialized['error_message']
             )
             session.add(message)
-            
             # Create metrics record
             metric = Metric(
                 operation_id=serialized['operation_id'],
@@ -453,7 +457,8 @@ class LlmOperationCollector(RootModel):
                 cached_tokens=serialized['cached_tokens'],
                 total_tokens=serialized['total_tokens'],
                 cost=serialized['cost'],
-                latency_ms=serialized['latency_ms']
+                latency_ms=serialized['latency_ms'],
+                extras=serialized['extras']
             )
             session.add(metric)
             
@@ -519,7 +524,8 @@ class LlmOperationCollector(RootModel):
                     cached_tokens=serialized['cached_tokens'],
                     total_tokens=serialized['total_tokens'],
                     cost=serialized['cost'],
-                    latency_ms=serialized['latency_ms']
+                    latency_ms=serialized['latency_ms'],
+                    extras=serialized['extras']
                 )
                 session.add(metric)
 
@@ -563,7 +569,7 @@ class LlmOperationCollector(RootModel):
                 Metric.operation_type, Metric.provider, Metric.model, 
                 Metric.success, Metric.temperature, Metric.max_tokens, 
                 Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
-                Metric.cost, Metric.latency_ms
+                Metric.cost, Metric.latency_ms, Metric.extras
             ).join(Message, Session.session_id == Message.session_id
             ).join(Metric, Message.operation_id == Metric.operation_id)
             
@@ -640,7 +646,7 @@ class LlmOperationCollector(RootModel):
                         Metric.operation_type, Metric.provider, Metric.model, 
                         Metric.success, Metric.temperature, Metric.max_tokens, 
                         Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
-                        Metric.cost, Metric.latency_ms
+                        Metric.cost, Metric.latency_ms, Metric.extras
                     )
                     .join(Message, Session.session_id == Message.session_id)
                     .join(Metric, Message.operation_id == Metric.operation_id)
