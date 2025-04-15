@@ -55,18 +55,39 @@ class CompletionUsage(BaseModel):
     ) -> "CompletionUsage":
         """Creates a CompletionUsage instance with calculated cost based on pricing config."""
         if pricing is not None:
+            # Apply happy hour pricing if active
             if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
                 pricing = pricing.happy_hour.pricing
             
-            if pricing.dynamic is not None and prompt_tokens + response_tokens > pricing.dynamic.threshold:
-                pricing = pricing.dynamic.pricing
+            input_cost = pricing.input * prompt_tokens
+            output_cost = pricing.output * response_tokens
+            cached_cost = pricing.cached * cached_tokens
+            cache_write_cost = cache_write_tokens * pricing.cache_write
 
-            cost = (
-                pricing.input * prompt_tokens 
-                + pricing.output * response_tokens 
-                + pricing.cached * cached_tokens 
-                + cache_write_tokens * pricing.cache_write
-            ) * 1e-6
+            # Apply dynamic pricing only if threshold is exceeded
+            if pricing.dynamic is not None:
+                total_tokens = prompt_tokens + response_tokens
+                if total_tokens > pricing.dynamic.threshold:
+                    # Split tokens into base (<= threshold) and dynamic (> threshold)
+                    base_tokens = pricing.dynamic.threshold
+                    dynamic_tokens = total_tokens - base_tokens
+
+                    # Calculate the ratio of input/output tokens
+                    prompt_ratio = prompt_tokens / total_tokens
+                    response_ratio = response_tokens / total_tokens
+
+                    # Recompute input/output costs with mixed pricing
+                    input_cost = (
+                        (pricing.input * (base_tokens * prompt_ratio)) +  # Base price for tokens <= threshold
+                        (pricing.dynamic.pricing.input * (dynamic_tokens * prompt_ratio))  # Dynamic price for excess tokens
+                    )
+                    output_cost = (
+                        (pricing.output * (base_tokens * response_ratio)) +
+                        (pricing.dynamic.pricing.output * (dynamic_tokens * response_ratio))
+                    )
+
+            # Final cost calculation (always includes cached/cache_write costs)
+            cost = (input_cost + output_cost + cached_cost + cache_write_cost) * 1e-6
 
         return cls(
             completion_id=completion_id,
