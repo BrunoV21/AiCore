@@ -68,22 +68,24 @@ class CompletionUsage(BaseModel):
             if pricing.dynamic is not None:
                 total_tokens = prompt_tokens + response_tokens
                 if total_tokens > pricing.dynamic.threshold:
-                    # Split tokens into base (<= threshold) and dynamic (> threshold)
-                    base_tokens = pricing.dynamic.threshold
-                    dynamic_tokens = total_tokens - base_tokens
-
-                    # Calculate the ratio of input/output tokens
-                    prompt_ratio = prompt_tokens / total_tokens
-                    response_ratio = response_tokens / total_tokens
-
-                    # Recompute input/output costs with mixed pricing
+                    # Calculate how many tokens are over the threshold
+                    tokens_over_threshold = total_tokens - pricing.dynamic.threshold
+                    
+                    # First, determine how many input tokens are over the threshold
+                    input_tokens_over_threshold = max(0, prompt_tokens - pricing.dynamic.threshold)
+                    
+                    # Then calculate remaining tokens over threshold (must be output tokens)
+                    output_tokens_over_threshold = tokens_over_threshold - input_tokens_over_threshold
+                    
+                    # Recalculate costs with separate pricing for tokens above and below threshold
                     input_cost = (
-                        (pricing.input * (base_tokens * prompt_ratio)) +  # Base price for tokens <= threshold
-                        (pricing.dynamic.pricing.input * (dynamic_tokens * prompt_ratio))  # Dynamic price for excess tokens
+                        pricing.input * (prompt_tokens - input_tokens_over_threshold) +  # Base price for tokens <= threshold
+                        pricing.dynamic.pricing.input * input_tokens_over_threshold      # Dynamic price for excess tokens
                     )
+                    
                     output_cost = (
-                        (pricing.output * (base_tokens * response_ratio)) +
-                        (pricing.dynamic.pricing.output * (dynamic_tokens * response_ratio))
+                        pricing.output * (response_tokens - output_tokens_over_threshold) +  # Base price for tokens <= threshold
+                        pricing.dynamic.pricing.output * output_tokens_over_threshold        # Dynamic price for excess tokens
                     )
 
             # Final cost calculation (always includes cached/cache_write costs)
