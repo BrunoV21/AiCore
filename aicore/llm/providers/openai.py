@@ -41,11 +41,12 @@ class OpenAiLlm(LlmBaseProvider):
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         usage = chunk.usage
         if usage is not None:
+            cached_tokens = usage.prompt_tokens_details.cached_token if usage.prompt_tokens_details is not None else 0
             ### https://platform.openai.com/docs/guides/prompt-caching
             self.usage.record_completion(
-                prompt_tokens=usage.prompt_tokens-usage.prompt_tokens_details.cached_tokens,
+                prompt_tokens=usage.prompt_tokens-cached_tokens,
                 response_tokens=usage.completion_tokens,
-                cached_tokens=usage.prompt_tokens_details.cached_tokens,
+                cached_tokens=cached_tokens,
                 completion_id=completion_id or chunk.id
             )
         return chunk.choices
