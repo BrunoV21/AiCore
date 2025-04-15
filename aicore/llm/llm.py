@@ -76,6 +76,15 @@ class Llm(BaseModel):
                 self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=value)
 
     @computed_field
+    def extras(self)->dict:
+        return self.provider.extras
+    
+    @extras.setter
+    def extras(self, value :dict):
+        if value and isinstance(value, dict):
+            self.provider.extras = value
+
+    @computed_field
     def workspace(self)->Optional[str]:
         return self.provider.worspace
     

@@ -20,6 +20,7 @@ class LlmBaseProvider(BaseModel):
     session_id: str = Field(default_factory=ulid.ulid)
     worspace: Optional[str]=None
     agent_id: Optional[str]=None
+    extras: Optional[dict]=Field(default_factory=dict)
     _client: Any = None
     _aclient: Any = None
     _completion_args: Dict = {}
@@ -430,7 +431,8 @@ class LlmBaseProvider(BaseModel):
                     output_tokens=output_tokens,
                     cost=cost,
                     latency_ms=latency_ms,
-                    error_message=error_message
+                    error_message=error_message,
+                    extras=self.extras
                 )
             
         return output
@@ -491,7 +493,6 @@ class LlmBaseProvider(BaseModel):
         finally:
             end_time = time.time()
             latency_ms = (end_time - start_time) * 1000
-            
             if self.collector:
                 await self.collector.arecord_completion(
                     provider=self.config.provider,
@@ -506,7 +507,8 @@ class LlmBaseProvider(BaseModel):
                     output_tokens=output_tokens,
                     cost=cost,
                     latency_ms=latency_ms,
-                    error_message=error_message
+                    error_message=error_message,
+                    extras=self.extras
                 )
             
         return output
