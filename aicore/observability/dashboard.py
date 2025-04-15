@@ -55,7 +55,7 @@ class ObservabilityDashboard:
     def __init__(self,
             storage_path: Optional[Any] = None,
             from_local_records_only :bool=False,
-            title: str = "AI Core Observability Dashboard"):
+            title: str = "AiCore Observability Dashboard"):
         """
         Initialize the dashboard.
         
@@ -72,6 +72,7 @@ class ObservabilityDashboard:
             suppress_callback_exceptions=True,
             external_stylesheets=EXTERNAL_STYLESHEETS
         )
+        self.app.title = "Observability Dash"
         self._setup_layout()
         self._register_callbacks()
 
