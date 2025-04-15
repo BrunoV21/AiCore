@@ -61,6 +61,8 @@ class LlmBaseProvider(BaseModel):
                     models_id = ["-".join(model.split("-")[:-1]) for model in models]
                     if model_id in models_id:
                         return
+                elif f"models/{self.config.model}" in models:
+                    return
                 raise ModelError.from_model(self.config.model, self.config.provider, models)
         except exception as e:
             raise AuthenticationError(
