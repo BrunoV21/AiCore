@@ -62,9 +62,9 @@ class Llm(BaseModel):
     config: LlmConfig = Field(..., description="Configuration for the LLM provider")
     system_prompt: str = Field(default=DEFAULT_SYSTEM_PROMPT, description="Default system prompt for the LLM")
     agent_id: Optional[str] = Field(default=None, description="Optional agent identifier")
-    _provider: Union[LlmBaseProvider, None] = Field(default=None, description="Internal provider instance")
+    _provider: Optional[LlmBaseProvider] = None
     _logger_fn: Optional[Callable[[str], None]] = None
-    _reasoner: Union["Llm", None] = None
+    _reasoner: Optional["Llm"] = None
     _is_reasoner: bool = False
     
     @property
