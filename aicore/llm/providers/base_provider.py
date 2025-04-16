@@ -1,3 +1,8 @@
+"""
+Base provider class for LLM implementations with common functionality.
+This module defines the base class for all LLM providers in the system, providing
+common interfaces and utilities for synchronous and asynchronous operations.
+"""
 
 from aicore.llm.config import LlmConfig
 from aicore.logger import _logger, default_stream_handler
@@ -15,7 +20,27 @@ import json
 import time
 import ulid
 
-class LlmBaseProvider(BaseModel):
+class LlmBaseProvider(BaseModel):    
+    """Base class for all LLM provider implementations.
+    
+    Provides common functionality for:
+    - Configuration management
+    - Session tracking
+    - Synchronous and asynchronous completions
+    - Streaming support
+    - Observability integration
+    - Usage tracking
+    
+    Attributes:
+        config: Configuration for the LLM provider
+        session_id: Unique session identifier
+        workspace: Optional workspace identifier
+        agent_id: Optional agent identifier
+        extras: Additional provider-specific data
+        _client: Synchronous client instance
+        _aclient: Asynchronous client instance
+        _collector: Observability collector instance
+    """
     config: LlmConfig
     session_id: str = Field(default_factory=ulid.ulid)
     worspace: Optional[str]=None
@@ -34,23 +59,68 @@ class LlmBaseProvider(BaseModel):
 
     @classmethod
     def from_config(cls, config: LlmConfig) -> "LlmBaseProvider":
+        """Create provider instance from configuration.
+        
+        Args:
+            config: LLM configuration to initialize the provider
+            
+        Returns:
+            LlmBaseProvider: Initialized provider instance
+            
+        Example:
+            >>> config = LlmConfig(provider="openai", api_key="...", model="gpt-4")
+            >>> provider = LlmBaseProvider.from_config(config)
+        """
         return cls(
             config=config
         )
     
     @property
     def client(self):
+        """Get the synchronous client instance.
+        
+        Returns:
+            The configured synchronous client
+        """
         return self._client
     
     @client.setter
     def client(self, client: Any):
+        """Set the synchronous client instance.
+        
+        Args:
+            client: Client instance to set
+        """
         self._client = client
 
     @property
     def aclient(self):
+        """Get the asynchronous client instance.
+        
+        Returns:
+            The configured asynchronous client
+        """
         return self._aclient
     
+    @client.setter
+    def aclient(self, aclient: Any):
+        """Set the asynchronous client instance.
+        
+        Args:
+            aclient: Async client instance to set
+        """
+        self._aclient = aclient
+
     def validate_config(self, exception :Exception):
+        """Validate provider configuration against available models.
+        
+        Args:
+            exception: Exception type to raise if validation fails
+            
+        Raises:
+            ModelError: If configured model is not available
+            AuthenticationError: If provider authentication fails
+        """
         try:
             if self.config.model in CUSTOM_MODELS:
                 return
@@ -70,71 +140,135 @@ class LlmBaseProvider(BaseModel):
                 provider=self.config.provider,
                 message=str(e)
             )
-    
-    @client.setter
-    def aclient(self, aclient: Any):
-        self._aclient = aclient
 
     @property
     def completion_args(self) -> Dict:
+        """Get additional completion arguments.
+        
+        Returns:
+            Dictionary of completion arguments
+        """
         return self._completion_args
     
     @completion_args.setter
     def completion_args(self, args: Dict):
+        """Set additional completion arguments.
+        
+        Args:
+            args: Dictionary of completion arguments to set
+        """
         self._completion_args = args
 
     @property
     def completion_fn(self) -> Any:
+        """Get the synchronous completion function.
+        
+        Returns:
+            The configured completion function
+        """
         return self._completion_fn
     
     @completion_fn.setter
     def completion_fn(self, completion_fn: Any):
+        """Set the synchronous completion function.
+        
+        Args:
+            completion_fn: Completion function to set
+        """
         self._completion_fn = completion_fn
 
     @property
     def acompletion_fn(self) -> Any:
+        """Get the asynchronous completion function.
+        
+        Returns:
+            The configured async completion function
+        """
         return self._acompletion_fn
     
     @acompletion_fn.setter
     def acompletion_fn(self, acompletion_fn: Any):
+        """Set the asynchronous completion function.
+        
+        Args:
+            acompletion_fn: Async completion function to set
+        """
         self._acompletion_fn = acompletion_fn
 
     @property
     def normalize_fn(self) -> Any:
+        """Get the response normalization function.
+        
+        Returns:
+            The configured normalization function
+        """
         return self._normalize_fn
     
     @normalize_fn.setter
     def normalize_fn(self, normalize_fn: Any):
+        """Set the response normalization function.
+        
+        Args:
+            normalize_fn: Normalization function to set
+        """
         self._normalize_fn = normalize_fn
 
     @property
     def tokenizer_fn(self) -> Any:
+        """Get the tokenizer function.
+        
+        Returns:
+            The configured tokenizer function
+        """
         return self._tokenizer_fn
     
     @tokenizer_fn.setter
     def tokenizer_fn(self, tokenizer_fn: Any):
+        """Set the tokenizer function.
+        
+        Args:
+            tokenizer_fn: Tokenizer function to set
+        """
         self._tokenizer_fn = tokenizer_fn
 
     @property
     def usage(self) -> UsageInfo:
+        """Get usage information tracker.
+        
+        Returns:
+            UsageInfo instance tracking token usage and costs
+        """
         if self._usage is None:
             self._usage = UsageInfo.from_pricing_config(self.config.pricing)
         return self._usage
     
     @usage.setter
     def usage(self, usage :UsageInfo):
+        """Set usage information tracker.
+        
+        Args:
+            usage: UsageInfo instance to set
+        """
         self._usage = usage
     
     @property
     def collector(self) -> Optional[LlmOperationCollector]:
-        """Get the operation collector instance."""
+        """Get the operation collector instance.
+        
+        Returns:
+            LlmOperationCollector instance if configured, None otherwise
+        """
         if self._collector is None:
             self._collector = LlmOperationCollector.fom_observable_storage_path()
         return self._collector
     
     @collector.setter
     def collector(self, collector: LlmOperationCollector):
-        """Set the operation collector instance."""
+        """Set the operation collector instance.
+        
+        Args:
+            collector: LlmOperationCollector instance to set
+        """
         self._collector = collector
         
     def disable_collection(self):
@@ -144,6 +278,14 @@ class LlmBaseProvider(BaseModel):
     
     @staticmethod
     def get_default_tokenizer(model_name: str) -> str:
+        """Get default tokenizer name for a model.
+        
+        Args:
+            model_name: Name of the model to get tokenizer for
+            
+        Returns:
+            str: Tokenizer name (falls back to 'gpt-4o' if unknown)
+        """
         try:
             tiktoken.encoding_name_for_model(model_name)
             return model_name
@@ -152,6 +294,15 @@ class LlmBaseProvider(BaseModel):
 
     @staticmethod
     def _message_content(prompt: Union[List[str], str], img_b64_str: Optional[List[str]] = None) -> Union[str, List[Dict]]:
+        """Format message content for API requests.
+        
+        Args:
+            prompt: Input prompt(s) to format
+            img_b64_str: Optional list of base64 encoded images
+            
+        Returns:
+            Union[str, List[Dict]]: Formatted message content as string or list of content parts
+        """
         if isinstance(prompt, str):
             prompt = [prompt]
 
@@ -175,6 +326,21 @@ class LlmBaseProvider(BaseModel):
     
     @staticmethod
     def async_partial(func, *args, **kwargs):
+        """Create async partial function with bound arguments.
+        
+        Args:
+            func: Async function to partialize
+            *args: Positional arguments to bind
+            **kwargs: Keyword arguments to bind
+            
+        Returns:
+            Callable: Async function with bound arguments
+            
+        Example:
+            >>> async def test(a, b): return a + b
+            >>> partial = async_partial(test, 1)
+            >>> await partial(2)  # Returns 3
+        """
         @wraps(func)
         async def wrapped(*inner_args, **inner_kwargs):
             return await func(*args, *inner_args, **kwargs, **inner_kwargs)
@@ -184,8 +350,18 @@ class LlmBaseProvider(BaseModel):
                         session_id :Optional[str]=None,
                         workspace :Optional[str]=None,
                         stop_thinking_token: str = REASONING_STOP_TOKEN):
-        """
-        pass stop token to completion fn
+        """Configure provider as a reasoning assistant.
+        
+        Args:
+            session_id: Optional session identifier to set
+            workspace: Optional workspace identifier to set
+            stop_thinking_token: Token to stop reasoning output
+            
+        Example:
+            >>> provider.use_as_reasoner(
+            ...     session_id="123",
+            ...     stop_thinking_token="[STOP_REASONING]"
+            ... )
         """
         if self.session_id:
             self.session_id = session_id
@@ -195,6 +371,17 @@ class LlmBaseProvider(BaseModel):
         self._is_reasoner = True
 
     def _message_body(self, prompt: Union[List[str], str], role: Literal["user", "system", "assistant"] = "user", img_b64_str: Optional[List[str]] = None, _last: Optional[bool] = False) -> Dict:
+        """Create message body for API requests.
+        
+        Args:
+            prompt: Input prompt(s) to include
+            role: Message role (user/system/assistant)
+            img_b64_str: Optional base64 encoded images
+            _last: Whether this is the last message
+            
+        Returns:
+            Dict: Formatted message body
+        """
         message_body = {
             "role": role,
             "content": self._message_content(prompt, img_b64_str)
@@ -203,11 +390,30 @@ class LlmBaseProvider(BaseModel):
 
     @staticmethod
     def _validte_message_dict(message_dict: Dict[str, str]) -> bool:
+        """Validate message dictionary structure.
+        
+        Args:
+            message_dict: Message dictionary to validate
+            
+        Returns:
+            bool: True if valid
+            
+        Raises:
+            AssertionError: If message structure is invalid
+        """
         assert message_dict.get("role") in ["user", "system", "assistant"], f"{message_dict} 'role' attribute must be one of ['user', 'system', 'assistant']"
         assert message_dict.get("content") is not None, f"{message_dict} 'content' attribute is missing"
         return True
 
     def _map_multiple_prompts(self, prompt: Union[List[str], List[Dict[str, str]]]) -> List[str]:
+        """Map multiple prompts to message sequence with alternating roles.
+        
+        Args:
+            prompt: List of prompts or message dictionaries
+            
+        Returns:
+            List[str]: Sequence of formatted messages with alternating roles
+        """
         next_role_maps = {
             "assistant": "user",
             "user": "assistant"
@@ -228,9 +434,14 @@ class LlmBaseProvider(BaseModel):
         return prompt_messages[::-1]
     
     def _handle_system_prompt(self,
-            messages :list,
-            system_prompt: Optional[Union[List[str], str]] = None):
-                
+        messages :list,
+        system_prompt: Optional[Union[List[str], str]] = None):
+        """Handle system prompt for API requests.
+        
+        Args:
+            messages: List of messages to append to
+            system_prompt: System prompt content to add
+        """
         if system_prompt is not None:
             messages.append(self._message_body(system_prompt, role="system"))
 
@@ -239,12 +450,23 @@ class LlmBaseProvider(BaseModel):
         pass
 
     def completion_args_template(self,
-                                prompt: Union[str, List[str], List[Dict[str, str]]],
-                                system_prompt: Optional[Union[List[str], str]] = None,
-                                prefix_prompt: Optional[Union[List[str], str]] = None,
-                                img_b64_str: Optional[Union[str, List[str]]] = None,
-                                stream: bool = False) -> Dict:
+        prompt: Union[str, List[str], List[Dict[str, str]]],
+        system_prompt: Optional[Union[List[str], str]] = None,
+        prefix_prompt: Optional[Union[List[str], str]] = None,
+        img_b64_str: Optional[Union[str, List[str]]] = None,
+        stream: bool = False) -> Dict:
+        """Create completion arguments template for API requests.
         
+        Args:
+            prompt: Input prompt(s)
+            system_prompt: Optional system prompt
+            prefix_prompt: Optional prefix prompt
+            img_b64_str: Optional base64 encoded images
+            stream: Whether to stream response
+            
+        Returns:
+            Dict: Prepared completion arguments
+        """
         if img_b64_str and isinstance(img_b64_str, str):
             img_b64_str = [img_b64_str]
         if isinstance(prompt, str):
@@ -278,11 +500,23 @@ class LlmBaseProvider(BaseModel):
         return args
 
     def _prepare_completion_args(self,
-                                prompt: Union[str, List[str], List[Dict[str, str]]], 
-                                system_prompt: Optional[Union[List[str], str]] = None,
-                                prefix_prompt: Optional[Union[List[str], str]] = None,
-                                img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
-                                stream: bool = True) -> Dict:
+        prompt: Union[str, List[str], List[Dict[str, str]]], 
+        system_prompt: Optional[Union[List[str], str]] = None,
+        prefix_prompt: Optional[Union[List[str], str]] = None,
+        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+        stream: bool = True) -> Dict:
+        """Prepare completion arguments including image processing.
+        
+        Args:
+            prompt: Input prompt(s)
+            system_prompt: Optional system prompt
+            prefix_prompt: Optional prefix prompt
+            img_path: Optional image path(s)
+            stream: Whether to stream response
+            
+        Returns:
+            Dict: Prepared completion arguments
+        """
         if img_path and not isinstance(img_path, list):
             img_path = [img_path]
         
@@ -302,6 +536,16 @@ class LlmBaseProvider(BaseModel):
     
     @staticmethod
     def _handle_reasoning_steps(chunk_message, message, _skip)->bool:
+        """Handle reasoning steps in streamed responses.
+        
+        Args:
+            chunk_message: Current message chunk
+            message: Accumulated message
+            _skip: Whether to skip current chunk
+            
+        Returns:
+            bool: Updated skip state
+        """
         if chunk_message == REASONING_START_TOKEN:
             _skip = True
         message.append(chunk_message) if not _skip else ... 
@@ -311,17 +555,47 @@ class LlmBaseProvider(BaseModel):
 
     @classmethod
     def _handle_stream_messages(cls, _chunk, message, _skip=False)->bool:
+        """Handle streamed messages from synchronous completions.
+        
+        Args:
+            _chunk: Raw message chunk
+            message: Accumulated message
+            _skip: Whether to skip current chunk
+            
+        Returns:
+            bool: Updated skip state
+        """
         chunk_message = _chunk[0].delta.content or ""
         default_stream_handler(chunk_message)
         return cls._handle_reasoning_steps(chunk_message, message, _skip)
     
     @classmethod
     async def _handle_astream_messages(cls, _chunk, logger_fn, message, _skip=False)->bool:
+        """Handle streamed messages from asynchronous completions.
+        
+        Args:
+            _chunk: Raw message chunk
+            logger_fn: Async logging function
+            message: Accumulated message
+            _skip: Whether to skip current chunk
+            
+        Returns:
+            bool: Updated skip state
+        """
         chunk_message = _chunk[0].delta.content or  ""
         await logger_fn(chunk_message)
         return cls._handle_reasoning_steps(chunk_message, message, _skip)
 
     def _stream(self, stream, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
+        """Handle streaming response from synchronous completion.
+        
+        Args:
+            stream: Response stream
+            prefix_prompt: Optional prefix prompt
+            
+        Returns:
+            str: Accumulated response
+        """
         message = [] 
         _skip = False
         for chunk in stream:
@@ -338,6 +612,16 @@ class LlmBaseProvider(BaseModel):
         return response
     
     async def _astream(self, stream, logger_fn, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
+        """Handle streaming response from asynchronous completion.
+        
+        Args:
+            stream: Async response stream
+            logger_fn: Async logging function
+            prefix_prompt: Optional prefix prompt
+            
+        Returns:
+            str: Accumulated response
+        """
         message = []
         _skip = False
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
@@ -355,6 +639,7 @@ class LlmBaseProvider(BaseModel):
     
     @staticmethod
     def model_to_str(model: Union[BaseModel, RootModel]) -> str:
+        """Convert model to JSON string representation."""
         return f"```json\n{model.model_dump_json(indent=4)}\n```"
     
     @staticmethod
@@ -365,15 +650,31 @@ class LlmBaseProvider(BaseModel):
             return output
 
     def complete(
-                self,
-                prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel], 
-                system_prompt: Optional[Union[str, List[str]]] = None,
-                prefix_prompt: Optional[Union[str, List[str]]] = None,
-                img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
-                json_output: bool = False,
-                stream: bool = True,
-                agent_id: Optional[str]=None,
-                action_id :Optional[str]=None) -> Union[str, Dict]:
+        self,
+        prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel], 
+        system_prompt: Optional[Union[str, List[str]]] = None,
+        prefix_prompt: Optional[Union[str, List[str]]] = None,
+        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+        json_output: bool = False,
+        stream: bool = True,
+        agent_id: Optional[str]=None,
+        action_id :Optional[str]=None) -> Union[str, Dict]:
+        """
+        Complete a prompt using the LLM provider.
+            
+        Args:
+            prompt: Input prompt (can be str, BaseModel, or RootModel)
+            system_prompt: Optional system prompt override
+            prefix_prompt: Additional context to prepend
+            img_path: Optional image path(s) for multimodal input
+            json_output: Whether to parse output as JSON
+            stream: Whether to stream the response
+            agent_id: Optional agent identifier
+            action_id: Optional action identifier
+            
+        Returns:
+            The completion result as either a string or dictionary (if json_output=True)
+        """
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
@@ -438,17 +739,34 @@ class LlmBaseProvider(BaseModel):
         return output
 
     async def acomplete(
-                        self,
-                        prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
-                        system_prompt: Optional[Union[str, List[str]]] = None,
-                        prefix_prompt: Optional[Union[str, List[str]]] = None,
-                        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
-                        json_output: bool = False,
-                        stream: bool = True,
-                        stream_handler: Optional[Callable[[str], None]] = default_stream_handler,
-                        agent_id: Optional[str]=None,
-                        action_id :Optional[str]=None
-                        ) -> Union[str, Dict]:
+        self,
+        prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
+        system_prompt: Optional[Union[str, List[str]]] = None,
+        prefix_prompt: Optional[Union[str, List[str]]] = None,
+        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+        json_output: bool = False,
+        stream: bool = True,
+        stream_handler: Optional[Callable[[str], None]] = default_stream_handler,
+        agent_id: Optional[str]=None,
+        action_id :Optional[str]=None
+        ) -> Union[str, Dict]:
+        """
+        Async version of complete() to generate completions.
+        
+        Args:
+            prompt: Input prompt (can be str, list, dict, BaseModel or RootModel)
+            system_prompt: Optional system prompt override
+            prefix_prompt: Additional context to prepend
+            img_path: Optional image path(s) for multimodal input
+            json_output: Whether to parse output as JSON
+            stream: Whether to stream the response
+            stream_handler: default_stream_handler
+            agent_id: Optional agent identifier
+            action_id: Optional action identifier
+            
+        Returns:
+            The completion result as either a string or dictionary (if json_output=True)
+        """
         
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
