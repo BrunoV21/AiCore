@@ -1,4 +1,4 @@
-from pydantic import BaseModel, RootModel, model_validator, computed_field
+from pydantic import BaseModel, RootModel, model_validator, computed_field, Field
 from typing import Union, Optional, Callable, List, Dict, Self
 from functools import partial
 from pathlib import Path
@@ -25,75 +25,119 @@ from aicore.llm.providers import (
 )
 
 class Providers(Enum):
-    ANTHROPIC :AnthropicLlm=AnthropicLlm
-    OPENAI :OpenAiLlm=OpenAiLlm
-    OPENROUTER :OpenRouterLlm=OpenRouterLlm
-    MISTRAL :MistralLlm=MistralLlm
-    NVIDIA :NvidiaLlm=NvidiaLlm
-    GROQ :GroqLlm=GroqLlm
-    GROK :GrokLlm=GrokLlm 
-    GEMINI :GeminiLlm=GeminiLlm
-    DEEPSEEK :DeepSeekLlm=DeepSeekLlm
+    """Enum mapping provider names to their implementation classes."""
+    ANTHROPIC: AnthropicLlm = AnthropicLlm
+    OPENAI: OpenAiLlm = OpenAiLlm
+    OPENROUTER: OpenRouterLlm = OpenRouterLlm
+    MISTRAL: MistralLlm = MistralLlm
+    NVIDIA: NvidiaLlm = NvidiaLlm
+    GROQ: GroqLlm = GroqLlm
+    GROK: GrokLlm = GrokLlm 
+    GEMINI: GeminiLlm = GeminiLlm
+    DEEPSEEK: DeepSeekLlm = DeepSeekLlm
 
     def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
-        """
-        Instantiate the provider associated with the enum.
+        """Instantiate the provider associated with the enum.
         
         Args:
-            config (EmbeddingsConfig): Configuration for the provider.
+            config: Configuration for the provider.
         
         Returns:
-            LlmBaseProvider: An instance of the embedding provider.
+            An instance of the LLM provider.
+        
+        Example:
+            >>> config = LlmConfig(provider="openai", api_key="...", model="gpt-4")
+            >>> provider = Providers.OPENAI.get_instance(config)
         """
         return self.value.from_config(config)
 
 class Llm(BaseModel):
-    config :LlmConfig
-    system_prompt :str=DEFAULT_SYSTEM_PROMPT
-    agent_id :Optional[str]=None
-    _provider :Union[LlmBaseProvider, None]=None
-    _logger_fn :Optional[Callable[[str], None]]=None
-    _reasoner :Union["Llm", None]=None
-    _is_reasoner :bool=False
+    """Main LLM class that provides synchronous and asynchronous completion interfaces.
+    
+    Attributes:
+        config: Configuration for the LLM provider
+        system_prompt: Default system prompt for the LLM
+        agent_id: Optional agent identifier
+        _provider: Internal provider instance
+        _logger_fn: Optional logging function
+        _reasoner: Optional reasoning LLM instance
+        _is_reasoner: Flag indicating if this is a reasoning LLM
+    """
+    config: LlmConfig = Field(..., description="Configuration for the LLM provider")
+    system_prompt: str = Field(default=DEFAULT_SYSTEM_PROMPT, description="Default system prompt for the LLM")
+    agent_id: Optional[str] = Field(default=None, description="Optional agent identifier")
+    _provider: Union[LlmBaseProvider, None] = Field(default=None, description="Internal provider instance")
+    _logger_fn: Optional[Callable[[str], None]] = None
+    _reasoner: Union["Llm", None] = None
+    _is_reasoner: bool = False
     
     @property
-    def provider(self)->LlmBaseProvider:
+    def provider(self) -> LlmBaseProvider:
+        """Get the current provider instance."""
         return self._provider
     
     @provider.setter
-    def provider(self, provider :LlmBaseProvider):
+    def provider(self, provider: LlmBaseProvider):
+        """Set the provider instance.
+        
+        Args:
+            provider: The LLM provider instance to set
+        """
         self._provider = provider
 
     @computed_field
-    def session_id(self)->str:
+    def session_id(self) -> str:
+        """Get the current session ID from the provider."""
         return self.provider.session_id
     
     @session_id.setter
-    def session_id(self, value :str):
+    def session_id(self, value: str):
+        """Set the session ID and update logger if needed.
+        
+        Args:
+            value: The session ID to set
+        """
         if value:
             self.provider.session_id = value
             if isinstance(self._logger_fn, Logger):
                 self._logger_fn = partial(_logger.log_chunk_to_queue, session_id=value)
 
     @computed_field
-    def extras(self)->dict:
+    def extras(self) -> dict:
+        """Get provider extras dictionary."""
         return self.provider.extras
     
     @extras.setter
-    def extras(self, value :dict):
+    def extras(self, value: dict):
+        """Set provider extras.
+        
+        Args:
+            value: Dictionary of extra provider settings
+        """
         if value and isinstance(value, dict):
             self.provider.extras = value
 
     @computed_field
-    def workspace(self)->Optional[str]:
+    def workspace(self) -> Optional[str]:
+        """Get the current workspace from the provider."""
         return self.provider.worspace
     
     @workspace.setter
-    def workspace(self, workspace):
+    def workspace(self, workspace: str):
+        """Set the workspace for the provider.
+        
+        Args:
+            workspace: Workspace identifier to set
+        """
         self.provider.workspace = workspace
 
     @property
-    def logger_fn(self)->Callable[[str], None]:
+    def logger_fn(self) -> Callable[[str], None]:
+        """Get or initialize the logger function.
+        
+        Returns:
+            A logging function bound to the current session
+        """
         if self._logger_fn is None:
             if self.session_id is None:
                 self.session_id = ulid()
@@ -103,40 +147,71 @@ class Llm(BaseModel):
         return self._logger_fn
 
     @logger_fn.setter
-    def logger_fn(self, logger_fn:Callable[[str], None]):
+    def logger_fn(self, logger_fn: Callable[[str], None]):
+        """Set a custom logger function.
+        
+        Args:
+            logger_fn: Function that handles log messages
+        """
         self._logger_fn = logger_fn
 
     @property
-    def reasoner(self)->"Llm":
+    def reasoner(self) -> "Llm":
+        """Get the current reasoner LLM instance."""
         return self._reasoner
     
     @reasoner.setter
-    def reasoner(self, reasoning_llm :"Llm"):
+    def reasoner(self, reasoning_llm: "Llm"):
+        """Set the reasoner LLM instance.
+        
+        Args:
+            reasoning_llm: LLM instance to use for reasoning
+        """
         self._reasoner = reasoning_llm
         self._reasoner.system_prompt = REASONER_DEFAULT_SYSTEM_PROMPT
         self._reasoner.provider.use_as_reasoner(self.session_id, self.workspace)
     
     @model_validator(mode="after")
-    def start_provider(self)->Self:
+    def start_provider(self) -> Self:
+        """Initialize the provider after model validation."""
         self.provider = Providers[self.config.provider.upper()].get_instance(self.config)
         if self.config.reasoner:
             self.reasoner = Llm.from_config(self.config.reasoner)
         return self
     
     @classmethod
-    def from_config(cls, config :LlmConfig)->"Llm":
+    def from_config(cls, config: LlmConfig) -> "Llm":
+        """Create an LLM instance from configuration.
+        
+        Args:
+            config: LLM configuration
+            
+        Returns:
+            Initialized LLM instance
+        """
         return cls(config=config)
     
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> Callable:
+        """Get the tokenizer function from the provider."""
         return self.provider.tokenizer_fn
     
     @computed_field
-    def usage(self)->UsageInfo:
+    def usage(self) -> UsageInfo:
+        """Get usage information from the provider."""
         return self.provider.usage
     
     @staticmethod
-    def _include_reasoning_as_prefix(prefix_prompt :Union[str, List[str], None], reasoning :str)->List[str]:
+    def _include_reasoning_as_prefix(prefix_prompt: Union[str, List[str], reasoning: str) -> List[str]:
+        """Include reasoning steps as prefix prompts.
+        
+        Args:
+            prefix_prompt: Existing prefix prompts (can be str, list of str, or None)
+            reasoning: Reasoning steps to include
+            
+        Returns:
+            Combined prompts with reasoning included
+        """
         if not prefix_prompt:
             prefix_prompt = []
         elif isinstance(prefix_prompt, str):
@@ -145,69 +220,146 @@ class Llm(BaseModel):
         return prefix_prompt
     
     def _reason(self, 
-            prompt :Union[str, BaseModel, RootModel],
-            system_prompt :Optional[Union[str, List[str]]]=None,
-            prefix_prompt :Optional[Union[str, List[str]]]=None,
-            img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
-            stream :bool=True, agent_id: Optional[str]=None, action_id :Optional[str]=None)->List[str]:
+            prompt: Union[str, BaseModel, RootModel],
+            system_prompt: Optional[Union[str, List[str]]] = None,
+            prefix_prompt: Optional[Union[str, List[str]]] = None,
+            img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+            stream: bool = True, 
+            agent_id: Optional[str] = None, 
+            action_id: Optional[str] = None) -> List[str]:
+        """Generate reasoning steps and include them in prefix prompts.
         
+        Args:
+            prompt: Input prompt for reasoning
+            system_prompt: Optional system prompt override
+            prefix_prompt: Existing prefix prompts
+            img_path: Optional image path(s) for multimodal input
+            stream: Whether to stream the response
+            agent_id: Optional agent identifier
+            action_id: Optional action identifier
+            
+        Returns:
+            List of prompts with reasoning included
+        """
         if self.reasoner:
             system_prompt = system_prompt or self.reasoner.system_prompt
-            reasoning = self.reasoner.provider.complete(prompt, system_prompt, prefix_prompt, img_path, False, stream, agent_id, action_id)
-            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
+            reasoning = self.reasoner.provider.complete(
+                prompt, system_prompt, prefix_prompt, img_path, False, stream, agent_id, action_id
+            )
+            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(
+                reasoning=reasoning, 
+                reasoning_stop_token=REASONING_STOP_TOKEN
+            )
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)
             
         return prefix_prompt
     
     async def _areason(self, 
-        prompt :Union[str, BaseModel, RootModel],
-        system_prompt :Optional[Union[str, List[str]]]=None,
-        prefix_prompt :Optional[Union[str, List[str]]]=None,
-        img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
-        stream :bool=True, agent_id: Optional[str]=None, action_id :Optional[str]=None)->List[str]:
+        prompt: Union[str, BaseModel, RootModel],
+        system_prompt: Optional[Union[str, List[str]]] = None,
+        prefix_prompt: Optional[Union[str, List[str]]] = None,
+        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+        stream: bool = True,
+        agent_id: Optional[str] = None,
+        action_id: Optional[str] = None) -> List[str]:
+        """Async version of _reason to generate reasoning steps.
         
+        Args:
+            prompt: Input prompt for reasoning
+            system_prompt: Optional system prompt override
+            prefix_prompt: Existing prefix prompts
+            img_path: Optional image path(s) for multimodal input
+            stream: Whether to stream the response
+            agent_id: Optional agent identifier
+            action_id: Optional action identifier
+            
+        Returns:
+            List of prompts with reasoning included
+        """
         if self.reasoner:
             sys_prompt = system_prompt or self.reasoner.system_prompt
-            reasoning = await self.reasoner.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn, agent_id, action_id)
-            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(reasoning=reasoning, reasoning_stop_token=REASONING_STOP_TOKEN)
+            reasoning = await self.reasoner.provider.acomplete(
+                prompt, sys_prompt, prefix_prompt, img_path, False, stream, self.logger_fn, agent_id, action_id
+            )
+            reasoning_msg = REASONING_INJECTION_TEMPLATE.format(
+                reasoning=reasoning, 
+                reasoning_stop_token=REASONING_STOP_TOKEN
+            )
             prefix_prompt = self._include_reasoning_as_prefix(prefix_prompt, reasoning_msg)            
         return prefix_prompt
     
     @retry_on_failure
     @raise_on_balance_error
-    def complete(self,
-                 prompt :Union[str, BaseModel, RootModel],
-                 system_prompt :Optional[Union[str, List[str]]]=None,
-                 prefix_prompt :Optional[Union[str, List[str]]]=None,
-                 img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
-                 json_output :bool=False,
-                 stream :bool=True,
-                 agent_id :Optional[str]=None,
-                 action_id :Optional[str]=None)->Union[str, Dict]:
+    def complete(
+            self,
+            prompt: Union[str, BaseModel, RootModel],
+            system_prompt: Optional[Union[str, List[str]]] = None,
+            prefix_prompt: Optional[Union[str, List[str]]] = None,
+            img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+            json_output: bool = False,
+            stream: bool = True,
+            agent_id: Optional[str] = None,
+            action_id: Optional[str] = None) -> Union[str, Dict]:
+        """Complete a prompt using the LLM provider.
         
+        Example:
+            >>> llm = Llm(config=LlmConfig(provider="openai", api_key="...", model="gpt-4"))
+            >>> response = llm.complete("Hello world")
+            >>> print(response)
+            
+        Args:
+            prompt: Input prompt (can be str, BaseModel, or RootModel)
+            system_prompt: Optional system prompt override
+            prefix_prompt: Additional context to prepend
+            img_path: Optional image path(s) for multimodal input
+            json_output: Whether to parse output as JSON
+            stream: Whether to stream the response
+            agent_id: Optional agent identifier
+            action_id: Optional action identifier
+            
+        Returns:
+            The completion result as either a string or dictionary (if json_output=True)
         """
-        msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
-        """
-
         sys_prompt = system_prompt or self.system_prompt
         prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path, stream, agent_id, action_id)
-        return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id, action_id)
+        return self.provider.complete(
+            prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id, action_id
+        )
     
     @retry_on_failure
     @raise_on_balance_error
-    async def acomplete(self,
-                 prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
-                 system_prompt :Optional[Union[str, List[str]]]=None,
-                 prefix_prompt :Optional[Union[str, List[str]]]=None,
-                 img_path :Optional[Union[Union[str, Path], List[Union[str, Path]]]]=None,
-                 json_output :bool=False,
-                 stream :bool=True,
-                 agent_id :Optional[str]=None,
-                 action_id :Optional[str]=None)->Union[str, Dict]:
+    async def acomplete(
+            self,
+            prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
+            system_prompt: Optional[Union[str, List[str]]] = None,
+            prefix_prompt: Optional[Union[str, List[str]]] = None,
+            img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+            json_output: bool = False,
+            stream: bool = True,
+            agent_id: Optional[str] = None,
+            action_id: Optional[str] = None) -> Union[str, Dict]:
+        """Async version of complete() to generate completions.
+        
+        Example:
+            >>> llm = Llm(config=LlmConfig(provider="openai", api_key="...", model="gpt-4"))
+            >>> response = await llm.acomplete("Hello world")
+            >>> print(response)
+            
+        Args:
+            prompt: Input prompt (can be str, list, dict, BaseModel or RootModel)
+            system_prompt: Optional system prompt override
+            prefix_prompt: Additional context to prepend
+            img_path: Optional image path(s) for multimodal input
+            json_output: Whether to parse output as JSON
+            stream: Whether to stream the response
+            agent_id: Optional agent identifier
+            action_id: Optional action identifier
+            
+        Returns:
+            The completion result as either a string or dictionary (if json_output=True)
         """
-        msg can be a simple str, list of str (mapped to answer-questions pairs from the latest) or list completion like dicts
-        """
-         
         sys_prompt = system_prompt or self.system_prompt
         prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path, stream, agent_id, action_id)
-        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id, action_id)
+        return await self.provider.acomplete(
+            prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id, action_id
+        )
