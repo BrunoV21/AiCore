@@ -83,7 +83,7 @@ class AnthropicLlm(LlmBaseProvider):
         elif event_type == "message_delta":
             output_tokens = event.usage.output_tokens
             self.usage.record_completion(
-                prompt_tokens=input_tokens,
+                prompt_tokens=0,
                 response_tokens=output_tokens,
                 completion_id=completion_id
             )

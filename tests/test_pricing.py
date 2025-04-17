@@ -199,8 +199,8 @@ class TestUsageInfoIntegration:
     def test_multiple_completions(self, mock_llm_config, static_pricing_config):
         """Test multiple completions aggregation"""
         usage_info = UsageInfo.from_pricing_config(static_pricing_config)
-        usage_info.record_completion(prompt_tokens=1000, response_tokens=2000)
-        usage_info.record_completion(prompt_tokens=500, response_tokens=1000)
+        usage_info.record_completion(completion_id="id1", prompt_tokens=1000, response_tokens=2000)
+        usage_info.record_completion(completion_id="id2", prompt_tokens=500, response_tokens=1000)
         
         assert len(usage_info.root) == 2
         assert usage_info.total_tokens == 4500
@@ -210,8 +210,8 @@ class TestUsageInfoIntegration:
     def test_cost_calculation(self, mock_llm_config, static_pricing_config):
         """Test total cost calculation"""
         usage_info = UsageInfo.from_pricing_config(static_pricing_config)
-        usage_info.record_completion(prompt_tokens=1000, response_tokens=2000)
-        usage_info.record_completion(prompt_tokens=500, response_tokens=1000, cached_tokens=300)
+        usage_info.record_completion(completion_id="id1", prompt_tokens=1000, response_tokens=2000)
+        usage_info.record_completion(completion_id="id2", prompt_tokens=500, response_tokens=1000, cached_tokens=300)
         
         expected_cost = (1500 * 10.0 + 3000 * 20.0 + 300 * 5.0) * 1e-6
         assert usage_info.total_cost == pytest.approx(expected_cost)

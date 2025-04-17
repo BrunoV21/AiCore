@@ -188,42 +188,52 @@ class UsageInfo(RootModel):
         if self._is_aggregated():
             return self.root
         
-        aggregated = defaultdict(lambda: {"prompt_tokens": 0, "response_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0})
-        unique_items = []
-        seen_ids = set()
-        items_to_aggregate = []
-        
+        # Dictionary to store the final aggregated values for each completion_id
+        aggregated_completions = {}        
+        # Group all items by completion_id
+        completion_groups = defaultdict(list)
+
         for item in self.root:
-            comp_id = item.completion_id
-            if comp_id in seen_ids:
-                items_to_aggregate.append(item)
+            completion_groups[item.completion_id].append(item)
+        
+        # Process each completion_id group
+        for comp_id, items in completion_groups.items():
+            # Group items by prompt_tokens to handle duplicates properly
+            prompt_token_groups = defaultdict(list)
+            for item in items:
+                prompt_token_groups[item.prompt_tokens].append(item)
+            # Take the sum of prompt_tokens (should be the same for all items in a group)
+            prompt_tokens = next(iter(prompt_token_groups.keys())) if prompt_token_groups else 0
+            # Process response tokens based on prompt token uniqueness
+            total_response_tokens = 0
+            if len(prompt_token_groups) > 1:
+                # If we have different prompt_tokens values, sum all response tokens
+                total_response_tokens = sum(item.response_tokens for item in items)
             else:
-                seen_ids.add(comp_id)
-                unique_items.append(item)
+                # If all prompt_tokens are equal, for each prompt_token value, 
+                # take only the maximum response_tokens
+                for pt_value, pt_items in prompt_token_groups.items():
+                    max_response_tokens = max(item.response_tokens for item in pt_items)
+                    total_response_tokens += max_response_tokens
+            
+            # For cached_tokens and cache_write_tokens, take the maximum value
+            total_cached_tokens = max((item.cached_tokens for item in items), default=0)
+            total_cache_write_tokens = max((item.cache_write_tokens for item in items), default=0)
+            
+            # Create a single aggregated CompletionUsage object
+            aggregated_completions[comp_id] = CompletionUsage.from_pricing_info(
+                completion_id=comp_id,
+                prompt_tokens=prompt_tokens,
+                response_tokens=total_response_tokens,
+                cached_tokens=total_cached_tokens,
+                cache_write_tokens=total_cache_write_tokens,
+                pricing=self.pricing
+            )
         
-        for item in items_to_aggregate:
-            comp_id = item.completion_id
-            aggregated[comp_id]["prompt_tokens"] += item.prompt_tokens
-            aggregated[comp_id]["response_tokens"] += item.response_tokens
-            aggregated[comp_id]["cached_tokens"] += item.cached_tokens
-            aggregated[comp_id]["cache_write_tokens"] += item.cache_write_tokens
+        # Replace the root with the aggregated completions
+        self.root = list(aggregated_completions.values())
         
-        result = unique_items.copy()
-        for comp_id, tokens in aggregated.items():
-            for i, item in enumerate(result):
-                if item.completion_id == comp_id:
-                    result[i] = CompletionUsage.from_pricing_info(
-                        completion_id=comp_id,
-                        prompt_tokens=item.prompt_tokens + tokens["prompt_tokens"],
-                        response_tokens=item.response_tokens + tokens["response_tokens"],
-                        cached_tokens=item.cached_tokens + tokens["cached_tokens"],
-                        cache_write_tokens=item.cache_write_tokens + tokens["cache_write_tokens"],
-                        pricing=self.pricing
-                    )
-                    break
-        
-        self.root = result
-        return result
+        return self.root
     
     @computed_field
     def total_tokens(self) -> int:
@@ -238,4 +248,4 @@ class UsageInfo(RootModel):
     def __str__(self) -> str:
         """Returns a human-readable string representation of the total usage."""
         cost_prefix = f"Cost: ${self.total_cost} | " if self.total_cost else ""
-        return f"Total |{cost_prefix} Tokens: {self.total_tokens}"
+        return f"Total | {cost_prefix} Tokens: {self.total_tokens}"
