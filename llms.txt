@@ -1,0 +1,26 @@
+# AiCore LLM Interface Documentation
+
+## Introduction
+AiCore provides a unified interface for multiple LLM providers with:
+- Provider-agnostic abstractions (10+ supported providers)
+- Configuration via YAML, environment variables, or code
+- Automatic token usage and cost tracking
+- Built-in observability and operation tracking
+- Support for synchronous and asynchronous operations
+- Advanced features like reasoning augmentation
+
+Supported Providers:
+- OpenAI (including GPT-4o, GPT-4.5)
+- Anthropic (Claude 3 models)
+- Mistral (Mistral Large, Codestral)
+- Google Gemini (Gemini 2.0/2.5)
+- Groq (Llama 70B, Mixtral)
+- NVIDIA (Nemotron, Nemo)
+- DeepSeek (R1 models)
+- OpenRouter (aggregated models)
+- xAI Grok (Grok-3)
+
+## Configuration (LlmConfig)
+LLMs can be configured through multiple methods:
+
+1. YAML files (recommended for production):
