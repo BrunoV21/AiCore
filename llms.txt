@@ -24,3 +24,189 @@ Supported Providers:
 LLMs can be configured through multiple methods:
 
 1. YAML files (recommended for production):
+```yaml
+llm:
+  provider: "openai"
+  api_key: "your_api_key"
+  model: "gpt-4o"
+  temperature: 0.7
+  max_tokens: 1000
+  reasoner:  # Optional reasoning assistant
+    provider: "groq"
+    api_key: "your_api_key"
+    model: "deepseek-r1-distill-llama-70b"
+```
+
+2. Environment variables:
+```bash
+LLM_PROVIDER=openai
+LLM_API_KEY=your_api_key
+LLM_MODEL=gpt-4o
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=1000
+```
+
+3. Programmatically:
+```python
+from aicore.llm.config import LlmConfig
+
+# Basic config
+config = LlmConfig(
+    provider="openai",
+    api_key="your_api_key",
+    model="gpt-4o"
+)
+
+# With reasoning assistant
+reasoner_config = LlmConfig(
+    provider="groq",
+    api_key="your_api_key",
+    model="deepseek-r1-distill-llama-70b"
+)
+config = LlmConfig(
+    provider="openai",
+    api_key="your_api_key",
+    model="gpt-4o",
+    reasoner=reasoner_config
+)
+```
+
+## Basic Usage
+Initialize and use the LLM:
+
+```python
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+# Initialize with config
+config = LlmConfig(provider="openai", api_key="your_api_key", model="gpt-4o")
+llm = Llm(config=config)
+
+# Synchronous completion
+response = llm.complete("Hello world")
+print(response)
+
+# Async completion
+response = await llm.acomplete("Hello world")
+print(response)
+
+# With streaming (default)
+response = llm.complete("Explain AI in simple terms", stream=True)
+# Output streams in real-time
+
+# With system prompt
+response = llm.complete(
+    "Write a poem about technology",
+    system_prompt="You are a creative poet"
+)
+```
+
+## Token Usage & Cost Tracking
+Automatic token counting and cost calculation:
+
+```python
+# Access usage information
+print(llm.usage)  # Shows current session usage
+
+# Example output:
+# Total | Cost: $0.0023 | Tokens: 342 | Prompt: 120 | Response: 222
+
+# Get detailed usage
+latest = llm.usage.latest_completion
+print(f"Cost: ${latest.cost:.4f}")
+print(f"Prompt tokens: {latest.prompt_tokens}")
+print(f"Response tokens: {latest.response_tokens}")
+
+# Pricing is automatically loaded from models_metadata.json
+# Custom pricing can be set:
+llm.usage.set_pricing(input_1m=10.0, output_1m=30.0)  # $ per 1M tokens
+```
+
+## Advanced Features
+
+### FastAPI WebSockets Integration
+```python
+from fastapi import FastAPI, WebSocket
+from aicore.llm import Llm
+
+app = FastAPI()
+llm = Llm(config=LlmConfig(...))
+
+@app.websocket("/chat")
+async def websocket_chat(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        message = await websocket.receive_text()
+        response = await llm.acomplete(message)
+        await websocket.send_text(response)
+```
+
+### Observability
+```python
+# All operations are automatically tracked
+# Access collected data:
+from aicore.observability.collector import LlmOperationCollector
+
+# Get all operations as DataFrame
+df = LlmOperationCollector.polars_from_db()
+
+# Filter by session
+df = LlmOperationCollector.polars_from_db(session_id="session123")
+
+# Key metrics:
+# - Latency
+# - Token usage
+# - Cost
+# - Error rates
+```
+
+### Multimodal Support
+```python
+# With image input
+response = llm.complete(
+    "Describe this image",
+    img_path="path/to/image.jpg"
+)
+
+# Multiple images
+response = llm.complete(
+    "Compare these two images",
+    img_path=["image1.jpg", "image2.jpg"]
+)
+```
+
+### Reasoning Augmentation
+```python
+# Configure with reasoner
+config = LlmConfig(
+    provider="openai",
+    api_key="your_api_key",
+    model="gpt-4o",
+    reasoner=LlmConfig(
+        provider="groq",
+        api_key="your_api_key",
+        model="deepseek-r1-distill-llama-70b"
+    )
+)
+
+# The main LLM will use the reasoner automatically
+response = llm.complete("Solve this complex math problem")
+```
+
+### JSON Output
+```python
+# Get structured JSON responses
+response = llm.complete(
+    "List top 3 programming languages with their pros",
+    json_output=True
+)
+# Returns parsed JSON/dict
+```
+
+
+## Best Practices
+1. Use YAML configs for production deployments
+2. Monitor usage with llm.usage
+3. Enable observability for performance tracking
+4. Use async (acomplete) for web applications
+5. Set reasonable max_tokens based on model limits
