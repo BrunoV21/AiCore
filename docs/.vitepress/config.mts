@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
@@ -6,12 +7,12 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Quickstart', link: '/quickstart/' },
-      { text: 'Configuration', link: '/config/' },
-      { text: 'LLM System', link: '/llm/' },
-      { text: 'Providers', link: '/providers/' },
-      { text: 'Observability', link: '/observability/' },
-      { text: 'Examples', link: '/examples/' }
+      { text: 'Quickstart', link: '/quickstart/index.md' },
+      { text: 'Configuration', link: '/config/index.md' },
+      { text: 'LLM System', link: '/llm/index.md' },
+      { text: 'Providers', link: '/providers/index.md' },
+      { text: 'Observability', link: '/observability/index.md' },
+      { text: 'Examples', link: '/examples/index.md' }
     ],
 
     sidebar: [
@@ -73,7 +74,7 @@ export default defineConfig({
       },
       {
         text: 'Examples',
-        link: '/examples/'
+        link: '/examples/index.md'
       },
       {
         text: 'Showcase',
