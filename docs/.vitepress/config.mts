@@ -76,7 +76,16 @@ export default withMermaid(
         },
         {
           text: 'Examples',
-          link: '/examples/index.md'
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/examples/index' },
+            { text: 'FastAPI', link: '/examples/fastapi' },
+            { text: 'Chainlit', link: '/examples/chainlit' },
+            { text: 'Observability Dashboard', link: '/examples/observability_dashboard' },
+            { text: 'Reasoning Example', link: '/examples/reasoning_example' },
+            { text: 'Simple Async LLM Call', link: '/examples/simple_async_llm_call' },
+            { text: 'Simple LLM Call', link: '/examples/simple_llm_call' }
+          ]
         },
         {
           text: 'Showcase',
