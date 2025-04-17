@@ -212,16 +212,25 @@ class UsageInfo(RootModel):
         for comp_id, tokens in aggregated.items():
             for i, item in enumerate(result):
                 if item.completion_id == comp_id:
-                    result[i] = CompletionUsage.from_pricing_info(
-                        completion_id=comp_id,
-                        prompt_tokens=item.prompt_tokens + tokens["prompt_tokens"],
-                        response_tokens=item.response_tokens + tokens["response_tokens"],
-                        cached_tokens=item.cached_tokens + tokens["cached_tokens"],
-                        cache_write_tokens=item.cache_write_tokens + tokens["cache_write_tokens"],
-                        pricing=self.pricing
-                    )
+                    if item.completion_id is None:
+                        result[i] = CompletionUsage.from_pricing_info(
+                            completion_id=comp_id,
+                            prompt_tokens=tokens["prompt_tokens"],
+                            response_tokens=tokens["response_tokens"],
+                            cached_tokens=tokens["cached_tokens"],
+                            cache_write_tokens=tokens["cache_write_tokens"],
+                            pricing=self.pricing
+                        )
+                    else:
+                        result[i] = CompletionUsage.from_pricing_info(
+                            completion_id=comp_id,
+                            prompt_tokens=item.prompt_tokens + tokens["prompt_tokens"],
+                            response_tokens=item.response_tokens + tokens["response_tokens"],
+                            cached_tokens=item.cached_tokens + tokens["cached_tokens"],
+                            cache_write_tokens=item.cache_write_tokens + tokens["cache_write_tokens"],
+                            pricing=self.pricing
+                        )
                     break
-        
         self.root = result
         return result
     
