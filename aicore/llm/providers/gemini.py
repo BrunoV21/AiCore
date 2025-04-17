@@ -29,7 +29,7 @@ class GeminiLlm(OpenAiLlm):
 
         return self
 
-    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):        
+    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         usage = chunk.usage
         if usage is not None and usage.completion_tokens:
             return super().normalize(chunk, completion_id)

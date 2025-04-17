@@ -598,8 +598,9 @@ class LlmBaseProvider(BaseModel):
         """
         message = [] 
         _skip = False
+        completeion_id = ulid.ulid()
         for chunk in stream:
-            _chunk = self.normalize_fn(chunk)
+            _chunk = self.normalize_fn(chunk, completeion_id)
             if _chunk:
                 _skip = self._handle_stream_messages(_chunk, message, _skip)
 
@@ -623,10 +624,11 @@ class LlmBaseProvider(BaseModel):
             str: Accumulated response
         """
         message = []
-        _skip = False
+        _skip = False        
+        completeion_id = ulid.ulid()
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
         async for chunk in stream:
-            _chunk = self.normalize_fn(chunk)
+            _chunk = self.normalize_fn(chunk, completeion_id)
             if _chunk:
                 _skip = await self._handle_astream_messages(_chunk, logger_fn, message, _skip)
         
