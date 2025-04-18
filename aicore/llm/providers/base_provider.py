@@ -695,7 +695,8 @@ class LlmBaseProvider(BaseModel):
             stream=stream
         )
         
-        output = None
+        output = None  
+        error_message = None
         try:
             output = self.completion_fn(**completion_args)
             
@@ -710,7 +711,6 @@ class LlmBaseProvider(BaseModel):
                 _logger.logger.info(str(self.usage))
             
             output = output if not json_output else self.extract_json(output)
-            error_message = None
 
         except Exception as e:
             error_message = str(e)
@@ -789,7 +789,8 @@ class LlmBaseProvider(BaseModel):
             stream=stream
         )
         
-        output = None
+        output = None 
+        error_message = None
         try:
             output = await self.acompletion_fn(**completion_args)
             
@@ -804,7 +805,6 @@ class LlmBaseProvider(BaseModel):
                 _logger.logger.info(str(self.usage))
             
             output = output if not json_output else self.extract_json(output)
-            error_message = None
 
         except Exception as e:
             error_message = str(e)
