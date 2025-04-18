@@ -315,7 +315,7 @@ class LlmOperationCollector(RootModel):
         # Clean request args
         cleaned_args = self._clean_completion_args(completion_args)
 
-        if not isinstance(response, (str, dict, list, None)):
+        if not isinstance(response, (str, dict, list)) and response is not None:
             return
         
         # Build a record
