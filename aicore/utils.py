@@ -16,6 +16,14 @@ from aicore.const import (
 
 def should_retry(exception: Exception) -> bool:
     """Return True if the request should be retried (i.e., error is not 400)"""
+    # Don't retry KeyboardInterrupt
+    if isinstance(exception, KeyboardInterrupt):
+        return False
+    
+    # Don't retry JSONDecodeError
+    if isinstance(exception, JSONDecodeError):
+        return False
+        
     # Don't retry BalanceError instances
     if isinstance(exception, BalanceError):
         return False
@@ -122,7 +130,7 @@ def retry_on_failure(func):
         ),
         retry=retry_if_exception(should_retry),
         before_sleep=wait_for_retry,
-        reraise=True  # Important: must reraise to propagate BalanceError
+        reraise=True  # Important: must reraise to propagate exceptions
     )
 
     if asyncio.iscoroutinefunction(func):
@@ -133,14 +141,18 @@ def retry_on_failure(func):
                 # Apply the retry decorator to a local async function
                 @retry_decorator
                 async def retry_func(*inner_args, **inner_kwargs):
-                    return await func(*inner_args, **inner_kwargs)
+                    try:
+                        return await func(*inner_args, **inner_kwargs)
+                    except KeyboardInterrupt:
+                        # Immediately break out of retry loop on KeyboardInterrupt
+                        raise
                 
                 return await retry_func(*args, **kwargs)
+            except KeyboardInterrupt:
+                # Always propagate KeyboardInterrupt without logging
+                raise
             except BalanceError:
                 # Always propagate BalanceError
-                raise
-            except KeyboardInterrupt:
-                # Always propagate KeyboardInterrupt
                 raise
             except JSONDecodeError:
                 raise
@@ -159,18 +171,25 @@ def retry_on_failure(func):
                 return None
         return async_wrapper
     else:
-        # Sync version
+        # Sync version (same pattern as async)
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             try:
                 # Apply the retry decorator
-                retry_func = retry_decorator(func)
+                @retry_decorator
+                def retry_func(*inner_args, **inner_kwargs):
+                    try:
+                        return func(*inner_args, **inner_kwargs)
+                    except KeyboardInterrupt:
+                        # Immediately break out of retry loop
+                        raise
+                
                 return retry_func(*args, **kwargs)
+            except KeyboardInterrupt:
+                # Always propagate KeyboardInterrupt without logging
+                raise
             except BalanceError:
                 # Always propagate BalanceError
-                raise
-            except KeyboardInterrupt:
-                # Always propagate KeyboardInterrupt
                 raise            
             except JSONDecodeError:
                 raise
