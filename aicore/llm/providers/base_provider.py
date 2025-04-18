@@ -695,6 +695,7 @@ class LlmBaseProvider(BaseModel):
             stream=stream
         )
         
+        output = None
         try:
             output = self.completion_fn(**completion_args)
             
@@ -713,7 +714,6 @@ class LlmBaseProvider(BaseModel):
 
         except Exception as e:
             error_message = str(e)
-            output = None
             raise e
         
         finally:
@@ -788,7 +788,8 @@ class LlmBaseProvider(BaseModel):
             img_path=img_path,
             stream=stream
         )
-
+        
+        output = None
         try:
             output = await self.acompletion_fn(**completion_args)
             
@@ -807,7 +808,6 @@ class LlmBaseProvider(BaseModel):
 
         except Exception as e:
             error_message = str(e)
-            output = None
             raise e
         
         finally:
