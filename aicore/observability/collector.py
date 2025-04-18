@@ -314,6 +314,9 @@ class LlmOperationCollector(RootModel):
     ) -> LlmOperationRecord:
         # Clean request args
         cleaned_args = self._clean_completion_args(completion_args)
+
+        if not isinstance(response, (str, dict, list, None)):
+            return
         
         # Build a record
         record = LlmOperationRecord(
@@ -365,7 +368,7 @@ class LlmOperationCollector(RootModel):
             input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
         
-        if self.engine and self.DBSession:
+        if self.engine and self.DBSession and record:
             try:
                 self._insert_record_to_db(record)
             except Exception as e:
@@ -398,7 +401,7 @@ class LlmOperationCollector(RootModel):
             input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
         
-        if self.async_engine and self.aDBSession:
+        if self.async_engine and self.aDBSession and record:
             await self.create_tables()
             try:
                 await self._a_insert_record_to_db(record)
