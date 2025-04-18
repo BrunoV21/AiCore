@@ -138,6 +138,9 @@ def retry_on_failure(func):
             except BalanceError:
                 # Always propagate BalanceError
                 raise
+            except KeyboardInterrupt:
+                # Always propagate KeyboardInterrupt
+                raise
             except Exception as e:
                 # Special handling for balance-like errors
                 if is_out_of_balance(e):
@@ -162,6 +165,9 @@ def retry_on_failure(func):
                 return retry_func(*args, **kwargs)
             except BalanceError:
                 # Always propagate BalanceError
+                raise
+            except KeyboardInterrupt:
+                # Always propagate KeyboardInterrupt
                 raise
             except Exception as e:
                 # Special handling for balance-like errors
