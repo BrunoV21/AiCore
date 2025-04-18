@@ -1,4 +1,5 @@
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from json import JSONDecodeError
 from functools import wraps
 import requests
 import asyncio
@@ -141,6 +142,8 @@ def retry_on_failure(func):
             except KeyboardInterrupt:
                 # Always propagate KeyboardInterrupt
                 raise
+            except JSONDecodeError:
+                raise
             except Exception as e:
                 # Special handling for balance-like errors
                 if is_out_of_balance(e):
@@ -168,6 +171,8 @@ def retry_on_failure(func):
                 raise
             except KeyboardInterrupt:
                 # Always propagate KeyboardInterrupt
+                raise            
+            except JSONDecodeError:
                 raise
             except Exception as e:
                 # Special handling for balance-like errors
