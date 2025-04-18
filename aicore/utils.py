@@ -20,6 +20,9 @@ def should_retry(exception: Exception) -> bool:
     if isinstance(exception, KeyboardInterrupt):
         return False
     
+    if isinstance(exception, asyncio.CancelledError):
+        return False
+    
     # Don't retry JSONDecodeError
     if isinstance(exception, JSONDecodeError):
         return False
@@ -83,6 +86,7 @@ def wait_for_retry(retry_state):
     next_attempt_in = retry_state.next_action.sleep  # Time until next retry in seconds
     
     last_exception = retry_state.outcome.exception()
+    print(f"{last_exception=}")
     exception_str = str(last_exception)
     
     # Handle Retry-After header if present (for rate limiting)
@@ -148,6 +152,8 @@ def retry_on_failure(func):
                         raise
                 
                 return await retry_func(*args, **kwargs)
+            except asyncio.CancelledError:
+                raise
             except KeyboardInterrupt:
                 # Always propagate KeyboardInterrupt without logging
                 raise
