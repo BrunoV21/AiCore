@@ -556,6 +556,7 @@ class LlmOperationCollector(RootModel):
             _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
             return None
         
+        session = None
         try:
             session = cls.DBSession()
             
@@ -610,7 +611,9 @@ class LlmOperationCollector(RootModel):
             _logger.logger.warning(f"Error executing database query: {str(e)}")
             if 'session' in locals():
                 session.close()
-            return None
+        finally:
+            if session is not None:
+                session.close()
    
     @staticmethod
     async def _apolars_from_db(cls,
@@ -716,6 +719,7 @@ class LlmOperationCollector(RootModel):
             _logger.logger.warning("pip install aicore for SQLAlchemy integration")
             return {}
         
+        session = None
         try:
             cls = cls()
             session = cls.DBSession()
@@ -750,7 +754,10 @@ class LlmOperationCollector(RootModel):
             _logger.logger.error(f"Error retrieving filter options: {str(e)}")
             if 'session' in locals():
                 session.close()
-            return {}
+        finally:
+            if session is not None:
+                session.close()
+        return {}
 
     @classmethod
     def get_metrics_summary(cls,
@@ -810,7 +817,10 @@ class LlmOperationCollector(RootModel):
             _logger.logger.error(f"Error executing metrics query: {str(e)}")
             if 'session' in locals():
                 session.close()
-            return {}
+        finally:
+            if session is not None:
+                session.close()
+        return {}
 
 if __name__ == "__main__":
     LlmOperationCollector()
