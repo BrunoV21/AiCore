@@ -714,6 +714,7 @@ class LlmBaseProvider(BaseModel):
 
         except Exception as e:
             error_message = str(e)
+            output = None 
             raise e
         
         finally:
@@ -808,6 +809,7 @@ class LlmBaseProvider(BaseModel):
 
         except Exception as e:
             error_message = str(e)
+            output = None 
             raise e
         
         finally:
