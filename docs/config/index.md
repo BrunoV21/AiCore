@@ -6,7 +6,7 @@ Welcome to the AiCore Configuration documentation! This section covers all aspec
 ## Configuration Options
 
 1. [LLM Configuration](./llmconfig.md) - Configure LLM providers and models
-2. [Environment Variables](../.env-example) - Reference for environment-based configuration
+2. [Environment Variables](./.env-example) - Reference for environment-based configuration
 3. [YAML Configuration](../config/) - Example configuration files
 
 ## Key Concepts
@@ -32,3 +32,27 @@ AiCore supports multiple configuration sources with the following precedence:
 4. Initialize your components using the configuration
 
 For detailed provider-specific configuration, see the [Providers section](../providers/).
+
+## Environment Variables Reference
+
+The following environment variables are commonly used:
+
+```bash
+# Core Configuration
+AICORE_LOG_LEVEL=INFO
+AICORE_CACHE_ENABLED=true
+
+# LLM Providers
+OPENAI_API_KEY=your-key-here
+ANTHROPIC_API_KEY=your-key-here
+GROQ_API_KEY=your-key-here
+
+# Database Connections
+CONNECTION_STRING="postgresql://user:password@localhost/dbname"
+ASYNC_CONNECTION_STRING="postgresql+asyncpg://user:password@localhost/dbname"
+
+# Custom Models
+CUSTOM_MODELS='["gemini-2.5-pro-exp-03-25"]'
+```
+
+See the complete [.env-example](./.env-example) file for all available options.

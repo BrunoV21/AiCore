@@ -26,8 +26,8 @@ export default withMermaid(
             { 
               text: 'Quickstart', 
               items: [
-                { text: 'Installation', link: '/quickstart/installation' },
-                { text: 'First Request', link: '/quickstart/first-request' }
+                { text: 'Installation', link: '/quickstart/installation.md' },
+                { text: 'First Request', link: '/quickstart/first-request.md' }
               ]
             }
           ]
@@ -35,63 +35,63 @@ export default withMermaid(
         {
           text: 'Configuration',
           items: [
-            { text: 'LLM Configuration', link: '/config/llmconfig' }
+            { text: 'LLM Configuration', link: '/config/llmconfig.md' }
           ]
         },
         {
           text: 'LLM System',
           collapsed: false,
           items: [
-            { text: 'Overview', link: '/llm/overview' },
-            { text: 'Usage', link: '/llm/usage' },
-            { text: 'Retry Mechanism', link: '/llm/retry' },
-            { text: 'Base Provider', link: '/llm/base_provider' },
-            { text: 'Models Metadata', link: '/llm/models_metadata' }
+            { text: 'Overview', link: '/llm/overview.md' },
+            { text: 'Usage', link: '/llm/usage.md' },
+            { text: 'Retry Mechanism', link: '/llm/retry.md' },
+            { text: 'Base Provider', link: '/llm/base_provider.md' },
+            { text: 'Models Metadata', link: '/llm/models_metadata.md' }
           ]
         },
         {
           text: 'Providers',
           collapsed: false,
           items: [
-            { text: 'OpenAI', link: '/providers/openai' },
-            { text: 'Anthropic', link: '/providers/anthropic' },
-            { text: 'Mistral', link: '/providers/mistral' },
-            { text: 'Groq', link: '/providers/groq' },
-            { text: 'Gemini', link: '/providers/gemini' },
-            { text: 'NVIDIA', link: '/providers/nvidia' },
-            { text: 'Deepseek', link: '/providers/deepseek' },
-            { text: 'Grok', link: '/providers/grok' },
-            { text: 'OpenRouter', link: '/providers/openrouter' }
+            { text: 'OpenAI', link: '/providers/openai.md' },
+            { text: 'Anthropic', link: '/providers/anthropic.md' },
+            { text: 'Mistral', link: '/providers/mistral.md' },
+            { text: 'Groq', link: '/providers/groq.md' },
+            { text: 'Gemini', link: '/providers/gemini.md' },
+            { text: 'NVIDIA', link: '/providers/nvidia.md' },
+            { text: 'Deepseek', link: '/providers/deepseek.md' },
+            { text: 'Grok', link: '/providers/grok.md' },
+            { text: 'OpenRouter', link: '/providers/openrouter.md' }
           ]
         },
         {
           text: 'Observability',
           collapsed: false,
           items: [
-            { text: 'Overview', link: '/observability/overview' },
-            { text: 'Collector', link: '/observability/collector' },
-            { text: 'Dashboard', link: '/observability/dashboard' },
-            { text: 'SQL Integration', link: '/observability/sql' },
-            { text: 'Polars Integration', link: '/observability/polars' }
+            { text: 'Overview', link: '/observability/overview.md' },
+            { text: 'Collector', link: '/observability/collector.md' },
+            { text: 'Dashboard', link: '/observability/dashboard.md' },
+            { text: 'SQL Integration', link: '/observability/sql.md' },
+            { text: 'Polars Integration', link: '/observability/polars.md' }
           ]
         },
         {
           text: 'Examples',
           collapsed: false,
           items: [
-            { text: 'Overview', link: '/examples/index' },
-            { text: 'FastAPI', link: '/examples/fastapi' },
-            { text: 'Chainlit', link: '/examples/chainlit' },
-            { text: 'Observability Dashboard', link: '/examples/observability_dashboard' },
-            { text: 'Reasoning Example', link: '/examples/reasoning_example' },
-            { text: 'Simple Async LLM Call', link: '/examples/simple_async_llm_call' },
-            { text: 'Simple LLM Call', link: '/examples/simple_llm_call' }
+            { text: 'Overview', link: '/examples/index.md' },
+            { text: 'FastAPI', link: '/examples/fastapi.md' },
+            { text: 'Chainlit', link: '/examples/chainlit.md' },
+            { text: 'Observability Dashboard', link: '/examples/observability_dashboard.md' },
+            { text: 'Reasoning Example', link: '/examples/reasoning_example.md' },
+            { text: 'Simple Async LLM Call', link: '/examples/simple_async_llm_call.md' },
+            { text: 'Simple LLM Call', link: '/examples/simple_llm_call.md' }
           ]
         },
         {
           text: 'Showcase',
           items: [
-            { text: 'Built with AiCore', link: '/built-with-aicore' }
+            { text: 'Built with AiCore', link: '/built-with-aicore.md' }
           ]
         }
       ],
@@ -107,7 +107,7 @@ export default withMermaid(
     },
 
     mermaid: {
-      theme: "default", // "dark", "forest", etc.
+      theme: "default",
     },
 
     mermaidPlugin: {

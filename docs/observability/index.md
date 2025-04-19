@@ -33,7 +33,7 @@ The Observability system in AiCore provides comprehensive tools for monitoring, 
    - Large-scale data processing
    - Python-native interface
 
-5. **[Logging System](../logger.md)** - Unified logging infrastructure
+5. **[Logging System](./logger.md)** - Unified logging infrastructure
    - Structured logging
    - Correlation IDs
    - Multiple output formats
@@ -46,4 +46,4 @@ To enable observability in your project:
 2. Import the dashboard components
 3. Start tracking operations with minimal code changes
 
-For detailed implementation, see our [example dashboard](../examples/observability_dashboard.py).
+For detailed implementation, see our [example dashboard](../examples/observability_dashboard.md).

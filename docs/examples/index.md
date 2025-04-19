@@ -8,22 +8,22 @@ Welcome to the AiCore Examples documentation! This section provides practical im
 To run any of these examples:
 1. Clone the repository
 2. Install dependencies (`pip install -r requirements.txt`)
-3. Configure your environment variables or YAML files
+3. Configure your environment variables (see [.env-example](../config/.env-example))
 4. Run the example scripts
 
 ## Featured Examples
 
 ### Basic Usage
-- [Simple LLM Call](../examples/simple_llm_call.py) - Basic synchronous usage
-- [Async LLM Call](../examples/simple_async_llm_call.py) - Asynchronous operations
+- [Simple LLM Call](./simple_llm_call.md) - Basic synchronous usage
+- [Async LLM Call](./simple_async_llm_call.md) - Asynchronous operations
 
 ### Application Integrations
-- [Chainlit Demo](../examples/chainlit/) - Interactive chat application with UI
-- [FastAPI Service](../examples/fastapi/) - Production-ready API service implementation
+- [Chainlit Demo](./chainlit.md) - Interactive chat application with UI
+- [FastAPI Service](./fastapi.md) - Production-ready API service implementation
 
 ### Advanced Features
-- [Reasoning Example](../examples/reasoning_example.py) - Advanced reasoning augmentation
-- [Observability Dashboard](../examples/observability_dashboard.py) - Monitoring and metrics implementation
+- [Reasoning Example](./reasoning_example.md) - Advanced reasoning augmentation
+- [Observability Dashboard](./observability_dashboard.md) - Monitoring and metrics implementation
 
 ## Key Features Demonstrated
 - Multiple integration patterns (CLI, Web, Chat)

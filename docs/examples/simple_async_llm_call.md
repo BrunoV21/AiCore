@@ -188,6 +188,6 @@ asyncio.run(main())
 
 ## Next Steps
 
-- Explore [FastAPI integration](../fastapi.md) for web applications
-- Learn about [reasoning augmentation](../reasoning_example.md)
-- Check [observability features](../../observability/overview.md) for monitoring
+- Explore [FastAPI integration](./fastapi.md) for web applications
+- Learn about [reasoning augmentation](./reasoning_example.md) 
+- Check [observability features](../observability/overview.md) for monitoring
