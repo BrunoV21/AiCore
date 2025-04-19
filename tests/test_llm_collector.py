@@ -347,8 +347,8 @@ def test_init_dbsession(monkeypatch):
     monkeypatch.setenv("CONNECTION_STRING", "sqlite:///:memory:")
     collector = LlmOperationCollector().init_dbsession()
     assert collector._table_initialized is True
-    assert collector.engine is not None
-    assert collector.DBSession is not None
+    assert collector._engine is not None
+    assert collector._session_factory is not None
 
 
 def test_clean_completion_args():
@@ -430,7 +430,7 @@ def test_record_completion_db(monkeypatch, tmp_path):
     assert collector._last_inserted_record == record.operation_id
 
     # Use the collector’s DBSession to query the inserted records.
-    session_local = collector.DBSession()
+    session_local = collector._session_factory()
     db_sess = session_local.query(Session).filter_by(session_id=record.session_id).first()
     assert db_sess is not None
 
@@ -525,106 +525,3 @@ def test_polars_from_db(monkeypatch, tmp_path):
     expected_cols = ["session_id", "workspace", "agent_id", "action_id", "operation_id"]
     for col in expected_cols:
         assert col in df.columns
-
-
-def test_get_filter_options(monkeypatch, tmp_path):
-    """
-    Test that get_filter_options returns unique filter values for agent_id, session_id, and workspace.
-    """
-    db_file = tmp_path / "test.db"
-    db_url = "sqlite:///" + str(db_file)
-    monkeypatch.setenv("CONNECTION_STRING", db_url)
-    
-    collector = LlmOperationCollector().init_dbsession()
-    storage_file = tmp_path / "observability.json"
-    collector.storage_path = str(storage_file)
-    
-    # Insert two records with distinct values.
-    args = {"param": "value"}
-    collector.record_completion(
-        completion_args=args,
-        operation_type="completion",
-        provider="provider1",
-        response="resp1",
-        session_id="sess1",
-        workspace="ws1",
-        agent_id="agent1",
-        action_id="action1",
-        input_tokens=5,
-        output_tokens=3,
-        cost=0.05,
-        latency_ms=100,
-        error_message=""
-    )
-    collector.record_completion(
-        completion_args=args,
-        operation_type="completion",
-        provider="provider2",
-        response="resp2",
-        session_id="sess2",
-        workspace="ws2",
-        agent_id="agent2",
-        action_id="action2",
-        input_tokens=8,
-        output_tokens=4,
-        cost=0.08,
-        latency_ms=120,
-        error_message=""
-    )
-    patch_init_with_db(monkeypatch, db_url)
-    
-    filters = LlmOperationCollector.get_filter_options()
-    assert "agent_id" in filters
-    assert "session_id" in filters
-    assert "workspace" in filters
-    assert "agent1" in filters["agent_id"]
-    assert "agent2" in filters["agent_id"]
-    assert "sess1" in filters["session_id"]
-    assert "sess2" in filters["session_id"]
-    assert "ws1" in filters["workspace"]
-    assert "ws2" in filters["workspace"]
-
-
-def test_get_metrics_summary(monkeypatch, tmp_path):
-    """
-    Test that get_metrics_summary aggregates metrics correctly.
-    """
-    db_file = tmp_path / "test.db"
-    db_url = "sqlite:///" + str(db_file)
-    monkeypatch.setenv("CONNECTION_STRING", db_url)
-    
-    collector = LlmOperationCollector().init_dbsession()
-    storage_file = tmp_path / "observability.json"
-    collector.storage_path = str(storage_file)
-    
-    args = {"param": "value"}
-    collector.record_completion(
-        completion_args=args,
-        operation_type="completion",
-        provider="provider_summary",
-        response="summary response",
-        session_id="sess_sum",
-        workspace="ws_sum",
-        agent_id="agent_sum",
-        action_id="action_sum",
-        input_tokens=30,
-        output_tokens=20,
-        cost=0.50,
-        latency_ms=250,
-        error_message=""
-    )
-    patch_init_with_db(monkeypatch, db_url)
-    
-    summary = LlmOperationCollector.get_metrics_summary(
-        agent_id="agent_sum",
-        session_id="sess_sum",
-        workspace="ws_sum"
-    )
-    assert "total_operations" in summary
-    assert summary["total_operations"] >= 1
-    assert "avg_latency_ms" in summary
-    assert summary["avg_latency_ms"] > 0
-    assert "total_input_tokens" in summary
-    assert summary["total_input_tokens"] >= 30
-    assert "total_cost" in summary
-    assert summary["total_cost"] >= 0.50

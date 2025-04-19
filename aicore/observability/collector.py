@@ -164,85 +164,62 @@ class LlmOperationRecord(BaseModel):
         }
     
 
-
 class LlmOperationCollector(RootModel):
     root: List[LlmOperationRecord] = []
     _storage_path: Optional[Union[str, Path]] = None
-    _table_initialized :Optional[bool]=False
-    _last_inserted_record :Optional[str]=None
-    _engine :Optional[Any]=None
+    _table_initialized: Optional[bool] = False
+    _last_inserted_record: Optional[str] = None
+    _engine: Optional[Any] = None
     _async_engine: Optional[Any] = None
-    _dbsession :Optional[Any]=None
-    _adbsession: Optional[Any] = None
+    _session_factory: Optional[Any] = None
+    _async_session_factory: Optional[Any] = None
 
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
-            from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
             from dotenv import load_dotenv
             load_dotenv()
+            
             conn_str = os.environ.get("CONNECTION_STRING")
-            async_conn_str = os.environ.get("ASYNC_CONNECTION_STRING")  # Add async DB connectio
+            async_conn_str = os.environ.get("ASYNC_CONNECTION_STRING")
+            
             try:
                 if conn_str:
-                    self.engine = create_engine(conn_str)
-                    self.DBSession = sessionmaker(bind=self.engine)
-                    Base.metadata.create_all(self.engine)
+                    self._engine = create_engine(conn_str)
+                    self._session_factory = sessionmaker(bind=self._engine)
+                    Base.metadata.create_all(self._engine)
                     self._table_initialized = True 
+                
                 # Async Engine
                 if async_conn_str:
-                    self.async_engine = create_async_engine(async_conn_str)
-                    self.aDBSession = async_sessionmaker(bind=self.async_engine, class_=AsyncSession)
+                    self._async_engine = create_async_engine(async_conn_str)
+                    self._async_session_factory = async_sessionmaker(
+                        bind=self._async_engine, 
+                        expire_on_commit=False
+                    )
                 
             except Exception as e:
-                    _logger.logger.warning(f"Database connection failed: {str(e)}")
+                _logger.logger.warning(f"Database connection failed: {str(e)}")
 
         except ModuleNotFoundError:
             raise ModuleNotFoundError("pip install aicore[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
+        
         return self
     
     async def create_tables(self):
-        async with self.async_engine.begin() as conn:
+        if not self._async_engine:
+            return
+            
+        async with self._async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            self._table_initialized = True 
+            self._table_initialized = True
 
     @property
     def storage_path(self) -> Optional[Union[str, Path]]:
         return self._storage_path
-
-    @property
-    def async_engine(self):
-        return self._async_engine
-    
-    @async_engine.setter
-    def async_engine(self, engine):
-        self._async_engine = engine
-    
-    @property
-    def engine(self):
-        return self._engine
-    
-    @engine.setter
-    def engine(self, engine):
-        self._engine = engine
-
-    @property
-    def DBSession(self):
-        return self._dbsession
-    
-    @DBSession.setter
-    def DBSession(self, session):
-        self._dbsession = session
-
-    @property
-    def aDBSession(self):
-        return self._adbsession
-    
-    @aDBSession.setter
-    def aDBSession(self, session):
-        self._adbsession = session    
 
     @storage_path.setter
     def storage_path(self, value: Union[str, Path]):
@@ -316,7 +293,7 @@ class LlmOperationCollector(RootModel):
         cleaned_args = self._clean_completion_args(completion_args)
 
         if not isinstance(response, (str, dict, list)) and response is not None:
-            return
+            return None
         
         # Build a record
         record = LlmOperationRecord(
@@ -361,14 +338,14 @@ class LlmOperationCollector(RootModel):
         error_message: Optional[str] = None,
         extras: Optional[str] = None
     ) -> LlmOperationRecord:
-        # Clean request args
+        # Create record
         record = self._handle_record(
             completion_args, operation_type, provider, response, 
             session_id, workspace, agent_id, action_id, 
             input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
         
-        if self.engine and self.DBSession and record:
+        if self._engine and self._session_factory and record:
             try:
                 self._insert_record_to_db(record)
             except Exception as e:
@@ -394,15 +371,16 @@ class LlmOperationCollector(RootModel):
         error_message: Optional[str] = None,
         extras: Optional[str] = None
     ) -> LlmOperationRecord:
-        # Clean request args
+        # Create record
         record = self._handle_record(
             completion_args, operation_type, provider, response, 
             session_id, workspace, agent_id, action_id, 
             input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
         
-        if self.async_engine and self.aDBSession and record:
-            await self.create_tables()
+        if self._async_engine and self._async_session_factory and record:
+            if not self._table_initialized:
+                await self.create_tables()
             try:
                 await self._a_insert_record_to_db(record)
             except Exception as e:
@@ -412,77 +390,79 @@ class LlmOperationCollector(RootModel):
     
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database using SQLAlchemy."""
-        if not self.DBSession:
-            if self.aDBSession:
+        if not self._session_factory:
+            if self._async_session_factory:
                 _logger.logger.warning("You have configured an async connection to a db but are trying to establish a sync one. Pass CONNECTION_STRING env var.")
             return
             
         serialized = record.serialize_model()
-        session = self.DBSession()
         
-        try:
-            # Check if session exists, create if it doesn't
-            db_session = session.query(Session).filter_by(session_id=serialized['session_id']).first()
-            if not db_session:
-                db_session = Session(
+        # Use context manager for session handling
+        with self._session_factory() as session:
+            try:
+                # Check if session exists, create if it doesn't
+                db_session = session.query(Session).filter_by(session_id=serialized['session_id']).first()
+                if not db_session:
+                    db_session = Session(
+                        session_id=serialized['session_id'],
+                        workspace=serialized['workspace'],
+                        agent_id=serialized['agent_id']
+                    )
+                    session.add(db_session)
+                
+                # Create message record
+                message = Message(
+                    operation_id=serialized['operation_id'],
                     session_id=serialized['session_id'],
-                    workspace=serialized['workspace'],
-                    agent_id=serialized['agent_id']
+                    action_id=serialized['action_id'],
+                    timestamp=serialized['timestamp'],
+                    system_prompt=serialized['system_prompt'],
+                    user_prompt=serialized['user_prompt'],
+                    response=serialized['response'],
+                    assistant_message=serialized['assistant_message'],
+                    history_messages=serialized['history_messages'],
+                    completion_args=serialized['completion_args'],
+                    error_message=serialized['error_message']
                 )
-                session.add(db_session)
-            
-            # Create message record
-            message = Message(
-                operation_id=serialized['operation_id'],
-                session_id=serialized['session_id'],
-                action_id=serialized['action_id'],
-                timestamp=serialized['timestamp'],
-                system_prompt=serialized['system_prompt'],
-                user_prompt=serialized['user_prompt'],
-                response=serialized['response'],
-                assistant_message=serialized['assistant_message'],
-                history_messages=serialized['history_messages'],
-                completion_args=serialized['completion_args'],
-                error_message=serialized['error_message']
-            )
-            session.add(message)
-            # Create metrics record
-            metric = Metric(
-                operation_id=serialized['operation_id'],
-                operation_type=serialized['operation_type'],
-                provider=serialized['provider'],
-                model=serialized['model'],
-                success=serialized['success'],
-                temperature=serialized['temperature'],
-                max_tokens=serialized['max_tokens'],
-                input_tokens=serialized['input_tokens'],
-                output_tokens=serialized['output_tokens'],
-                cached_tokens=serialized['cached_tokens'],
-                total_tokens=serialized['total_tokens'],
-                cost=serialized['cost'],
-                latency_ms=serialized['latency_ms'],
-                extras=serialized['extras']
-            )
-            session.add(metric)
-            
-            # Commit all changes
-            session.commit()
-            self._last_inserted_record = serialized['operation_id']
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+                session.add(message)
+                
+                # Create metrics record
+                metric = Metric(
+                    operation_id=serialized['operation_id'],
+                    operation_type=serialized['operation_type'],
+                    provider=serialized['provider'],
+                    model=serialized['model'],
+                    success=serialized['success'],
+                    temperature=serialized['temperature'],
+                    max_tokens=serialized['max_tokens'],
+                    input_tokens=serialized['input_tokens'],
+                    output_tokens=serialized['output_tokens'],
+                    cached_tokens=serialized['cached_tokens'],
+                    total_tokens=serialized['total_tokens'],
+                    cost=serialized['cost'],
+                    latency_ms=serialized['latency_ms'],
+                    extras=serialized['extras']
+                )
+                session.add(metric)
+                
+                # Commit all changes
+                session.commit()
+                self._last_inserted_record = serialized['operation_id']
+            except Exception as e:
+                session.rollback()
+                raise e
 
     async def _a_insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database asynchronously."""
-        if not self.aDBSession:
-            if self.DBSession:
+        if not self._async_session_factory:
+            if self._session_factory:
                 _logger.logger.warning("You have configured a sync connection to a db but are trying to establish an async one. Pass ASYNC_CONNECTION_STRING env var.")
             return
 
         serialized = record.serialize_model()
-        async with self.aDBSession() as session:
+        
+        # Use async context manager for session handling
+        async with self._async_session_factory() as session:
             try:
                 from sqlalchemy.future import select
                 # Check if session exists, create if it doesn't
@@ -539,15 +519,44 @@ class LlmOperationCollector(RootModel):
                 await session.rollback()
                 raise e
 
-    @staticmethod
-    def _polars_from_db(cls,
+    @classmethod
+    def polars_from_db(cls,
+        agent_id: Optional[str] = None,
+        action_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        workspace: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> "pl.DataFrame":  # noqa: F821
+        """
+        Query the database and return results as a Polars DataFrame.
+        Works with any database supported by SQLAlchemy.
+        """
+        instance = cls()
+        
+        if instance._session_factory and instance._engine:
+            return instance._polars_from_db(
+                agent_id, action_id, session_id, workspace, start_date, end_date
+            )
+        elif instance._async_session_factory and instance._async_engine:
+            return asyncio.run(instance._apolars_from_db(
+                agent_id, action_id, session_id, workspace, start_date, end_date
+            ))
+        else:
+            try:
+                import polars as pl
+                return pl.DataFrame()
+            except ModuleNotFoundError:
+                _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
+                return None
+
+    def _polars_from_db(self,
                       agent_id: Optional[str] = None,
                       action_id: Optional[str] = None,
                       session_id: Optional[str] = None,
                       workspace: Optional[str] = None,
                       start_date: Optional[str] = None,
-                      end_date: Optional[str] = None,
-                      db_url: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+                      end_date: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
         """
         Query the database (using SQLAlchemy) and return results as a Polars DataFrame.
         Works with any database supported by SQLAlchemy.
@@ -559,67 +568,62 @@ class LlmOperationCollector(RootModel):
             _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
             return None
         
-        session = None
-        try:
-            session = cls.DBSession()
-            
-            # Build query with filters
-            query = session.query(
-                Session.session_id, Session.workspace, Session.agent_id,
-                Message.action_id, Message.operation_id, Message.timestamp, 
-                Message.system_prompt, Message.user_prompt, Message.response,
-                Message.assistant_message, Message.history_messages, 
-                Message.completion_args, Message.error_message,
-                Metric.operation_type, Metric.provider, Metric.model, 
-                Metric.success, Metric.temperature, Metric.max_tokens, 
-                Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
-                Metric.cost, Metric.latency_ms, Metric.extras
-            ).join(Message, Session.session_id == Message.session_id
-            ).join(Metric, Message.operation_id == Metric.operation_id)
-            
-            # Apply filters
-            if agent_id:
-                query = query.filter(Session.agent_id == agent_id)
-            if action_id:
-                query = query.filter(Message.action_id == action_id)
-            if session_id:
-                query = query.filter(Session.session_id == session_id)
-            if workspace:
-                query = query.filter(Session.workspace == workspace)
-            if start_date:
-                query = query.filter(Message.timestamp >= start_date)
-            if end_date:
-                query = query.filter(Message.timestamp <= end_date)
+        with self._session_factory() as session:
+            try:
+                # Build query with filters
+                query = session.query(
+                    Session.session_id, Session.workspace, Session.agent_id,
+                    Message.action_id, Message.operation_id, Message.timestamp, 
+                    Message.system_prompt, Message.user_prompt, Message.response,
+                    Message.assistant_message, Message.history_messages, 
+                    Message.completion_args, Message.error_message,
+                    Metric.operation_type, Metric.provider, Metric.model, 
+                    Metric.success, Metric.temperature, Metric.max_tokens, 
+                    Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
+                    Metric.cost, Metric.latency_ms, Metric.extras
+                ).join(
+                    Message, Session.session_id == Message.session_id
+                ).join(
+                    Metric, Message.operation_id == Metric.operation_id
+                )
                 
-            # Order by operation_id descending
-            query = query.order_by(desc(Message.operation_id))
-            results = query.all()
-            session.close()
-            
-            if not results:
+                # Apply filters
+                if agent_id:
+                    query = query.filter(Session.agent_id == agent_id)
+                if action_id:
+                    query = query.filter(Message.action_id == action_id)
+                if session_id:
+                    query = query.filter(Session.session_id == session_id)
+                if workspace:
+                    query = query.filter(Session.workspace == workspace)
+                if start_date:
+                    query = query.filter(Message.timestamp >= start_date)
+                if end_date:
+                    query = query.filter(Message.timestamp <= end_date)
+                    
+                # Order by operation_id descending
+                query = query.order_by(desc(Message.operation_id))
+                results = query.all()
+                
+                if not results:
+                    return pl.DataFrame()
+                
+                # Convert to dictionary
+                records = []
+                for row in results:
+                    record = {}
+                    for idx, column in enumerate(query.column_descriptions):
+                        record[column['name']] = row[idx]
+                    records.append(record)
+                    
+                # Convert to Polars DataFrame
+                return pl.from_dicts(records)
+                
+            except Exception as e:
+                _logger.logger.warning(f"Error executing database query: {str(e)}")
                 return pl.DataFrame()
-            
-            # Convert to dictionary
-            records = []
-            for row in results:
-                record = {}
-                for idx, column in enumerate(query.column_descriptions):
-                    record[column['name']] = row[idx]
-                records.append(record)
-                
-            # Convert to Polars DataFrame
-            return pl.from_dicts(records)
-            
-        except Exception as e:
-            _logger.logger.warning(f"Error executing database query: {str(e)}")
-            if 'session' in locals():
-                session.close()
-        finally:
-            if session is not None:
-                session.close()
    
-    @staticmethod
-    async def _apolars_from_db(cls,
+    async def _apolars_from_db(self,
         agent_id: Optional[str] = None,
         action_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -630,7 +634,6 @@ class LlmOperationCollector(RootModel):
         """
         Query the database asynchronously (using SQLAlchemy) and return results as a Polars DataFrame.
         """
-        
         try:
             import polars as pl
             from sqlalchemy import desc, select
@@ -639,8 +642,7 @@ class LlmOperationCollector(RootModel):
             _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
             return None
         
-        async with cls.aDBSession() as session:
-            session :AsyncSession
+        async with self._async_session_factory() as session:
             try:
                 query = (
                     select(
@@ -685,145 +687,7 @@ class LlmOperationCollector(RootModel):
                 return pl.from_dicts(records)
             except Exception as e:
                 _logger.logger.error(f"Error executing database query: {str(e)}")
-                return None
-            
-    @classmethod
-    def polars_from_db(cls,
-        agent_id: Optional[str] = None,
-        action_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        workspace: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
-    ) -> "pl.DataFrame":  # noqa: F821
-        try:
-            import polars as pl
-        except ModuleNotFoundError:
-            _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
-            return None
-        cls = cls()
-        if cls.DBSession and cls.engine:
-            return cls._polars_from_db(cls, agent_id, action_id, session_id, workspace, start_date, end_date)
-        elif cls.aDBSession and cls.async_engine:
-            df = asyncio.run(cls._apolars_from_db(cls, agent_id, action_id, session_id, workspace, start_date, end_date))
-            return df
-        else:
-            return pl.DataFrame()
-
-    @classmethod
-    def get_filter_options(cls, db_url: Optional[str] = None) -> Dict[str, List[str]]:
-        """
-        Query the database to get unique filter values.
-        For this schema, we provide filters for agent_id, session_id, and workspace.
-        """
-        try:
-            from sqlalchemy import distinct
-        except ModuleNotFoundError:
-            _logger.logger.warning("pip install aicore for SQLAlchemy integration")
-            return {}
-        
-        session = None
-        try:
-            cls = cls()
-            session = cls.DBSession()
-            
-            filter_options = {}
-            
-            # Get unique agent IDs
-            agent_ids = session.query(distinct(Session.agent_id)).\
-                        filter(Session.agent_id.isnot(None)).\
-                        filter(Session.agent_id != '').\
-                        order_by(Session.agent_id).all()
-            filter_options['agent_id'] = [row[0] for row in agent_ids if row[0]]
-            
-            # Get unique session IDs
-            session_ids = session.query(distinct(Session.session_id)).\
-                          filter(Session.session_id.isnot(None)).\
-                          filter(Session.session_id != '').\
-                          order_by(Session.session_id).all()
-            filter_options['session_id'] = [row[0] for row in session_ids if row[0]]
-            
-            # Get unique workspaces
-            workspaces = session.query(distinct(Session.workspace)).\
-                         filter(Session.workspace.isnot(None)).\
-                         filter(Session.workspace != '').\
-                         order_by(Session.workspace).all()
-            filter_options['workspace'] = [row[0] for row in workspaces if row[0]]
-            
-            session.close()
-            return filter_options
-            
-        except Exception as e:
-            _logger.logger.error(f"Error retrieving filter options: {str(e)}")
-            if 'session' in locals():
-                session.close()
-        finally:
-            if session is not None:
-                session.close()
-        return {}
-
-    @classmethod
-    def get_metrics_summary(cls,
-                           agent_id: Optional[str] = None,
-                           session_id: Optional[str] = None,
-                           workspace: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Retrieve summary metrics from the database based on filters.
-        This summary aggregates data from the metrics table.
-        """
-        try:
-            from sqlalchemy import func
-        except ModuleNotFoundError:
-            _logger.logger.warning("pip install aicore for SQLAlchemy integration")
-            return {}
-        
-        try:
-            cls = cls()
-            session = cls.DBSession()
-            
-            # Create the query with aggregates
-            query = session.query(
-                func.count().label('total_operations'),
-                func.avg(Metric.latency_ms).label('avg_latency_ms'),
-                func.sum(Metric.input_tokens).label('total_input_tokens'),
-                func.sum(Metric.output_tokens).label('total_output_tokens'),
-                func.sum(Metric.total_tokens).label('total_tokens'),
-                func.sum(Metric.cost).label('total_cost')
-            ).join(Message, Metric.operation_id == Message.operation_id
-            ).join(Session, Message.session_id == Session.session_id)
-            
-            # Apply filters
-            if agent_id:
-                query = query.filter(Session.agent_id == agent_id)
-            if session_id:
-                query = query.filter(Session.session_id == session_id)
-            if workspace:
-                query = query.filter(Session.workspace == workspace)
-                
-            result = query.first()
-            session.close()
-            
-            if not result:
-                return {}
-                
-            # Convert to dictionary
-            return {
-                'total_operations': result.total_operations,
-                'avg_latency_ms': float(result.avg_latency_ms) if result.avg_latency_ms else 0,
-                'total_input_tokens': int(result.total_input_tokens) if result.total_input_tokens else 0,
-                'total_output_tokens': int(result.total_output_tokens) if result.total_output_tokens else 0,
-                'total_tokens': int(result.total_tokens) if result.total_tokens else 0,
-                'total_cost': float(result.total_cost) if result.total_cost else 0
-            }
-            
-        except Exception as e:
-            _logger.logger.error(f"Error executing metrics query: {str(e)}")
-            if 'session' in locals():
-                session.close()
-        finally:
-            if session is not None:
-                session.close()
-        return {}
+                return pl.DataFrame()
 
 if __name__ == "__main__":
     LlmOperationCollector()
