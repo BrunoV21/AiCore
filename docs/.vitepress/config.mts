@@ -103,7 +103,7 @@ export default withMermaid(
 
       footer: {
         message: 'Released under the MIT License.',
-        copyright: 'Copyright © 2023-present AiCore Team'
+        copyright: 'Copyright © 2024-present AiCore Team'
       }
     },
 
