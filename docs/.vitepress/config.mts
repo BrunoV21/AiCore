@@ -5,6 +5,7 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 export default withMermaid(
   defineConfig({
     title: 'AiCore Documentation',
+    base: '/AiCore/',
     description: 'Documentation for AiCore - Python-based AI core system',
     head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
     themeConfig: {
