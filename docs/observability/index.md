@@ -24,6 +24,7 @@ The Observability system in AiCore provides comprehensive tools for monitoring, 
    - Performance trend analysis
 
 3. **[SQL Analytics](./sql.md)** - Powerful query capabilities
+   - Configure your environment variables (see [.env-example](../config/env-example.md))
    - Standard SQL interface
    - Ad-hoc analysis
    - Integration with existing BI tools
