@@ -8,7 +8,7 @@ Welcome to the AiCore Examples documentation! This section provides practical im
 To run any of these examples:
 1. Clone the repository
 2. Install dependencies (`pip install -r requirements.txt`)
-3. Configure your environment variables (see [.env-example](../config/.env-example))
+3. Configure your environment variables (see [.env-example](../config/.env-example.md))
 4. Run the example scripts
 
 ## Featured Examples
