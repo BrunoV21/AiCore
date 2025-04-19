@@ -6,7 +6,7 @@ Welcome to the AiCore Configuration documentation! This section covers all aspec
 ## Configuration Options
 
 1. [LLM Configuration](./llmconfig.md) - Configure LLM providers and models
-2. [Environment Variables](../../.env-example) - Reference for environment-based configuration
+2. [Environment Variables](./.env-example) - Reference for environment-based configuration
 3. [YAML Configuration](../config/) - Example configuration files
 
 ## Key Concepts
@@ -55,4 +55,4 @@ ASYNC_CONNECTION_STRING="postgresql+asyncpg://user:password@localhost/dbname"
 CUSTOM_MODELS='["gemini-2.5-pro-exp-03-25"]'
 ```
 
-See the complete [.env-example](../../.env-example) file for all available options.
+See the complete [.env-example](./.env-example) file for all available options.
