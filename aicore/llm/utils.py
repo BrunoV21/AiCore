@@ -39,14 +39,49 @@ def parse_content(text :str):
     return content_between
 
 
-def image_to_base64(image_path :Union[Path, str])->str:
-    """Encode the image to base64."""
+def image_to_base64(image_path: Union[Path, str, bytes]) -> str:
+    """
+    Encode the image to base64.
+    
+    Args:
+        image_path: Can be a file path (str or Path) or an already encoded base64 string
+        
+    Returns:
+        Base64 encoded string of the image
+    """
+    # Check if input is already a base64 string
+    if isinstance(image_path, str) and is_base64(image_path):
+        return image_path
+    
+    # Handle file paths
     try:
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')    
+        if isinstance(image_path, (str, Path)):
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
+        # Handle if bytes were directly passed
+        elif isinstance(image_path, bytes):
+            return base64.b64encode(image_path).decode('utf-8')
+        else:
+            print(f"Error: Unsupported input type {type(image_path)}")
+            return None
     except FileNotFoundError:
         print(f"Error: The file {image_path} was not found.")
         return None
-    except Exception as e:  # Added general exception handling
+    except Exception as e:
         print(f"Error: {e}")
         return None
+
+def is_base64(s: str) -> bool:
+    """Check if a string is base64 encoded."""
+    # Check if the string matches base64 pattern
+    pattern = r'^[A-Za-z0-9+/]+={0,2}$'
+    if not re.match(pattern, s):
+        return False
+    
+    # Try to decode it
+    try:
+        # Additional check for valid base64 by trying to decode
+        base64.b64decode(s)
+        return True
+    except:
+        return False

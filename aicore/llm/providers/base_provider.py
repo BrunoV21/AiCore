@@ -503,8 +503,8 @@ class LlmBaseProvider(BaseModel):
         prompt: Union[str, List[str], List[Dict[str, str]]], 
         system_prompt: Optional[Union[List[str], str]] = None,
         prefix_prompt: Optional[Union[List[str], str]] = None,
-        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
-        stream: bool = True) -> Dict:
+        img_path: Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]] = None,
+        stream: bool = True) -> Dict: 
         """Prepare completion arguments including image processing.
         
         Args:
@@ -656,7 +656,7 @@ class LlmBaseProvider(BaseModel):
         prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel], 
         system_prompt: Optional[Union[str, List[str]]] = None,
         prefix_prompt: Optional[Union[str, List[str]]] = None,
-        img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
+        img_path: Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]] = None,
         json_output: bool = False,
         stream: bool = True,
         agent_id: Optional[str]=None,
