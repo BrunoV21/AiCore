@@ -7,7 +7,7 @@ export default withMermaid(
     title: 'AiCore Documentation',
     base: '/AiCore/',
     description: 'Documentation for AiCore - Python-based AI core system',
-    head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
+    head: [['link', { rel: 'icon', href: '/AiCore/favicon.ico' }]],
     themeConfig: {
       nav: [
         { text: 'Home', link: '/' },
