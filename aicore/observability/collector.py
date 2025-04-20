@@ -205,7 +205,7 @@ class LlmOperationCollector(RootModel):
                 _logger.logger.warning(f"Database connection failed: {str(e)}")
 
         except ModuleNotFoundError:
-            raise ModuleNotFoundError("pip install aicore[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
+            raise ModuleNotFoundError("pip install core-for-ai[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
         
         return self
     
@@ -547,7 +547,7 @@ class LlmOperationCollector(RootModel):
                 import polars as pl
                 return pl.DataFrame()
             except ModuleNotFoundError:
-                _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
+                _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
                 return None
 
     def _polars_from_db(self,
@@ -565,7 +565,7 @@ class LlmOperationCollector(RootModel):
             import polars as pl
             from sqlalchemy import desc
         except ModuleNotFoundError:
-            _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
+            _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
             return None
         
         with self._session_factory() as session:
@@ -639,7 +639,7 @@ class LlmOperationCollector(RootModel):
             from sqlalchemy import desc, select
             from sqlalchemy.ext.asyncio import AsyncSession
         except ModuleNotFoundError:
-            _logger.logger.warning("pip install aicore[all] for Polars and sql integration")
+            _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
             return None
         
         async with self._async_session_factory() as session:
