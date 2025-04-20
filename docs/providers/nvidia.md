@@ -59,13 +59,6 @@ response = llm.complete("Explain quantum computing in simple terms")
 print(response)
 ```
 
-### Streaming Response
-
-```python
-async for chunk in llm.stream("Write a poem about AI"):
-    print(chunk, end="", flush=True)
-```
-
 ## Advanced Features
 
 ### Custom Endpoints
@@ -77,28 +70,6 @@ config = LlmConfig(
     model="nvidia/llama2-70b",
     base_url="https://your-custom-endpoint.nvidia.com"
 )
-```
-
-### Error Handling
-
-```python
-from aicore.llm.providers.nvidia import NvidiaProviderError
-
-try:
-    response = llm.complete("Generate code for a Python web server")
-except NvidiaProviderError as e:
-    print(f"NVIDIA API error: {e}")
-```
-
-## Pricing and Quotas
-
-NVIDIA's pricing is token-based. You can check current pricing:
-
-```python
-from aicore.models_metadata import METADATA
-
-model_data = METADATA["nvidia/llama2-70b"]
-print(f"Price per 1M tokens: ${model_data.pricing.input * 1000000}")
 ```
 
 For the most up-to-date pricing and quota information, refer to [NVIDIA's official documentation](https://developer.nvidia.com/ai-foundation-models).

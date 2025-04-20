@@ -73,24 +73,7 @@ The observability system tracks:
    - Custom tags and metadata
 
 ## Getting Started
-
-1. **Basic Setup**:
-   ```python
-   from aicore.observability import enable_observability
-   
-   # Enable with default settings
-   enable_observability()
-   ```
-
-2. **Advanced Configuration**:
-   ```python
-   enable_observability(
-       storage="sqlite",  # or 'postgres', 'mysql', etc.
-       connection_string="sqlite:///operations.db",
-       sample_rate=1.0,  # control sampling rate
-       enable_cost_tracking=True
-   )
-   ```
+Included a connection or async connection string in your [.env file](./env-example.md)
 
 For detailed information about each component, see the dedicated documentation pages:
 

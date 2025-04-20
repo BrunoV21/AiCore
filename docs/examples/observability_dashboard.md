@@ -5,7 +5,7 @@ This guide demonstrates how to use the AiCore observability dashboard to monitor
 
 ## Prerequisites
 
-- AiCore installed (`pip install aicore`)
+- AiCore installed (`pip install core-for-ai`)
 - Python 3.10+
 - Optional: Polars for advanced data analysis (`pip install polars`)
 
@@ -33,18 +33,6 @@ llm = Llm(config=config)
 # These calls will automatically be tracked
 response1 = llm.complete("Explain quantum computing")
 response2 = await llm.acomplete("Write a poem about AI")
-```
-
-### 3. Access Collected Data
-
-```python
-from aicore.observability.collector import LlmOperationCollector
-
-# Get all operations as a list of dictionaries
-operations = LlmOperationCollector.get_operations()
-
-# Get operations for a specific session
-session_ops = LlmOperationCollector.get_operations(session_id=llm.session_id)
 ```
 
 ## Advanced Analysis with Polars
@@ -172,9 +160,6 @@ from aicore.observability.collector import LlmOperationCollector
 
 # Change storage location
 LlmOperationCollector.set_storage_path("custom_observability_data")
-
-# Disable collection for specific provider
-llm.provider.disable_collection()
 
 # Set custom metadata for all operations
 llm.extras = {"environment": "production", "app_version": "1.2.3"}

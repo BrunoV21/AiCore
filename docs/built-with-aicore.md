@@ -1,66 +1,41 @@
-
 # Projects Built with AiCore
 
 Discover how developers are leveraging AiCore to build powerful AI applications. Below are featured projects that demonstrate the flexibility and capabilities of the AiCore system.
 
 ## Featured Projects
 
-### Chainlit Chat Interface
-- **Description**: Full-featured chat application with multiple LLM provider support
+### GitRecap
+
+- **Description**: GitRecap provides instant summaries of user Git activity by combining a React frontend and a Python FastAPI backend powered by AiCore, served via WebSockets.
 - **Key Features**:
-  - Switch between different LLM providers on-the-fly
-  - Built-in reasoning capabilities with configurable templates
-  - Customizable UI with Chainlit components
-  - Docker deployment ready
-- **Repository**: [github.com/example/chainlit-aicore](https://github.com/example/chainlit-aicore)
-- **Example Code**:
-  ```python
-  from aicore.llm import LLM
-  from chainlit import user_session
-  
-  # Initialize AiCore LLM with Chainlit integration
-  llm = LLM(config_path="config.yml")
-  user_session.set("llm", llm)
-  ```
+  - Real-time Git commit summarization
+  - Full-stack implementation with React + FastAPI
+  - WebSocket-based communication with AiCore
+  - Open-source and actively maintained
+- **Links**:
+  - 🌐 [Live App](https://brunov21.github.io/GitRecap/)
+  - 📦 [GitHub Repository](https://github.com/BrunoV21/GitRecap)
+  - 📚 [GitRecap Wiki](https://github.com/BrunoV21/GitRecap/wiki)
+  - 🤗 [HuggingFace Space + Backend Code](https://huggingface.co/spaces/McLoviniTtt/GitRecap)
 
-### FastAPI Production API
-- **Description**: Enterprise-ready API service with comprehensive AI capabilities
+---
+
+### DeepReasoner4Everyone
+
+- **Description**: A lightweight HuggingFace space that lets users explore reasoner-augmented LLMs using a Chainlit frontend, all built with AiCore under the hood.
 - **Key Features**:
-  - JWT authentication
-  - Advanced rate limiting
-  - Real-time websocket support
-  - Built-in observability dashboard
-  - Example endpoints for common AI tasks
-- **Repository**: [github.com/example/fastapi-aicore](https://github.com/example/fastapi-aicore)
-- **Example Code**:
-  ```python
-  from fastapi import APIRouter
-  from aicore.llm import LLM
-  
-  router = APIRouter()
-  llm = LLM(config_path="config.yml")
-  
-  @router.post("/chat")
-  async def chat_endpoint(prompt: str):
-      return await llm.chat(prompt)
-  ```
+  - Interactive reasoning with LLMs
+  - Simple interface built with Chainlit
+  - Fully open-source and deployable
+- **Links**:
+  - 🤗 [HuggingFace Space](https://huggingface.co/spaces/McLoviniTtt/Reasoner4All)
 
-### Observability Dashboard
-- **Description**: Real-time monitoring for AI workloads
-- **Key Features**:
-  - Visualize LLM usage metrics
-  - Cost tracking per model/provider
-  - Performance monitoring
-  - SQL and Polars integration for analytics
-- **Repository**: [github.com/example/aicore-dashboard](https://github.com/example/aicore-dashboard)
+---
 
-## Community Projects
+### CodeGraph
+*comming soon...*
 
-| Project | Description | Tech Stack |
-|---------|-------------|------------|
-| [AI Content Generator](https://github.com/example/content-gen) | Automated content creation pipeline | AiCore + Celery |
-| [Customer Support Bot](https://github.com/example/support-bot) | Intelligent customer support agent | AiCore + Django |
-| [Research Assistant](https://github.com/example/research-ai) | Academic paper analysis tool | AiCore + Streamlit |
+---
 
 ## Add Your Project
 

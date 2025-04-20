@@ -42,11 +42,9 @@ class LlmBaseProvider(ABC):
 ### Additional Methods
 
 ```python
-    def get_usage(self) -> LlmUsage:
+    @property
+    def usage(self) -> LlmUsage:
         """Returns usage statistics for the provider instance"""
-        
-    def get_config(self) -> LlmConfig:
-        """Returns the current configuration"""
         
     @classmethod
     def from_config(cls, config: LlmConfig) -> 'LlmBaseProvider':
@@ -96,23 +94,6 @@ class CustomProvider(LlmBaseProvider):
     async def acomplete(self, prompt, **kwargs):
         # Implement asynchronous completion
         pass
-```
-
-## Response Format
-
-All providers should return responses in a standardized format:
-
-```python
-{
-    "content": "The generated response text",
-    "usage": {
-        "prompt_tokens": 100,
-        "completion_tokens": 200,
-        "total_tokens": 300
-    },
-    "cost": 0.0035,  # Calculated cost in USD
-    "model": "provider-model-name"
-}
 ```
 
 ## Error Handling

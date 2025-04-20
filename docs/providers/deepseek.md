@@ -30,8 +30,8 @@ config = LlmConfig(
 
 | Model Name          | Description                          | Context Window |
 |---------------------|--------------------------------------|----------------|
-| `deepseek-chat`     | General purpose chat model           | 128K tokens    |
-| `deepseek-reasoner` | Specialized reasoning model          | 128K tokens    |
+| `deepseek-chat`     | General purpose chat model           | 64K tokens    |
+| `deepseek-reasoner` | Specialized reasoning model          | 64K tokens    |
 
 ## Usage Example
 
@@ -43,27 +43,6 @@ llm = Llm(config=config)
 
 # Basic completion
 response = llm.complete("Explain quantum computing in simple terms")
-
-# Streaming response
-async for chunk in llm.stream("Write a poem about AI"):
-    print(chunk, end="")
-
-# With observability tracking
-with llm.trace("user123", "analysis_task"):
-    response = llm.complete("Analyze this dataset...")
-```
-
-## Advanced Features
-
-### Custom Templates
-
-```python
-from aicore.llm.templates import SystemMessage
-
-template = SystemMessage(
-    "You are a helpful AI assistant specialized in scientific topics."
-)
-response = llm.complete("Explain photosynthesis", system_template=template)
 ```
 
 ### Observability Integration

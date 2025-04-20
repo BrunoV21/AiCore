@@ -15,8 +15,6 @@ print(anthropic_models)
 
 ## Key Features
 
-- Full support for Claude 3 model family
-- Native streaming implementation
 - Automatic token counting and cost tracking
 - Extended thinking mode for complex reasoning
 - Prompt caching control
@@ -30,7 +28,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="anthropic",
     api_key="your_api_key",
-    model="claude-3-opus-20240229",
+    model="claude-3-7-sonnet",
     temperature=0.7,
     max_tokens=4000,
     thinking=True  # Enable extended reasoning
@@ -52,19 +50,6 @@ print(response)
 
 ## Advanced Usage
 
-### Streaming Responses
-
-```python
-# Synchronous streaming
-for chunk in llm.complete("Write a poem about AI", stream=True):
-    print(chunk, end="", flush=True)
-
-# Async streaming
-async def stream_response():
-    async for chunk in await llm.acomplete("Explain blockchain", stream=True):
-        print(chunk, end="", flush=True)
-```
-
 ### Thinking Mode
 
 ```python
@@ -72,7 +57,7 @@ async def stream_response():
 thinking_config = LlmConfig(
     provider="anthropic",
     api_key="your_api_key",
-    model="claude-3-sonnet-20240229",
+    model="claude-3-7-sonnet",
     thinking=True
 )
 
@@ -84,9 +69,8 @@ response = llm.complete("Solve this math problem: (3x + 5 = 20)")
 
 | Model Name | Context Window | Best For |
 |------------|----------------|----------|
-| claude-3-opus-20240229 | 200K tokens | Complex reasoning tasks |
-| claude-3-sonnet-20240229 | 200K tokens | Balanced performance |
-| claude-3-haiku-20240307 | 200K tokens | Fast, cost-effective |
+| claude-3-7-sonnet | 200K tokens | Complex reasoning tasks|
+| claude-3-5-haiku | 200K tokens | Fast, cost-effective |
 
 ## Additional Notes
 

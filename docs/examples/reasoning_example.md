@@ -7,7 +7,7 @@ This example demonstrates how to use AiCore's reasoning augmentation feature, wh
 
 1. Install AiCore:
 ```bash
-pip install aicore
+pip install core-for-ai
 ```
 
 2. Set up your API keys in a configuration file (e.g., `config.yml`):

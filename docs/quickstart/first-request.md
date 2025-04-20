@@ -24,7 +24,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="openai",
     api_key="your_api_key_here",
-    model="gpt-3.5-turbo"
+    model="gpt-4o"
 )
 ```
 
@@ -54,7 +54,7 @@ async def main():
     config = LlmConfig(
         provider="openai",
         api_key="your_api_key_here",
-        model="gpt-3.5-turbo"
+        model="gpt-4o"
     )
     llm = Llm(config=config)
     

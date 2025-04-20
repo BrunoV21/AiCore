@@ -27,7 +27,7 @@ The `LlmConfig` class provides a unified configuration interface for all support
 # config.yml example
 provider: openai
 api_key: ${OPENAI_API_KEY}
-model: gpt-4
+model: gpt-4o
 temperature: 0.7
 max_tokens: 1000
 ```
@@ -39,7 +39,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="anthropic",
     api_key="your_api_key",
-    model="claude-3-sonnet",
+    model="claude-3-7-sonnet",
     temperature=0.5,
     max_tokens=2000
 )
@@ -50,7 +50,7 @@ All parameters can be set via environment variables:
 ```bash
 export LLM_PROVIDER=openai
 export LLM_API_KEY=sk-...
-export LLM_MODEL=gpt-4
+export LLM_MODEL=gpt-4o
 export LLM_TEMPERATURE=0.7
 ```
 
@@ -61,11 +61,11 @@ export LLM_TEMPERATURE=0.7
 # With reasoner configuration
 provider: anthropic
 api_key: sk-ant-...
-model: claude-3-opus
+model: claude-3-7-sonnet
 reasoner:
   provider: groq
   api_key: gsk-...
-  model: llama3-70b
+  model: meta-llama/llama-4-maverick-17b-128e-instruct
   temperature: 0.3
 ```
 

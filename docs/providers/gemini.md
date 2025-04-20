@@ -32,12 +32,8 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="gemini",
     api_key="your_api_key",
-    model="gemini-1.5-pro",
-    temperature=0.7,
-    safety_settings={
-        "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
-        "HARM_CATEGORY_HARASSMENT": "BLOCK_ONLY_HIGH"
-    }
+    model="gemini-2.5-pro-preview-03-25",
+    temperature=0.7
 )
 ```
 
@@ -48,9 +44,6 @@ provider: gemini
 api_key: "your_api_key"
 model: "gemini-1.5-pro"
 temperature: 0.7
-safety_settings:
-  HARM_CATEGORY_DANGEROUS_CONTENT: "BLOCK_NONE"
-  HARM_CATEGORY_HARASSMENT: "BLOCK_ONLY_HIGH"
 ```
 
 ## Usage Examples
@@ -76,29 +69,6 @@ content = MultimodalContent(
 )
 
 response = llm.complete(content)
-```
-
-### Streaming
-
-```python
-stream = llm.stream("Write a poem about AI")
-for chunk in stream:
-    print(chunk, end="", flush=True)
-```
-
-## Advanced Features
-
-### Safety Settings
-
-Gemini provides configurable safety settings for content moderation. You can adjust these per request:
-
-```python
-response = llm.complete(
-    "Controversial topic question",
-    safety_settings={
-        "HARM_CATEGORY_HATE_SPEECH": "BLOCK_MEDIUM_AND_ABOVE"
-    }
-)
 ```
 
 ### Token Counting

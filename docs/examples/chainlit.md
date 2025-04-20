@@ -7,7 +7,7 @@ This guide demonstrates how to build a chat interface using Chainlit with AiCore
 
 - Python 3.8+
 - Chainlit installed (`pip install chainlit`)
-- AiCore installed (`pip install aicore`)
+- AiCore installed (`pip install core-for-ao`)
 - API key for your chosen LLM provider
 
 ## Setup
@@ -33,7 +33,7 @@ llm:
 3. Install required packages:
 
 ```bash
-pip install chainlit aicore
+pip install chainlit core-for-ai
 ```
 
 ## Implementation
@@ -108,27 +108,33 @@ async def start_chat():
         content=f"Hello! I remember our conversation. How can I help?"
     ).send()
 
+async def run_concurrent_tasks(llm, message):
+    asyncio.create_task(llm.acomplete(message))
+    asyncio.create_task(_logger.distribute())
+    # Stream logger output while LLM is running
+    while True:        
+        async for chunk in _logger.get_session_logs(llm.session_id):
+            yield chunk  # Yield each chunk directly
+
 @cl.on_message
-async def main(message: cl.Message):
+async def main(message: cl.Message):    
     llm = cl.user_session.get("llm")
-    history = cl.user_session.get("history")
-    
-    # Add user message to history
-    history.append({"role": "user", "content": message.content})
-    
     msg = cl.Message(content="")
-    await msg.send()
+    async for chunk in run_concurrent_tasks(
+            llm,
+            message=history
+        ):
+        if chunk == STREAM_START_TOKEN:
+            continue
+
+        if chunk == STREAM_END_TOKEN:
+                break
+        
+        await msg.stream_token(chunk)
     
-    # Include history in the prompt
-    response = await llm.acomplete(
-        history,
-        stream=True,
-        stream_handler=msg.stream_token
-    )
-    
-    # Add assistant response to history
-    history.append({"role": "assistant", "content": response})
-    await msg.update()
+hst_msg = msg.content.replace(model_id, "") if model_id else msg.content
+history.append(hst_msg)
+await msg.send()
 ```
 
 ### File Upload Support

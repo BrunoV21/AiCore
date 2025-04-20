@@ -70,10 +70,11 @@ export default withMermaid(
           collapsed: false,
           items: [
             { text: 'Overview', link: '/observability/overview.md' },
+            { text: 'Connection Strings', link: '/observability/env-example.md' },
             { text: 'Collector', link: '/observability/collector.md' },
             { text: 'Dashboard', link: '/observability/dashboard.md' },
             { text: 'SQL Integration', link: '/observability/sql.md' },
-            { text: 'Polars Integration', link: '/observability/polars.md' }
+            { text: 'Polars Integration', link: '/observability/polars.md' },
           ]
         },
         {

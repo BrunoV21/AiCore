@@ -22,7 +22,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="openai",  # Works with all supported providers
     api_key="your_api_key",
-    model="gpt-4"
+    model="gpt-4o"
 )
 
 llm = Llm(config=config)
@@ -49,8 +49,7 @@ print(f"Input tokens: {latest.input_tokens}")
 print(f"Output tokens: {latest.output_tokens}")
 print(f"Cached tokens: {latest.cached_tokens}")
 print(f"Cache writes: {latest.cache_writes}")
-print(f"Base cost: ${latest.base_cost}")
-print(f"Actual cost: ${latest.actual_cost}")  # After discounts
+print(f"Cost: ${latest.cost}")
 ```
 
 ## Advanced Features
@@ -61,13 +60,6 @@ print(f"Actual cost: ${latest.actual_cost}")  # After discounts
 # Check if happy hour pricing is active
 if llm.usage.latest_completion.happy_hour:
     print("Happy hour pricing applied!")
-```
-
-### Dynamic Tiered Pricing
-
-```python
-# View current pricing tier
-print(f"Current pricing tier: {llm.usage.pricing_tier}")
 ```
 
 ### Cross-Provider Aggregation
@@ -92,21 +84,6 @@ from aicore.observability.collector import LlmOperationCollector
 # Get usage data as Polars DataFrame
 df = LlmOperationCollector.polars_from_db()
 print(df.select(["provider", "model", "input_tokens", "output_tokens", "cost"]))
-```
-
-## Configuration Options
-
-Set usage tracking behavior in your config:
-
-```yaml
-# config.yml
-llm:
-  usage_tracking:
-    enabled: true
-    detailed: true  # Record full token breakdown
-    cost_estimation: true
-    happy_hour_schedule: 
-      - "18:00-20:00"  # Define happy hours
 ```
 
 ## Related Documentation

@@ -56,13 +56,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="openai",
     api_key="your_api_key",
-    model="gpt-4",
-    retry_settings={
-        "max_attempts": 5,
-        "initial_delay": 1.5,
-        "max_delay": 15.0,
-        "backoff_factor": 2.0
-    }
+    model="gpt-4o"
 )
 ```
 
@@ -100,20 +94,3 @@ class CustomProvider(LlmBaseProvider):
         # Custom implementation with specialized retry logic
         pass
 ```
-
-## Monitoring Retries
-
-Retry attempts are tracked in the observability system and can be monitored:
-
-```python
-from aicore.observability.collector import LlmOperationCollector
-
-# Get retry statistics
-df = LlmOperationCollector.polars_from_db()
-retry_stats = df.group_by("provider").agg(
-    pl.col("retry_count").mean().alias("avg_retries"),
-    pl.col("retry_count").max().alias("max_retries")
-)
-```
-
-For more advanced monitoring, see the [Observability Dashboard](../observability/dashboard.md).

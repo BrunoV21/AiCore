@@ -31,7 +31,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="grok",
     api_key="your_xai_api_key",
-    model="grok-1",
+    model="grok-3",
     temperature=0.7,
     max_tokens=1000
 )
@@ -42,7 +42,7 @@ config = LlmConfig(
 ```yaml
 provider: grok
 api_key: "your_xai_api_key"
-model: "grok-1"
+model: "grok-3"
 temperature: 0.7
 max_tokens: 1000
 ```
@@ -59,26 +59,6 @@ response = llm.complete("Explain quantum computing in simple terms")
 print(response)
 ```
 
-### Streaming Response
-
-```python
-async for chunk in llm.stream("Tell me a story about AI"):
-    print(chunk, end="", flush=True)
-```
-
-## Advanced Features
-
-### Error Handling
-
-```python
-from aicore.llm.providers.grok import GrokProviderError
-
-try:
-    response = llm.complete("Your prompt here")
-except GrokProviderError as e:
-    print(f"Error occurred: {e}")
-```
-
 ### Usage Tracking
 
 ```python
@@ -90,8 +70,6 @@ print(f"Estimated cost: ${usage.estimated_cost:.4f}")
 ## Requirements
 
 - xAI API key (available through xAI developer program)
-- Python 3.8+
-- `aicore` package installed
 
 ## Limitations
 

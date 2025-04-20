@@ -22,14 +22,6 @@ import polars as pl
 
 # Get all data as Polars DataFrame
 df = LlmOperationCollector.polars_from_db()
-
-# Filtered query example
-filtered_df = LlmOperationCollector.polars_from_db(
-    start_date="2023-01-01",
-    end_date="2023-12-31",
-    provider="openai",
-    min_tokens=100
-)
 ```
 
 ### From JSON Files

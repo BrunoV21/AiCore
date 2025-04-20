@@ -38,10 +38,7 @@ from aicore.observability import LlmOperationCollector
 collector = LlmOperationCollector()
 
 # Custom storage configuration
-collector = LlmOperationCollector(
-    storage_path="custom_path.json",  # For JSON storage
-    db_url="sqlite:///llm_metrics.db"  # For SQL storage
-)
+collector = LlmOperationCollector()
 ```
 
 ### Recording Operations
@@ -50,16 +47,13 @@ collector = LlmOperationCollector(
 # Synchronous recording
 collector.record_completion(
     completion_args={
-        "model": "gpt-4",
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "temperature": 0.7
     },
     operation_type="completion",
     provider="openai",
-    response={
-        "choices": [{"message": {"content": "Hi there!"}}],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 5}
-    },
+    response="Hi there!",
     latency_ms=1200,
     extras={"custom_metric": "value"}  # Optional additional data
 )
@@ -74,22 +68,23 @@ await collector.arecord_completion(...)  # Same parameters as above
 
 ```python
 # Save operations to JSON file
-collector = LlmOperationCollector(storage_path="operations.json")
+collector = LlmOperationCollector()
 
 # Load data into Polars DataFrame
-df = LlmOperationCollector.polars_from_file("operations.json")
+df = LlmOperationCollector.polars_from_file()
 
 # Filter operations
 df = df.filter(
     (pl.col("provider") == "openai") &
     (pl.col("latency_ms") < 1000)
+)
 ```
 
 ### SQL Database
 
 ```python 
 # Initialize with SQL database
-collector = LlmOperationCollector(db_url="postgresql://user:pass@localhost/db")
+collector = LlmOperationCollector()
 
 # Query database with Polars
 df = LlmOperationCollector.polars_from_db(
@@ -132,40 +127,6 @@ df = df.filter(pl.col("extras").struct.field("project") == "marketing")
 ```python
 # Create tables manually (automatic by default)
 collector.create_tables()
-
-# Get current schema version
-version = collector.get_schema_version()
-
-# Migrate to latest schema
-collector.migrate_schema()
-```
-
-## Integration Examples
-
-### FastAPI Middleware
-
-```python
-from fastapi import Request
-from aicore.observability import LlmOperationCollector
-
-collector = LlmOperationCollector()
-
-@app.middleware("http")
-async def track_llm_operations(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    latency_ms = (time.time() - start_time) * 1000
-    
-    if "llm_operation" in request.state:
-        collector.record_completion(
-            completion_args=request.state.llm_args,
-            operation_type=request.state.llm_operation,
-            provider=request.state.llm_provider,
-            response=response.json(),
-            latency_ms=latency_ms
-        )
-    
-    return response
 ```
 
 For more examples, see the [Observability Examples](../examples/README.md).

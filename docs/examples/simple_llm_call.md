@@ -6,7 +6,7 @@ This guide demonstrates how to make a simple LLM call using AiCore's LLM interfa
 ## Prerequisites
 
 1. Python 3.8+
-2. AiCore installed (`pip install aicore`)
+2. AiCore installed (`pip install core-for-ai`)
 3. API key for your chosen LLM provider
 
 ## Step 1: Import Required Modules

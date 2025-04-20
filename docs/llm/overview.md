@@ -48,7 +48,7 @@ from aicore.llm.llm import Llm
 config = LlmConfig(
     provider="openai",
     api_key="your_api_key",
-    model="gpt-4"
+    model="gpt-4o"
 )
 
 llm = Llm(config=config)
@@ -63,8 +63,6 @@ import asyncio
 
 async def main():
     response = await llm.acomplete("Hello world", stream=True)
-    async for chunk in response:
-        print(chunk, end="", flush=True)
 
 asyncio.run(main())
 ```
@@ -75,8 +73,6 @@ asyncio.run(main())
 
 ```python
 response = llm.complete("Explain quantum computing", stream=True)
-for chunk in response:
-    print(chunk, end="", flush=True)
 ```
 
 ### Usage Tracking

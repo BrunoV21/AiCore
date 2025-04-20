@@ -19,7 +19,7 @@ print(groq_models)
 ```yaml
 provider: groq
 api_key: "your_api_key_here"  # Get from Groq console
-model: "mixtral-8x7b-32768"   # Default model
+model: "meta-llama/llama-4-maverick-17b-128e-instruct"   # Default model
 temperature: 0.7              # Optional
 max_tokens: 1024              # Optional
 ```
@@ -31,7 +31,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="groq",
     api_key="your_api_key_here",
-    model="mixtral-8x7b-32768",
+    model="meta-llama/llama-4-maverick-17b-128e-instruct",
     temperature=0.7,
     max_tokens=1024
 )
@@ -55,12 +55,6 @@ response = llm.complete("Explain quantum computing in simple terms")
 print(response)
 ```
 
-### Streaming Response
-```python
-async for chunk in llm.stream("Tell me about Groq's architecture"):
-    print(chunk, end="", flush=True)
-```
-
 ### Advanced Usage
 ```python
 # With conversation history
@@ -74,9 +68,7 @@ response = llm.chat_complete(messages)
 
 ## Best Practices
 
-1. **Model Selection**: Choose the appropriate model for your use case:
-   - `mixtral-8x7b-32768`: General purpose
-   - `llama2-70b-4096`: Larger context window
+1. **Model Selection**: Choose the appropriate model for your use case
 
 2. **Performance Tuning**:
    - Adjust `temperature` for creativity vs consistency

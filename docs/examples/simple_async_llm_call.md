@@ -6,7 +6,7 @@ This example demonstrates how to make asynchronous LLM calls using AiCore's asyn
 ## Prerequisites
 
 1. Python 3.8+
-2. AiCore installed (`pip install aicore`)
+2. AiCore installed (`pip install core-for-ai`)
 3. API key for your chosen LLM provider
 
 ## Step 1: Configuration

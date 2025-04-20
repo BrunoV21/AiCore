@@ -35,7 +35,6 @@ dashboard.run_server(host="0.0.0.0", port=8050)  # Default port: 8050
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `from_local_records_only` | Use only local JSON records | False |
-| `database_uri` | Custom SQL database URI | None |
 | `refresh_interval` | Dashboard refresh rate (ms) | 5000 |
 
 ## Dashboard Components

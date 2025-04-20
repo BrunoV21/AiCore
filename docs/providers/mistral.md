@@ -59,13 +59,6 @@ response = llm.complete("Explain quantum computing in simple terms")
 print(response)
 ```
 
-### Streaming Response
-
-```python
-for chunk in llm.stream("Write a poem about AI:"):
-    print(chunk, end="", flush=True)
-```
-
 ### Async Usage
 
 ```python
@@ -78,33 +71,6 @@ async def main():
     print(response)
 
 asyncio.run(main())
-```
-
-## Advanced Features
-
-### Tool Calling
-
-```python
-response = llm.complete(
-    "What's the weather in Paris?",
-    tools=[{
-        "type": "function",
-        "function": {
-            "name": "get_current_weather",
-            "description": "Get the current weather",
-            "parameters": {...}
-        }
-    }]
-)
-```
-
-### JSON Mode
-
-```python
-response = llm.complete(
-    "Return information about Paris in JSON format",
-    response_format={"type": "json_object"}
-)
 ```
 
 ## Observability Integration

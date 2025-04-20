@@ -19,7 +19,7 @@ from aicore.llm.config import LlmConfig
 config = LlmConfig(
     provider="openrouter",
     api_key="your_openrouter_api_key",  # Get from https://openrouter.ai/keys
-    model="openai/gpt-4",  # Format: provider/model-name
+    model="openai/gpt-4o",  # Format: provider/model-name
     temperature=0.7,
     max_tokens=1000
 )
@@ -27,28 +27,7 @@ config = LlmConfig(
 
 ## Supported Models
 
-OpenRouter supports models from multiple providers including:
-
-| Provider | Example Models |
-|----------|----------------|
-| OpenAI | `openai/gpt-3.5-turbo`, `openai/gpt-4`, `openai/gpt-4-turbo` |
-| Anthropic | `anthropic/claude-2`, `anthropic/claude-3-opus` |
-| Google | `google/gemini-pro` |
-| Mistral | `mistralai/mistral-tiny`, `mistralai/mistral-medium` |
-| Meta | `meta-llama/llama-2-13b-chat` |
-
-For a complete list of available models, see the [OpenRouter Models page](https://openrouter.ai/models).
-
-## Pricing
-
-Pricing varies by model and is calculated per token. You can check model pricing programmatically:
-
-```python
-from aicore.models_metadata import METADATA
-
-model_data = METADATA["openrouter-openai/gpt-4"]
-print(f"Price per 1k tokens: ${model_data.pricing.completion/10:.4f}")
-```
+OpenRouter supports models from multiple providers, for a complete list of available models, see the [OpenRouter Models page](https://openrouter.ai/models).
 
 ## Usage Examples
 
@@ -62,13 +41,6 @@ response = llm.complete("Explain quantum computing in simple terms")
 print(response.content)
 ```
 
-### Streaming Response
-
-```python
-async for chunk in llm.stream("Write a poem about AI"):
-    print(chunk, end="", flush=True)
-```
-
 ### With Message History
 
 ```python
@@ -78,35 +50,6 @@ messages = [
 ]
 
 response = llm.chat(messages)
-```
-
-## Advanced Features
-
-### Custom Headers
-
-OpenRouter supports additional headers for features like user tracking:
-
-```python
-config = LlmConfig(
-    provider="openrouter",
-    api_key="your_api_key",
-    model="anthropic/claude-3-opus",
-    headers={
-        "HTTP-Referer": "https://yourdomain.com",
-        "X-Title": "Your App Name"
-    }
-)
-```
-
-### Fallback Models
-
-```python
-config = LlmConfig(
-    provider="openrouter",
-    api_key="your_api_key",
-    model="anthropic/claude-3-opus",
-    fallbacks=["openai/gpt-4", "google/gemini-pro"]
-)
 ```
 
 ## Observability Integration
