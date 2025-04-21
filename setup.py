@@ -39,7 +39,7 @@ extras_require = {
         "asyncpg==0.30.0",
         "psycopg2==2.9.10",
         "pyodbc==5.2.0",
-        "python-dotenv==1.0.1",
+        "python-dotenv==1.1.0",
         "SQLAlchemy==2.0.36"
     ],
     "all": [
@@ -53,7 +53,7 @@ extras_require = {
         "asyncpg==0.30.0",
         "psycopg2==2.9.10",
         "pyodbc==5.2.0",
-        "python-dotenv==1.0.1",
+        "python-dotenv==1.1.0",
         "SQLAlchemy==2.0.36"
     ]
 }
