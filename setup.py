@@ -7,18 +7,22 @@ with open("README.md", "r") as fh:
 
 install_requires = [
     "anthropic==0.49.0",
-    "google-genai==0.6.0",
+    "google-genai==1.11.0",
     "groq==0.13.1",
-    "mistralai==1.2.3",
+    "fastmcp==2.2.1",
+    "mistralai==1.7.0",
     "loguru==0.7.3",
-    # "mistral_common==1.5.1",
-    "openai==1.66.3",
+    # mistral_common==1.5.1
+    "openai==1.75.0",
     "tenacity==9.0.0",
-    "tiktoken==0.9.0",
     "deepseek-tokenizer==0.1.3",
+    "tiktoken==0.9.0",
     "pydantic==2.10.3",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
     "PyYAML==6.0.2",
-    "ulid==1.1"
+    "setuptools==75.6.0",
+    "ulid==1.1.0"
 ]
 
 extras_require = {
