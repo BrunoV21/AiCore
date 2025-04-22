@@ -1,1 +1,2 @@
 include aicore/observability/assets/styles.css
+include aicore/models_metadata.json
