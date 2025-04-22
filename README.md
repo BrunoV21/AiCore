@@ -1,6 +1,7 @@
 
 # AiCore Project
 [![GitHub Stars](https://img.shields.io/github/stars/BrunoV21/AiCore?style=social)](https://github.com/BrunoV21/AiCore/stargazers)
+[![Docs](https://img.shields.io/badge/docs-AiCore.github.io-red)](https://brunov21.github.io/AiCore/)
 [![PyPI Downloads](https://static.pepy.tech/badge/core-for-ai)](https://pepy.tech/projects/core-for-ai)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/core-for-ai?style=flat)
 ![PyPI - Version](https://img.shields.io/pypi/v/core-for-ai?style=flat)
@@ -40,6 +41,11 @@ dashboard.run_server(debug=True, port=8050)
 A Hugging Face Space where you can chat with multiple reasoning augmented models.
 
 [![Hugging Face Space](https://huggingface.co/datasets/huggingface/badges/raw/main/open-in-hf-spaces-xl.svg)](https://huggingface.co/spaces/McLoviniTtt/Reasoner4All)
+
+**GitRecap**
+A simple page that provides instant summaries of user Git activity by combining a React frontend and a Python FastAPI backend powered by AiCore, served via WebSockets.
+  - 🌐 [Live App](https://brunov21.github.io/GitRecap/)
+  - 📦 [GitHub Repository](https://github.com/BrunoV21/GitRecap)
 
 **CodeGraph**
 A Graph representation of your codebase for effective retrieval at file/obj level *coming soon*
@@ -88,6 +94,48 @@ llm:
   max_tokens: 1028
 ```
 
+## Usage
+
+### Language Models
+
+You can use the language models to generate text completions. Below is an example of how to use the `MistralLlm` provider:
+
+```python
+from aicore.llm.config import LlmConfig
+from aicore.llm.providers import MistralLlm
+
+config = LlmConfig(
+    api_key="your_api_key",
+    model="your_model_name",
+    temperature=0.7,
+    max_tokens=100
+)
+
+mistral_llm = MistralLlm.from_config(config)
+response = mistral_llm.complete(prompt="Hello, how are you?")
+print(response)
+```
+
+### Loading from a Config File
+
+To load configurations from a YAML file, set the `CONFIG_PATH` environment variable and use the `Config` class to load the configurations. Here is an example:
+
+```python
+from aicore.config import Config
+from aicore.llm import Llm
+import os
+
+if __name__ == "__main__":
+    os.environ["CONFIG_PATH"] = "./config/config.yml"
+    config = Config.from_yaml()
+    llm = Llm.from_config(config.llm)
+    llm.complete("Once upon a time, there was a")
+```
+
+Make sure your `config.yml` file is properly set up with the necessary configurations.
+
+### Advanced Usage
+
 **Reasoner Augmented Config**
 
 To leverage the reasoning augmentation just introduce one of the supported llm configs into the reasoner field and AiCore handles the rest
@@ -113,85 +161,9 @@ llm:
     max_tokens: 1024
 ```
 
-## Usage
+### Roadmap
+- MCP integration via fastmcp to support any MCP client via a custom server.
 
-### Language Models
-
-You can use the language models to generate text completions. Below is an example of how to use the `MistralLlm` provider:
-
-```python
-from aicore.llm.config import LlmConfig
-from aicore.llm.providers import MistralLlm
-
-config = LlmConfig(
-    api_key="your_api_key",
-    model="your_model_name",
-    temperature=0.7,
-    max_tokens=100
-)
-
-mistral_llm = MistralLlm.from_config(config)
-response = mistral_llm.complete(prompt="Hello, how are you?")
-print(response)
-```
-
-### Embeddings
-
-You can use the embeddings module to generate text embeddings. Below is an example of how to use the `OpenAiEmbeddings` provider:
-
-```python
-from aicore.embeddings.config import EmbeddingsConfig
-from aicore.embeddings import Embeddings
-
-config = EmbeddingsConfig(
-    provider="openai",
-    api_key="your_api_key",
-    model="your_model_name"
-)
-
-embeddings = Embeddings.from_config(config)
-vectors = embeddings.generate(["Hello, how are you?"])
-print(vectors)
-```
-
-For asynchronous usage:
-
-```python
-import asyncio
-from aicore.embeddings.config import EmbeddingsConfig
-from aicore.embeddings import Embeddings
-
-async def main():
-    config = EmbeddingsConfig(
-        provider="openai",
-        api_key="your_api_key",
-        model="your_model_name"
-    )
-
-    embeddings = Embeddings.from_config(config)
-    vectors = await embeddings.agenerate(["Hello, how are you?"])
-    print(vectors)
-
-asyncio.run(main())
-```
-
-### Loading from a Config File
-
-To load configurations from a YAML file, set the `CONFIG_PATH` environment variable and use the `Config` class to load the configurations. Here is an example:
-
-```python
-from aicore.config import Config
-from aicore.llm import Llm
-import os
-
-if __name__ == "__main__":
-    os.environ["CONFIG_PATH"] = "./config/config.yml"
-    config = Config.from_yaml()
-    llm = Llm.from_config(config.llm)
-    llm.complete("Once upon a time, there was a")
-```
-
-Make sure your `config.yml` file is properly set up with the necessary configurations.
 ## License
 
 This project is licensed under the Apache 2.0 License.
