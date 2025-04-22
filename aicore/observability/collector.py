@@ -401,7 +401,9 @@ class LlmOperationCollector(RootModel):
         with self._session_factory() as session:
             try:
                 # Check if session exists, create if it doesn't
-                db_session = session.query(Session).filter_by(session_id=serialized['session_id']).first()
+                db_session_query = session.query(Session).filter_by(session_id=serialized['session_id'])
+                db_session = list(db_session_query.all())  # Force fetch all results
+                
                 if not db_session:
                     db_session = Session(
                         session_id=serialized['session_id'],
@@ -409,6 +411,9 @@ class LlmOperationCollector(RootModel):
                         agent_id=serialized['agent_id']
                     )
                     session.add(db_session)
+                    session.flush()  # Flush changes to DB but don't commit yet
+                else:
+                    db_session = db_session[0]  # Get first result
                 
                 # Create message record
                 message = Message(
@@ -476,6 +481,7 @@ class LlmOperationCollector(RootModel):
                         agent_id=serialized['agent_id']
                     )
                     session.add(db_session)
+                    await session.flush()  # Flush changes to DB
 
                 # Create message record
                 message = Message(
@@ -551,12 +557,12 @@ class LlmOperationCollector(RootModel):
                 return None
 
     def _polars_from_db(self,
-                      agent_id: Optional[str] = None,
-                      action_id: Optional[str] = None,
-                      session_id: Optional[str] = None,
-                      workspace: Optional[str] = None,
-                      start_date: Optional[str] = None,
-                      end_date: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+                    agent_id: Optional[str] = None,
+                    action_id: Optional[str] = None,
+                    session_id: Optional[str] = None,
+                    workspace: Optional[str] = None,
+                    start_date: Optional[str] = None,
+                    end_date: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
         """
         Query the database (using SQLAlchemy) and return results as a Polars DataFrame.
         Works with any database supported by SQLAlchemy.
@@ -603,7 +609,9 @@ class LlmOperationCollector(RootModel):
                     
                 # Order by operation_id descending
                 query = query.order_by(desc(Message.operation_id))
-                results = query.all()
+                
+                # Force immediate consumption of all results to prevent "Connection is busy" errors
+                results = list(query.all())
                 
                 if not results:
                     return pl.DataFrame()
@@ -616,11 +624,15 @@ class LlmOperationCollector(RootModel):
                         record[column['name']] = row[idx]
                     records.append(record)
                     
+                # Ensure session is clean before returning
+                session.commit()
+                
                 # Convert to Polars DataFrame
                 return pl.from_dicts(records)
                 
             except Exception as e:
                 _logger.logger.warning(f"Error executing database query: {str(e)}")
+                session.rollback()  # Explicitly rollback on error
                 return pl.DataFrame()
    
     async def _apolars_from_db(self,
@@ -676,8 +688,12 @@ class LlmOperationCollector(RootModel):
                 
                 query = query.order_by(desc(Message.operation_id))
 
+                # Execute query and immediately consume all results
                 result = await session.execute(query)
-                rows = result.all()
+                rows = list(result.all())  # Force consumption of all results
+                
+                # Explicitly commit to ensure connection is cleared
+                await session.commit()
 
                 if not rows:
                     return pl.DataFrame()
@@ -687,6 +703,7 @@ class LlmOperationCollector(RootModel):
                 return pl.from_dicts(records)
             except Exception as e:
                 _logger.logger.error(f"Error executing database query: {str(e)}")
+                await session.rollback()  # Explicitly rollback on error
                 return pl.DataFrame()
 
 if __name__ == "__main__":
