@@ -238,7 +238,8 @@ Graph representation of codebases for enhanced retrieval
 ## Future Plans
 - **MCP Integration**: Support for Model Context Protocol via fastmcp
 - **Extended Provider Support**: Additional LLM and embedding providers
-
+- **Add support for Speech**: Integrate text2speech and speech to text objects with usage and observability4
+  
 ## Documentation
 
 For complete documentation, including API references, advanced usage examples, and configuration guides, visit:
