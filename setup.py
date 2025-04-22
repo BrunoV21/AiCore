@@ -21,7 +21,7 @@ install_requires = [
     "pytest==8.3.4",
     "pytest-asyncio==0.25.2",
     "PyYAML==6.0.2",
-    "setuptools==75.6.0",
+    "setuptools==78.1.1",
     "ulid==1.1.0"
 ]
 
