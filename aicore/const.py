@@ -6,6 +6,8 @@ METADATA_JSON = Path(os.path.abspath(os.path.dirname(__file__))) / "models_metad
 
 DEFAULT_CONFIG_PATH = os.getenv("CONFIG_PATH") or "./config/config.yml"
 
+DEFAULT_MCP_JSON_PATH = os.getenv("MCP_JSON_PATH") or "./config/mcp_config.json"
+
 DEFAULT_LOGS_DIR = os.getenv("LOGS_PATH") or "logs"
 
 CUSTOM_MODELS = [
