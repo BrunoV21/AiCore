@@ -10,7 +10,6 @@ from pydantic import BaseModel, RootModel, Field, field_validator, computed_fiel
 
 from aicore.logger import _logger
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
-from aicore.observability.models import Base, Session, Message, Metric
 
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
@@ -179,7 +178,8 @@ class LlmOperationCollector(RootModel):
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
-            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker            
+            from aicore.observability.models import Base, Session, Message, Metric
             from dotenv import load_dotenv
             load_dotenv()
             
@@ -205,14 +205,20 @@ class LlmOperationCollector(RootModel):
                 _logger.logger.warning(f"Database connection failed: {str(e)}")
 
         except ModuleNotFoundError:
-            raise ModuleNotFoundError("pip install core-for-ai[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
+           _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
         
         return self
     
     async def create_tables(self):
         if not self._async_engine:
             return
+        
+        try:            
+            from aicore.observability.models import Base
             
+        except ModuleNotFoundError:
+             _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
+                    
         async with self._async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             self._table_initialized = True
@@ -390,6 +396,11 @@ class LlmOperationCollector(RootModel):
     
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database using SQLAlchemy."""
+        try:
+            from aicore.observability.models import Session, Message, Metric
+        except ModuleNotFoundError:
+             _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
+        
         if not self._session_factory:
             if self._async_session_factory:
                 _logger.logger.warning("You have configured an async connection to a db but are trying to establish a sync one. Pass CONNECTION_STRING env var.")
@@ -464,7 +475,8 @@ class LlmOperationCollector(RootModel):
         # Use async context manager for session handling
         async with self._async_session_factory() as session:
             try:
-                from sqlalchemy.future import select
+                from sqlalchemy.future import select                
+                from aicore.observability.models import Session, Message, Metric
                 # Check if session exists, create if it doesn't
                 result = await session.execute(select(Session).filter_by(session_id=serialized['session_id']))
                 db_session = result.scalars().first()
@@ -564,6 +576,7 @@ class LlmOperationCollector(RootModel):
         try:
             import polars as pl
             from sqlalchemy import desc
+            from aicore.observability.models import Session, Message, Metric
         except ModuleNotFoundError:
             _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
             return None
@@ -637,7 +650,8 @@ class LlmOperationCollector(RootModel):
         try:
             import polars as pl
             from sqlalchemy import desc, select
-            from sqlalchemy.ext.asyncio import AsyncSession
+            from sqlalchemy.ext.asyncio import AsyncSession            
+            from aicore.observability.models import Session, Message, Metric
         except ModuleNotFoundError:
             _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
             return None
