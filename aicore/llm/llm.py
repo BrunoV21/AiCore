@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, RootModel, model_validator, computed_field
-from typing import Union, Optional, Callable, List, Dict, Self
+from typing import Union, Optional, Callable, List, Dict
+from typing_extensions import Self
 from functools import partial
 from pathlib import Path
 from enum import Enum

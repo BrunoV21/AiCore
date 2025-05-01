@@ -2,7 +2,8 @@ from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
 from pydantic import model_validator
-from typing import Self, Optional, Dict, Union, List, Literal
+from typing import Optional, Dict, Union, List
+from typing_extensions import Self
 from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
 from functools import partial
 

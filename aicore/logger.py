@@ -1,5 +1,6 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, List, Self, AsyncGenerator, Literal
+from typing import Optional, List, AsyncGenerator, Literal
+from typing_extensions import Self
 from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger

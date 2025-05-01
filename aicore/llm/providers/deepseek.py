@@ -2,7 +2,8 @@ from aicore.llm.providers.openai import OpenAiLlm
 from openai.types.chat import ChatCompletion
 from deepseek_tokenizer import ds_token
 from pydantic import model_validator
-from typing import Optional, Self
+from typing import Optional
+from typing_extensions import Self
 
 class DeepSeekLlm(OpenAiLlm):
     """

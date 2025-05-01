@@ -1,4 +1,5 @@
-from typing import Literal, Optional, Self
+from typing import Literal, Optional
+from typing_extensions import Self
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 
 from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS

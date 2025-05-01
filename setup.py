@@ -9,7 +9,7 @@ install_requires = [
     "anthropic==0.49.0",
     "google-genai==1.11.0",
     "groq==0.13.1",
-    "fastmcp==2.2.1",
+    "fastmcp==2.2.5",
     "mistralai==1.7.0",
     "loguru==0.7.3",
     # mistral_common==1.5.1
@@ -20,6 +20,7 @@ install_requires = [
     "pydantic==2.10.3",
     "pytest==8.3.4",
     "pytest-asyncio==0.25.2",
+    "pytz==2025.2",
     "PyYAML==6.0.2",
     "setuptools==75.6.0",
     "ulid==1.1.0"

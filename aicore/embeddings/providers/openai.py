@@ -2,7 +2,8 @@ from aicore.embeddings.providers.base_provider import EmbeddingsBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI
 from openai.types.create_embedding_response import CreateEmbeddingResponse
-from typing import Union, Optional, List, Self, Dict
+from typing import Union, Optional, List, Dict
+from typing_extensions import Self
 
 class OpenAiEmbeddings(EmbeddingsBaseProvider):
     vector_dimensions :int=1536

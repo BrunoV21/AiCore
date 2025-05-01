@@ -3,7 +3,8 @@ from pydantic import model_validator
 from google.genai import Client
 from functools import partial
 from openai.types.chat import ChatCompletion
-from typing import List, Self, Optional
+from typing import List, Optional
+from typing_extensions import Self
 
 class GeminiLlm(OpenAiLlm):
     base_url :str="https://generativelanguage.googleapis.com/v1beta/openai/"

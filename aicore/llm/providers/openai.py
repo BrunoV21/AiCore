@@ -2,7 +2,8 @@ from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
-from typing import Self, Optional
+from typing import Optional
+from typing_extensions import Self
 import tiktoken
 
 class OpenAiLlm(LlmBaseProvider):

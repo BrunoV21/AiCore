@@ -3,7 +3,8 @@ from aicore.models import AuthenticationError
 from pydantic import model_validator
 from groq import Groq, AsyncGroq, AuthenticationError
 from groq.types.chat import ChatCompletionChunk
-from typing import Self, Optional
+from typing import Optional
+from typing_extensions import Self
 import tiktoken
 
 class GroqLlm(LlmBaseProvider):

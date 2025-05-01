@@ -3,7 +3,8 @@ import json
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union, Literal, Self
+from typing import Dict, Any, Optional, List, Union, Literal
+from typing_extensions import Self
 
 import ulid
 from pydantic import BaseModel, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
