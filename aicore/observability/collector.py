@@ -230,7 +230,7 @@ class LlmOperationCollector(RootModel):
     def _store_to_file(self, new_record: LlmOperationRecord) -> None:
         if not os.path.exists(self.storage_path):
             os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-            records = LlmOperationCollector.model_construct()
+            records = LlmOperationCollector.model_construct(root=[])
         else:
             with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f: 
                 records = LlmOperationCollector.model_construct(root=[LlmOperationRecord(**kwargs) for kwargs in json.loads(f.read())])
