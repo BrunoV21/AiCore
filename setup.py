@@ -1,7 +1,7 @@
 
 import setuptools
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding="utf8") as fh:
     long_description = fh.read()
 
 
@@ -22,7 +22,7 @@ install_requires = [
     "pytest-asyncio==0.25.2",
     "PyYAML==6.0.2",
     "pytz==2025.2",
-    "setuptools==75.6.0",
+    "setuptools==78.1.1",
     "ulid==1.1.0"
 ]
 
@@ -40,7 +40,7 @@ extras_require = {
         "asyncpg==0.30.0",
         "psycopg2==2.9.10",
         "pyodbc==5.2.0",
-        "python-dotenv==1.0.1",
+        "python-dotenv==1.1.0",
         "SQLAlchemy==2.0.36"
     ],
     "all": [
@@ -54,14 +54,14 @@ extras_require = {
         "asyncpg==0.30.0",
         "psycopg2==2.9.10",
         "pyodbc==5.2.0",
-        "python-dotenv==1.0.1",
+        "python-dotenv==1.1.0",
         "SQLAlchemy==2.0.36"
     ]
 }
 
 setuptools.setup(
     name="core-for-ai",
-    version="0.1.88",
+    version="0.1.9",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
     description="A unified interface for interacting with various LLM and embedding providers, with observability tools.",
