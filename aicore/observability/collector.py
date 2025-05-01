@@ -11,7 +11,6 @@ from pydantic import BaseModel, RootModel, Field, field_validator, computed_fiel
 
 from aicore.logger import _logger
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
-from aicore.observability.models import Base, Session, Message, Metric
 
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
@@ -180,7 +179,8 @@ class LlmOperationCollector(RootModel):
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
-            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker            
+            from aicore.observability.models import Base
             from dotenv import load_dotenv
             load_dotenv()
             
@@ -206,11 +206,12 @@ class LlmOperationCollector(RootModel):
                 _logger.logger.warning(f"Database connection failed: {str(e)}")
 
         except ModuleNotFoundError:
-            raise ModuleNotFoundError("pip install core-for-ai[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
+            _logger.logger.warning("pip install core-for-ai[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
         
         return self
     
-    async def create_tables(self):
+    async def create_tables(self):        
+        from aicore.observability.models import Base
         if not self._async_engine:
             return
             
@@ -229,10 +230,10 @@ class LlmOperationCollector(RootModel):
     def _store_to_file(self, new_record: LlmOperationRecord) -> None:
         if not os.path.exists(self.storage_path):
             os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-            records = LlmOperationCollector()
+            records = LlmOperationCollector.model_construct()
         else:
-            with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:                
-                records = LlmOperationCollector(root=[LlmOperationRecord(**kwargs) for kwargs in json.loads(f.read())])
+            with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f: 
+                records = LlmOperationCollector.model_construct(root=[LlmOperationRecord(**kwargs) for kwargs in json.loads(f.read())])
         records.root.append(new_record)
 
         with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
@@ -391,6 +392,8 @@ class LlmOperationCollector(RootModel):
     
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database using SQLAlchemy."""
+        from aicore.observability.models import Session, Message, Metric
+
         if not self._session_factory:
             if self._async_session_factory:
                 _logger.logger.warning("You have configured an async connection to a db but are trying to establish a sync one. Pass CONNECTION_STRING env var.")
@@ -466,6 +469,7 @@ class LlmOperationCollector(RootModel):
         async with self._async_session_factory() as session:
             try:
                 from sqlalchemy.future import select
+                from aicore.observability.models import Session, Message, Metric
                 # Check if session exists, create if it doesn't
                 result = await session.execute(select(Session).filter_by(session_id=serialized['session_id']))
                 db_session = result.scalars().first()
@@ -565,6 +569,7 @@ class LlmOperationCollector(RootModel):
         try:
             import polars as pl
             from sqlalchemy import desc
+            from aicore.observability.models import Session, Message, Metric
         except ModuleNotFoundError:
             _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
             return None
@@ -621,7 +626,7 @@ class LlmOperationCollector(RootModel):
                 return pl.from_dicts(records)
                 
             except Exception as e:
-                _logger.logger.warning(f"Error executing database query: {str(e)}")
+                _logger.logger.warning(f"collector.py:623 Error executing database query: {str(e)}")
                 return pl.DataFrame()
    
     async def _apolars_from_db(self,
@@ -638,7 +643,7 @@ class LlmOperationCollector(RootModel):
         try:
             import polars as pl
             from sqlalchemy import desc, select
-            from sqlalchemy.ext.asyncio import AsyncSession
+            from aicore.observability.models import Session, Message, Metric
         except ModuleNotFoundError:
             _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
             return None
