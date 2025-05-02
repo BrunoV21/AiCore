@@ -2,10 +2,12 @@ from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
 from pydantic import model_validator
-from typing import Optional, Dict, Union, List
+from typing import Any, Optional, Dict, Union, List
 from typing_extensions import Self
 from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
 from functools import partial
+
+from aicore.llm.mcp.models import ToolSchema
 
 class AnthropicLlm(LlmBaseProvider):
 
@@ -150,3 +152,23 @@ class AnthropicLlm(LlmBaseProvider):
                     "type": "enabled",
                     "budget_tokens": thinking.get("budget_tokens") or self.config.max_tokens
                 }
+
+    @staticmethod
+    def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
+        """
+        Convert to Anthropic tool schema format.
+        
+        Returns:
+            Dictionary in Anthropic tool schema format
+        """
+        return {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": {
+                "type": tool.input_schema.type,
+                "properties": tool.input_schema.properties.model_dump(),
+                "required": tool.input_schema.required,
+                **{k: v for k, v in tool.input_schema.model_dump().items() 
+                   if k not in ["type", "properties", "required"]}
+            }
+        }

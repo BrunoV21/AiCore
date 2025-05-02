@@ -1,8 +1,9 @@
+from aicore.llm.mcp.models import ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from typing_extensions import Self
 import tiktoken
 
@@ -63,3 +64,25 @@ class OpenAiLlm(LlmBaseProvider):
             reasoning_efftort = getattr(self.config, "reasoning_efftort", None)
             if reasoning_efftort is not None:
                 self.completion_args["reasoning_efftort"] = reasoning_efftort
+
+    @staticmethod
+    def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
+        """
+        Convert to OpenAI tool schema format.
+        
+        Returns:
+            Dictionary in OpenAI tool schema format
+        """
+        return {
+            "type": "function",
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": {
+                "type": tool.input_schema.type,
+                "properties": tool.input_schema.properties.model_dump(),
+                "required": tool.input_schema.required,
+                "additionalProperties": False,
+                **{k: v for k, v in tool.input_schema.model_dump().items() 
+                   if k not in ["type", "properties", "required"]}
+            }
+        }

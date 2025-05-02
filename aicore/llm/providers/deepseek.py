@@ -1,8 +1,9 @@
+from aicore.llm.mcp.models import ToolSchema
 from aicore.llm.providers.openai import OpenAiLlm
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletionChunk
 from deepseek_tokenizer import ds_token
 from pydantic import model_validator
-from typing import Optional
+from typing import Any, Dict, Optional
 from typing_extensions import Self
 
 class DeepSeekLlm(OpenAiLlm):
@@ -18,7 +19,8 @@ class DeepSeekLlm(OpenAiLlm):
 
         return self
 
-    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
+    def normalize(self, chunk :ChatCompletionChunk, completion_id :Optional[str]=None):
+        print(chunk,"\n")
         usage = chunk.usage
         if usage is not None:
             ### https://api-docs.deepseek.com/news/news0802
@@ -29,3 +31,26 @@ class DeepSeekLlm(OpenAiLlm):
                 completion_id=completion_id or chunk.id
             )
         return chunk.choices
+
+    @staticmethod
+    def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
+        """
+        Convert to Deepseek tool schema format.
+        
+        Returns:
+            Dictionary in Deepseek tool schema format
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": tool.input_schema.type,
+                    "properties": tool.input_schema.properties.model_dump(),
+                    "required": tool.input_schema.required,
+                    **{k: v for k, v in tool.input_schema.model_dump().items() 
+                       if k not in ["type", "properties", "required"]}
+                }
+            }
+        }
