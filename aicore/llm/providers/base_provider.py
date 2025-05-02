@@ -5,6 +5,8 @@ common interfaces and utilities for synchronous and asynchronous operations.
 """
 
 from aicore.llm.config import LlmConfig
+from aicore.llm.mcp.client import MCPClient
+from aicore.llm.mcp.models import ToolSchema
 from aicore.logger import _logger, default_stream_handler
 from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS
 from aicore.llm.utils import parse_content, image_to_base64
@@ -56,6 +58,7 @@ class LlmBaseProvider(BaseModel):
     _is_reasoner: bool = False
     _usage :Optional[UsageInfo]=None
     _collector: Optional[LlmOperationCollector] = None
+    _mcp: Optional[MCPClient] = None
 
     @classmethod
     def from_config(cls, config: LlmConfig) -> "LlmBaseProvider":
@@ -275,6 +278,20 @@ class LlmBaseProvider(BaseModel):
         """Disable data collection for this provider."""
         if self._collector:
             self._collector.is_enabled = False
+
+    @property
+    def mcp(self)->MCPClient:
+        if self.config.mcp_config_path and self._mcp is None:
+            self._mcp = MCPClient.from_config_file(self.config.mcp_config_path)
+        return self._mcp
+    
+    @mcp.setter
+    def mcp(self, client :MCPClient):
+        self._client = client
+
+    @staticmethod
+    def _to_provider_tool_schema(tool_schema: ToolSchema)->Dict[str, Any]:
+        raise NotImplementedError("the selected model-provider does not support tool calling")
     
     @staticmethod
     def get_default_tokenizer(model_name: str) -> str:
@@ -449,11 +466,21 @@ class LlmBaseProvider(BaseModel):
         """placeholder to be overwritten by the anthropic provider"""
         pass
 
+    @classmethod
+    def _handle_tools(cls, tools  :List[ToolSchema])->Dict:
+        if not tools:
+            return None
+        return [
+            cls._to_provider_tool_schema(tool)
+            for tool in tools
+        ]
+
     def completion_args_template(self,
         prompt: Union[str, List[str], List[Dict[str, str]]],
         system_prompt: Optional[Union[List[str], str]] = None,
         prefix_prompt: Optional[Union[List[str], str]] = None,
         img_b64_str: Optional[Union[str, List[str]]] = None,
+        tools: Optional[List[ToolSchema]]=None,
         stream: bool = False) -> Dict:
         """Create completion arguments template for API requests.
         
@@ -485,6 +512,7 @@ class LlmBaseProvider(BaseModel):
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
             messages=messages,
+            tools=tools,
             stream=stream
         )
         
@@ -504,6 +532,7 @@ class LlmBaseProvider(BaseModel):
         system_prompt: Optional[Union[List[str], str]] = None,
         prefix_prompt: Optional[Union[List[str], str]] = None,
         img_path: Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]] = None,
+        tools: Optional[List[ToolSchema]]=None,
         stream: bool = True) -> Dict: 
         """Prepare completion arguments including image processing.
         
@@ -530,6 +559,7 @@ class LlmBaseProvider(BaseModel):
             system_prompt=system_prompt,
             prefix_prompt=prefix_prompt,
             img_b64_str=img_b64_str,
+            tools=tools,
             stream=stream
         )
         return completion_args
@@ -624,7 +654,7 @@ class LlmBaseProvider(BaseModel):
             str: Accumulated response
         """
         message = []
-        _skip = False        
+        _skip = False
         completeion_id = ulid.ulid()
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
         async for chunk in stream:
@@ -781,12 +811,25 @@ class LlmBaseProvider(BaseModel):
         input_tokens = 0
         output_tokens = 0
         cost = 0
+
+        ###
+        # TODO
+        # get mcp tools here into tools list
+        tools = None
+        if self.mcp is not None:
+            if not self.mcp._is_connected or self.mcp._needs_update:
+                await self.mcp.connect()
+                tools = await self.mcp.servers.tools
+                tools = self._handle_tools(tools)
+                self.mcp._needs_update = False
+        ###
         
         completion_args = self._prepare_completion_args(
             prompt=prompt,
             system_prompt=system_prompt,
             prefix_prompt=prefix_prompt,
             img_path=img_path,
+            tools=tools,
             stream=stream
         )
         
