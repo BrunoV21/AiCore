@@ -176,3 +176,4 @@ config/config.yml
 */storage/
 storage/
 observability_data/
+*mcp_config.json
