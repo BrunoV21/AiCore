@@ -20,6 +20,9 @@ def should_retry(exception: Exception) -> bool:
     if isinstance(exception, KeyboardInterrupt):
         return False
     
+    if issubclass(exception, NotImplementedError):
+        return False
+    
     if isinstance(exception, asyncio.CancelledError):
         return False
     

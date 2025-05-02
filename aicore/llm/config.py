@@ -16,6 +16,8 @@ class LlmConfig(BaseModel):
     pricing :Optional[PricingConfig]=None
     _context_window :Optional[int]=None
 
+    mcp_config_path :Optional[str]=None
+
     model_config = ConfigDict(
         extra="allow",
     )
