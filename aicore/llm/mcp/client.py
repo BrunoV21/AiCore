@@ -40,6 +40,7 @@ class ServerManager:
     def __init__(self, parent_client: 'MCPClient'):
         self._parent = parent_client
         self._tools_cache = {}  # Cache for mapping tool names to server names
+        self._servers_cache :Dict[str, ToolSchema]= {}
         
     def get(self, server_name: str) -> ServerConnection:
         """Get a connection to a specific server by name."""
@@ -65,6 +66,12 @@ class ServerManager:
                     
         return result
     
+    async def get_servers(self) -> Dict[str, str]:
+        all_tools =  await self.get_tools()
+        for client, servers in all_tools.items():
+            for server in servers:
+                self._servers_cache[server.name] = client
+
     @property
     async def tools(self) -> List[ToolSchema]:
         """Get a flat list of all tools from all connected servers."""
@@ -96,16 +103,13 @@ class ServerManager:
         """
         # If the tool cache is empty, populate it
         if not self._tools_cache:
-            await self.get_tools()
+            await self.get_servers()
             
         # If the tool is still not in the cache, it's not available
-        if tool_name not in self._tools_cache:
-            # Try to update the cache one more time
-            await self.get_tools()
-            if tool_name not in self._tools_cache:
-                raise ValueError(f"Tool '{tool_name}' not found on any connected server")
+        if tool_name not in self._servers_cache:
+            raise ValueError(f"Tool '{tool_name}' not found on any connected server")
         
-        server_name = self._tools_cache[tool_name]
+        server_name = self._servers_cache[tool_name]
         
         # Call the tool on the appropriate server
         async with self.get(server_name) as client:
@@ -242,8 +246,8 @@ async def example_usage():
         print(f"Tools from brave-search: {tools}")
         
         # Call a tool on a specific server
-        # result = await brave_client.call_tool("brave_web_search", {"query": "python programming"})
-        # print(f"Search result: {result}")
+        result = await brave_client.call_tool("brave_web_search", {"query": "python programming"})
+        print(f"Search result: {result}")
     
     # Option 2: Get tools by server (dictionary format)
     tools_by_server = await mcp.servers.get_tools()
@@ -254,11 +258,11 @@ async def example_usage():
     print(f"All tools (flat list): {all_tools}")
     
     # Option 4: Call a tool without specifying the server
-    # try:
-    #     tool_result = await mcp.servers.call_tool("brave_web_search", {"query": "artificial intelligence"})
-    #     print(f"Tool result: {tool_result}")
-    # except ValueError as e:
-    #     print(f"Error calling tool: {e}")
+    try:
+        tool_result = await mcp.servers.call_tool("brave_web_search", {"query": "artificial intelligence"})
+        print(f"Tool result: {tool_result}")
+    except ValueError as e:
+        print(f"Error calling tool: {e}")
     
     # Use with context manager
     async with MCPClient.from_config_file("mcp_config.json") as mcp:
