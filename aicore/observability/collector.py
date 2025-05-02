@@ -206,7 +206,7 @@ class LlmOperationCollector(RootModel):
                 _logger.logger.warning(f"Database connection failed: {str(e)}")
 
         except ModuleNotFoundError:
-            _logger.logger.warning("pip install core-for-ai[pg] for postgress integration and setup PG_CONNECTION_STRING env var")
+           _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
         
         return self
     
@@ -214,7 +214,13 @@ class LlmOperationCollector(RootModel):
         from aicore.observability.models import Base
         if not self._async_engine:
             return
+        
+        try:            
+            from aicore.observability.models import Base
             
+        except ModuleNotFoundError:
+             _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
+                    
         async with self._async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             self._table_initialized = True
@@ -392,8 +398,11 @@ class LlmOperationCollector(RootModel):
     
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a single LLM operation record into the database using SQLAlchemy."""
-        from aicore.observability.models import Session, Message, Metric
-
+        try:
+            from aicore.observability.models import Session, Message, Metric
+        except ModuleNotFoundError:
+             _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
+        
         if not self._session_factory:
             if self._async_session_factory:
                 _logger.logger.warning("You have configured an async connection to a db but are trying to establish a sync one. Pass CONNECTION_STRING env var.")
