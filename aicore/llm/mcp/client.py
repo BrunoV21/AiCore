@@ -1,3 +1,4 @@
+import time
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Dict, List, Optional, Any, AsyncContextManager
 import asyncio
@@ -14,6 +15,7 @@ from fastmcp.client.transports import (
 )
 
 from aicore.llm.mcp.models import MCPParameters, MCPServerConfig, ToolSchema
+from aicore.logger import _logger
 
 class ServerConnection(AsyncContextManager):
     """
@@ -112,8 +114,13 @@ class ServerManager:
         server_name = self._servers_cache[tool_name]
         
         # Call the tool on the appropriate server
+        _logger.logger.info(f"MCP | Starting call to tool '{tool_name}' on server '{server_name}' with arguments: {arguments}")
+        st = time.perf_counter()
         async with self.get(server_name) as client:
-            return await client.call_tool(tool_name, arguments)
+            result = await client.call_tool(tool_name, arguments)
+        duration = time.perf_counter() - st
+        _logger.logger.info(f"MCP | Finished call to tool '{tool_name}' on server '{server_name}' in {duration:.2f}s")
+        return result
 
 class MCPClient(BaseModel):
     """

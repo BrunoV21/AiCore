@@ -30,8 +30,7 @@ SPECIAL_TOKENS = [
 
 SPECIAL_END_TOKENS = [
     STREAM_END_TOKEN,
-    REASONING_STOP_TOKEN,
-    TOOL_CALL_END_TOKEN
+    REASONING_STOP_TOKEN
 ]
     
 def default_stream_handler(message :str)->str:
