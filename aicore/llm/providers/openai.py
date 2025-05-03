@@ -1,4 +1,4 @@
-from aicore.llm.mcp.models import ToolSchema
+from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
@@ -68,21 +68,62 @@ class OpenAiLlm(LlmBaseProvider):
     @staticmethod
     def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
         """
-        Convert to OpenAI tool schema format.
+        Convert to OpenAi tool schema format.
         
         Returns:
-            Dictionary in OpenAI tool schema format
+            Dictionary in OpenAi tool schema format
         """
         return {
             "type": "function",
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": {
-                "type": tool.input_schema.type,
-                "properties": tool.input_schema.properties.model_dump(),
-                "required": tool.input_schema.required,
-                "additionalProperties": False,
-                **{k: v for k, v in tool.input_schema.model_dump().items() 
-                   if k not in ["type", "properties", "required"]}
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": tool.input_schema.type,
+                    "properties": tool.input_schema.properties.model_dump(),
+                    "required": tool.input_schema.required,
+                    **{k: v for k, v in tool.input_schema.model_dump().items() 
+                       if k not in ["type", "properties", "required"]}
+                }
             }
+        }
+    
+    @staticmethod
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+        toolCallSchema._raw = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": toolCallSchema.id,
+                    "function": {
+                        "name": toolCallSchema.name,
+                        "arguments": toolCallSchema.arguments
+                    },
+                    "type": "function"
+                }
+            ]
+        }
+        
+        # ChatCompletionMessage(
+        #     role="assistant",
+        #     tool_calls=[
+        #         ChatCompletionMessageToolCall(
+        #             id=toolCallSchema.id,
+        #             function=Function(
+        #                 name=toolCallSchema.name,
+        #                 arguments=toolCallSchema.arguments
+        #             ),
+        #             type="function"
+        #         )
+        #     ]
+        # )
+
+        return toolCallSchema
+    
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+        return {
+            "type": "function_call_output",
+            "role": "tool",
+            "tool_call_id": toolCallSchema.id,
+            "content": str(content)
         }

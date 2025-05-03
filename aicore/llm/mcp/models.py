@@ -2,8 +2,8 @@
 from fastmcp.client.transports import StdioServerParameters
 from mcp.types import Tool
 
-from typing import Any, Dict, List, Literal, Union
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Dict, List, Literal, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field, RootModel, computed_field
 from enum import Enum
 
 class WSParameters(BaseModel):
@@ -54,6 +54,14 @@ class ToolSchema(BaseModel):
             description=tool.description,
             input_schema=InputSchema(**tool.inputSchema)
         )
+
+class ToolCallSchema(BaseModel):
+    type :str="function"
+    id :str
+    name :str
+    arguments :Union[str, Dict]
+    _raw :Optional[Any]=None
+    
 
     """
     [
@@ -141,3 +149,6 @@ class ToolSchema(BaseModel):
         }
     }
     """
+
+class ToolCalls(RootModel):
+    root: List[ToolCallSchema] = []
