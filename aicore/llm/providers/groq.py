@@ -15,7 +15,8 @@ class GroqLlm(LlmBaseProvider):
         self.client :Groq = Groq(
             api_key=self.config.api_key
         )
-        self.validate_config(AuthenticationError)
+        self._auth_exception = AuthenticationError
+        self.validate_config()
         _aclient = AsyncGroq(
             api_key=self.config.api_key
         )

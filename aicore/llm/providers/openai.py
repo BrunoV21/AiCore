@@ -21,7 +21,8 @@ class OpenAiLlm(LlmBaseProvider):
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        self.validate_config(AuthenticationError)
+        self._auth_exception = AuthenticationError
+        self.validate_config()
         self.aclient = _aclient
         self.completion_fn = self.client.chat.completions.create
         self.acompletion_fn = _aclient.chat.completions.create

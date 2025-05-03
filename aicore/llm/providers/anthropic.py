@@ -33,7 +33,8 @@ class AnthropicLlm(LlmBaseProvider):
             api_key=self.config.api_key
         )
         self.client :Anthropic = _client
-        self.validate_config(AuthenticationError)
+        self._auth_exception = AuthenticationError
+        self.validate_config()
         _aclient :AsyncAnthropic = AsyncAnthropic(
             api_key=self.config.api_key
         )

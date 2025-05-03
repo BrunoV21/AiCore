@@ -18,7 +18,8 @@ class MistralLlm(LlmBaseProvider):
         self.client :Mistral = Mistral(
             api_key=self.config.api_key
         )
-        self.validate_config(models.SDKError)
+        self._auth_exception = models.SDKError
+        self.validate_config()
         ### Suspect Misral will always stream by default
         self.completion_fn = self.client.chat.stream
         self.acompletion_fn = self.client.chat.stream_async

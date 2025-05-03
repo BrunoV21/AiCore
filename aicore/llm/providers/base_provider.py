@@ -12,6 +12,7 @@ from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_STA
 from aicore.llm.utils import parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
 from aicore.models import AuthenticationError, ModelError
+from aicore.models_metadata import METADATA
 from aicore.observability.collector import LlmOperationCollector
 from typing import Any, Dict, Optional, Literal, List, Union, Callable
 from pydantic import BaseModel, RootModel, Field
@@ -57,6 +58,7 @@ class LlmBaseProvider(BaseModel):
     _normalize_fn: Any = None
     _tokenizer_fn: Any = None
     _is_reasoner: bool = False
+    _auth_exception: Exception = Exception
     _usage :Optional[UsageInfo]=None
     _collector: Optional[LlmOperationCollector] = None
     _mcp: Optional[MCPClient] = None
@@ -116,7 +118,7 @@ class LlmBaseProvider(BaseModel):
         """
         self._aclient = aclient
 
-    def validate_config(self, exception :Exception):
+    def validate_config(self, force_check_against_provider :bool=False):
         """Validate provider configuration against available models.
         
         Args:
@@ -129,6 +131,10 @@ class LlmBaseProvider(BaseModel):
         try:
             if self.config.model in CUSTOM_MODELS:
                 return
+            
+            if not force_check_against_provider and self.config.provider_model in METADATA:
+                return
+            
             models = self.client.models.list()
             models = [model.id for model in models.data]
             if self.config.model not in models:
@@ -140,7 +146,7 @@ class LlmBaseProvider(BaseModel):
                 elif f"models/{self.config.model}" in models:
                     return
                 raise ModelError.from_model(self.config.model, self.config.provider, models)
-        except exception as e:
+        except self._auth_exception as e:
             raise AuthenticationError(
                 provider=self.config.provider,
                 message=str(e)
