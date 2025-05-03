@@ -17,6 +17,7 @@ class LlmConfig(BaseModel):
     _context_window :Optional[int]=None
 
     mcp_config_path :Optional[str]=None
+    max_tool_calls_per_response :Optional[int]=None
 
     model_config = ConfigDict(
         extra="allow",

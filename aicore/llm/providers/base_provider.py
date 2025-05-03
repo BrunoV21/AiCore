@@ -6,9 +6,9 @@ common interfaces and utilities for synchronous and asynchronous operations.
 
 from aicore.llm.config import LlmConfig
 from aicore.llm.mcp.client import MCPClient
-from aicore.llm.mcp.models import ToolSchema
+from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 from aicore.logger import _logger, default_stream_handler
-from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS
+from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS, TOOL_CALL_END_TOKEN, TOOL_CALL_START_TOKEN
 from aicore.llm.utils import parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
 from aicore.models import AuthenticationError, ModelError
@@ -48,6 +48,7 @@ class LlmBaseProvider(BaseModel):
     worspace: Optional[str]=None
     agent_id: Optional[str]=None
     extras: Optional[dict]=Field(default_factory=dict)
+    tools: Optional[List[ToolSchema]]=None
     _client: Any = None
     _aclient: Any = None
     _completion_args: Dict = {}
@@ -59,6 +60,7 @@ class LlmBaseProvider(BaseModel):
     _usage :Optional[UsageInfo]=None
     _collector: Optional[LlmOperationCollector] = None
     _mcp: Optional[MCPClient] = None
+    _n_sucessive_tool_calls :int=0
 
     @classmethod
     def from_config(cls, config: LlmConfig) -> "LlmBaseProvider":
@@ -294,6 +296,14 @@ class LlmBaseProvider(BaseModel):
         raise NotImplementedError("the selected model-provider does not support tool calling")
     
     @staticmethod
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:        
+        raise NotImplementedError("the selected model-provider does not support tool calling")
+
+    
+    def _tool_call_message(self, **kwargs)->Dict[str, str]:        
+        raise NotImplementedError("the selected model-provider does not support tool calling")
+    
+    @staticmethod
     def get_default_tokenizer(model_name: str) -> str:
         """Get default tokenizer name for a model.
         
@@ -418,7 +428,7 @@ class LlmBaseProvider(BaseModel):
         Raises:
             AssertionError: If message structure is invalid
         """
-        assert message_dict.get("role") in ["user", "system", "assistant"], f"{message_dict} 'role' attribute must be one of ['user', 'system', 'assistant']"
+        assert message_dict.get("role") in ["user", "system", "assistant", "tool"], f"{message_dict} 'role' attribute must be one of ['user', 'system', 'assistant', 'tool]"
         assert message_dict.get("content") is not None, f"{message_dict} 'content' attribute is missing"
         return True
 
@@ -440,6 +450,9 @@ class LlmBaseProvider(BaseModel):
         for _prompt in prompt[::-1]:
             if isinstance(_prompt, str):
                 _prompt = self._message_body(_prompt, role=role)
+
+            elif isinstance(_prompt, ToolCallSchema):
+                _prompt = _prompt._raw
             
             elif isinstance(_prompt, dict):
                 self._validte_message_dict(_prompt)
@@ -526,12 +539,19 @@ class LlmBaseProvider(BaseModel):
         args = {arg: value for arg, value in args.items() if value is not None}
         
         return args
+    
+    @staticmethod
+    def _img_to_base64(img_path :Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]] = None):
+        return [
+            image_to_base64(img)
+            for img in img_path
+        ] if img_path else None
 
     def _prepare_completion_args(self,
         prompt: Union[str, List[str], List[Dict[str, str]]], 
         system_prompt: Optional[Union[List[str], str]] = None,
         prefix_prompt: Optional[Union[List[str], str]] = None,
-        img_path: Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]] = None,
+        img_b64_str: Optional[List[str]] = None,
         tools: Optional[List[ToolSchema]]=None,
         stream: bool = True) -> Dict: 
         """Prepare completion arguments including image processing.
@@ -546,13 +566,6 @@ class LlmBaseProvider(BaseModel):
         Returns:
             Dict: Prepared completion arguments
         """
-        if img_path and not isinstance(img_path, list):
-            img_path = [img_path]
-        
-        img_b64_str = [
-            image_to_base64(img)
-            for img in img_path
-        ] if img_path else None
 
         completion_args = self.completion_args_template(
             prompt=prompt,
@@ -580,8 +593,14 @@ class LlmBaseProvider(BaseModel):
             _skip = True
         message.append(chunk_message) if not _skip else ... 
         if chunk_message == REASONING_STOP_TOKEN:
-            _skip = False        
+            _skip = False
         return _skip
+    
+    @staticmethod
+    def _is_tool_call(_chunk)->bool:
+        if _chunk and hasattr(_chunk[0].delta, "tool_calls") and _chunk[0].delta.tool_calls:
+            return True
+        return False
 
     @classmethod
     def _handle_stream_messages(cls, _chunk, message, _skip=False)->bool:
@@ -615,6 +634,21 @@ class LlmBaseProvider(BaseModel):
         chunk_message = _chunk[0].delta.content or  ""
         await logger_fn(chunk_message)
         return cls._handle_reasoning_steps(chunk_message, message, _skip)
+    
+    def _no_stream(self, response) -> Union[str, ToolCalls]:
+        _chunk = self.normalize_fn(response)
+        message = _chunk[0].message
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            return ToolCalls(root=[
+                ToolCallSchema(
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                    _raw=tool_call.function
+                ) for tool_call in message.tool_calls
+            ])
+        else:
+            return message.content
 
     def _stream(self, stream, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
         """Handle streaming response from synchronous completion.
@@ -642,7 +676,7 @@ class LlmBaseProvider(BaseModel):
         response = "".join(message)
         return response
     
-    async def _astream(self, stream, logger_fn, prefix_prompt: Optional[Union[str, List[str]]] = None) -> str:
+    async def _astream(self, stream, logger_fn, prefix_prompt: Optional[Union[str, List[str]]] = None) -> Union[str, ToolCalls]:
         """Handle streaming response from asynchronous completion.
         
         Args:
@@ -653,14 +687,48 @@ class LlmBaseProvider(BaseModel):
         Returns:
             str: Accumulated response
         """
-        message = []
+        message :List[Union[str, ToolCallSchema]] = []
         _skip = False
         completeion_id = ulid.ulid()
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
+        _calling_tool = False
+        tool_calls = ToolCalls()
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk, completeion_id)
             if _chunk:
                 _skip = await self._handle_astream_messages(_chunk, logger_fn, message, _skip)
+
+            if self._is_tool_call(_chunk):
+                tool_chunk = _chunk[0].delta.tool_calls[0]
+                # print(tool_chunk,"\n")
+                if not _calling_tool:
+                    _calling_tool = True
+                    await logger_fn(TOOL_CALL_START_TOKEN)
+                    tool_call = ToolCallSchema(
+                        id=tool_chunk.id,
+                        name=tool_chunk.function.name,
+                        arguments=tool_chunk.function.arguments
+                    )
+                    tool_call._raw = tool_chunk.function
+                    continue
+
+                if tool_chunk.id is not None:
+                    tool_calls.root.append(tool_call)
+                    tool_call = ToolCallSchema(
+                        id=tool_chunk.id,
+                        name=tool_chunk.function.name,
+                        arguments=tool_chunk.function.arguments
+                    )
+                    tool_call._raw = tool_chunk.function
+                    continue
+
+                tool_call._raw.arguments += tool_chunk.function.arguments
+                tool_call.arguments += tool_chunk.function.arguments
+        
+        if _calling_tool:
+            ### colect last call
+            tool_calls.root.append(tool_call)
+            return tool_calls
         
         if self._is_reasoner:
             await logger_fn(REASONING_STOP_TOKEN)
@@ -668,6 +736,18 @@ class LlmBaseProvider(BaseModel):
             await logger_fn(STREAM_END_TOKEN)
         response = "".join(message)
         return response
+    
+    async def connect_to_mcp(self):
+        if self.mcp is not None:
+            if not self.mcp._is_connected or self.mcp._needs_update:
+                await self.mcp.connect()
+                tools = await self.mcp.servers.tools
+                self.tools = self._handle_tools(tools)
+                self.mcp._needs_update = False
+
+    @property
+    def _exceeded_tool_calls(self)->bool:
+        return self.config.max_tool_calls_per_response is None  or self._n_sucessive_tool_calls < self.config.max_tool_calls_per_response
     
     @staticmethod
     def model_to_str(model: Union[BaseModel, RootModel]) -> str:
@@ -707,7 +787,7 @@ class LlmBaseProvider(BaseModel):
         Returns:
             The completion result as either a string or dictionary (if json_output=True)
         """
-        
+        img_b64_str = self._img_to_base64(img_path)
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
         
@@ -721,17 +801,20 @@ class LlmBaseProvider(BaseModel):
             prompt=prompt,
             system_prompt=system_prompt,
             prefix_prompt=prefix_prompt,
-            img_path=img_path,
+            img_b64_str=img_b64_str,
             stream=stream
         )
         
-        output = None  
+        output = None
         error_message = None
         try:
             output = self.completion_fn(**completion_args)
             
             if stream:
                 output = self._stream(output, prefix_prompt)
+            else:
+                output = self._no_stream(output)
+
             if self.usage:
                 if self.usage.latest_completion:
                     _logger.logger.info(str(self.usage.latest_completion))
@@ -800,10 +883,12 @@ class LlmBaseProvider(BaseModel):
         Returns:
             The completion result as either a string or dictionary (if json_output=True)
         """
-        
+        img_b64_str = self._img_to_base64(img_path)
         if isinstance(prompt, Union[BaseModel, RootModel]):
             prompt = self.model_to_str(prompt)
-
+        elif isinstance(prompt, str):            
+            prompt = [self._message_body([prompt], role="user", img_b64_str=img_b64_str)]
+        
         stream_handler = stream_handler or default_stream_handler
         
         # Start tracking operation time
@@ -812,24 +897,14 @@ class LlmBaseProvider(BaseModel):
         output_tokens = 0
         cost = 0
 
-        ###
-        # TODO
-        # get mcp tools here into tools list
-        tools = None
-        if self.mcp is not None:
-            if not self.mcp._is_connected or self.mcp._needs_update:
-                await self.mcp.connect()
-                tools = await self.mcp.servers.tools
-                tools = self._handle_tools(tools)
-                self.mcp._needs_update = False
-        ###
+        await self.connect_to_mcp()
         
         completion_args = self._prepare_completion_args(
             prompt=prompt,
             system_prompt=system_prompt,
             prefix_prompt=prefix_prompt,
-            img_path=img_path,
-            tools=tools,
+            img_b64_str=img_b64_str,
+            tools=self.tools if self._exceeded_tool_calls else None,
             stream=stream
         )
         
@@ -840,6 +915,9 @@ class LlmBaseProvider(BaseModel):
             
             if stream:
                 output = await self._astream(output, stream_handler, prefix_prompt)
+            else:
+                output = self._no_stream(output)
+            
             if self.usage:
                 if self.usage.latest_completion:
                     _logger.logger.info(str(self.usage.latest_completion))
@@ -847,6 +925,37 @@ class LlmBaseProvider(BaseModel):
                     output_tokens = self.usage.latest_completion.response_tokens
                     cost = self.usage.latest_completion.cost
                 _logger.logger.info(str(self.usage))
+
+            if isinstance(output, ToolCalls) and self._exceeded_tool_calls:
+                tools_messages = []
+                for tool_call in output.root:
+                    tool_call_response = await self.mcp.servers.call_tool(
+                        tool_name=tool_call.name,
+                        arguments=json.loads(tool_call.arguments)
+                    )
+                    tools_messages.extend([
+                        self._to_provider_tool_call_schema(tool_call),
+                        self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
+                    ])
+                
+                if stream:
+                    await stream_handler(TOOL_CALL_END_TOKEN)
+
+                prompt.extend(tools_messages)
+                self._n_sucessive_tool_calls += 1
+                return await self.acomplete(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    prefix_prompt=prefix_prompt,
+                    img_path=img_path,
+                    json_output=json_output,
+                    stream=stream,
+                    stream_handler=stream_handler,
+                    agent_id=agent_id,
+                    action_id=action_id
+                )
+            
+            self._n_sucessive_tool_calls = 0
             
             output = output if not json_output else self.extract_json(output)
 
@@ -863,7 +972,7 @@ class LlmBaseProvider(BaseModel):
                     provider=self.config.provider,
                     operation_type="acompletion",
                     completion_args=completion_args,
-                    response=output,
+                    response=output.model_dump_json(indent=4) if isinstance(output, ToolCallSchema) else output,
                     session_id=self.session_id,
                     workspace=self.worspace,
                     agent_id=agent_id or self.agent_id,
