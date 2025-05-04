@@ -648,18 +648,33 @@ class LlmBaseProvider(BaseModel):
     @classmethod
     def _tool_chunk_from_provider(cls, _chunk):
         return cls._chunk_from_provider(_chunk).delta.tool_calls[0]
+    
+    @staticmethod
+    def _fill_tool_schema(tool_chunk)->ToolCallSchema:
+        tool_call = ToolCallSchema(
+            id=tool_chunk.id,
+            name=tool_chunk.function.name,
+            arguments=tool_chunk.function.arguments
+        )
+        tool_call._raw = tool_chunk.function
+        return tool_call
+    
+    @staticmethod
+    def _tool_call_change_condition(tool_chunk)->bool:
+        return tool_chunk.id is not None
+    
+    @staticmethod
+    def _handle_tool_call_stream(tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
+        tool_call._raw.arguments += tool_chunk.function.arguments
+        tool_call.arguments += tool_chunk.function.arguments
+        return tool_call
 
     def _no_stream(self, response) -> Union[str, ToolCalls]:
         _chunk = self.normalize_fn(response)
         message = self._chunk_from_provider(_chunk).message
         if hasattr(message, "tool_calls") and message.tool_calls:
             return ToolCalls(root=[
-                ToolCallSchema(
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    arguments=tool_call.function.arguments,
-                    _raw=tool_call.function
-                ) for tool_call in message.tool_calls
+                self._fill_tool_schema(tool_call) for tool_call in message.tool_calls
             ])
         else:
             return message.content
@@ -715,33 +730,24 @@ class LlmBaseProvider(BaseModel):
             if self._is_tool_call(_chunk):
                 ### TODO recheck this line to ensure it covers multiple tool calling in stream mode
                 tool_chunk = self._tool_chunk_from_provider(_chunk)
-                # print(tool_chunk,"\n")
+                print(tool_chunk,"\n")
                 if not _calling_tool:
                     _calling_tool = True
                     await logger_fn(TOOL_CALL_START_TOKEN)
-                    tool_call = ToolCallSchema(
-                        id=tool_chunk.id,
-                        name=tool_chunk.function.name,
-                        arguments=tool_chunk.function.arguments
-                    )
-                    tool_call._raw = tool_chunk.function
+                    tool_call = self._fill_tool_schema(tool_chunk)
                     continue
 
-                if tool_chunk.id is not None:
+                if self._tool_call_change_condition(tool_chunk):
                     tool_calls.root.append(tool_call)
-                    tool_call = ToolCallSchema(
-                        id=tool_chunk.id,
-                        name=tool_chunk.function.name,
-                        arguments=tool_chunk.function.arguments
-                    )
-                    tool_call._raw = tool_chunk.function
+                    tool_call = self._fill_tool_schema(tool_chunk)
                     continue
-
-                tool_call._raw.arguments += tool_chunk.function.arguments
-                tool_call.arguments += tool_chunk.function.arguments
+                
+                tool_call = self._handle_tool_call_stream(tool_call, tool_chunk)
         
         if _calling_tool:
             ### colect last call
+            print("\n\nRAW??")
+            print(tool_call._raw)
             tool_calls.root.append(tool_call)
             return tool_calls
         

@@ -103,19 +103,36 @@ class AnthropicLlm(LlmBaseProvider):
     
     @classmethod
     def _tool_chunk_from_provider(cls, _chunk):
-        return cls._chunk_from_provider(_chunk).delta.tool_calls[0]
+        if isinstance(_chunk, RawContentBlockStartEvent) and isinstance(_chunk.content_block, ToolUseBlock):
+            return _chunk.content_block
+        elif isinstance(_chunk, RawContentBlockDeltaEvent) and isinstance(_chunk.delta, InputJSONDelta):
+            return _chunk.delta
+        
+    @staticmethod
+    def _fill_tool_schema(tool_chunk)->ToolCallSchema:
+        tool_call = ToolCallSchema(
+            id=tool_chunk.id,
+            name=tool_chunk.name,
+            arguments=""#tool_chunk.function.arguments
+        )
+        #tool_call._raw = tool_chunk.function
+        return tool_call
+    
+    @staticmethod
+    def _tool_call_change_condition(tool_chunk)->bool:
+        return isinstance(tool_chunk, ToolUseBlock)
+    
+    @staticmethod
+    def _handle_tool_call_stream(tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
+        tool_call.arguments += tool_chunk.partial_json
+        return tool_call
     
     def _no_stream(self, response) -> Union[str, ToolCalls]:
         _chunk = self.normalize_fn(response)
         message = self._chunk_from_provider(_chunk).message
         if hasattr(message, "tool_calls") and message.tool_calls:
             return ToolCalls(root=[
-                ToolCallSchema(
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    arguments=tool_call.function.arguments,
-                    _raw=tool_call.function
-                ) for tool_call in message.tool_calls
+                self._fill_tool_schema(tool_call) for tool_call in message.tool_calls
             ])
         else:
             return message.content
@@ -223,6 +240,10 @@ class AnthropicLlm(LlmBaseProvider):
     
     @staticmethod
     def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+        """
+        https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview#single-tool-example
+        """
+
         toolCallSchema._raw = {
             "role": "assistant",
             "tool_calls": [
