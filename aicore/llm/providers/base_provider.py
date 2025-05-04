@@ -602,9 +602,9 @@ class LlmBaseProvider(BaseModel):
             _skip = False
         return _skip
     
-    @staticmethod
-    def _is_tool_call(_chunk)->bool:
-        if _chunk and hasattr(_chunk[0].delta, "tool_calls") and _chunk[0].delta.tool_calls:
+    @classmethod
+    def _is_tool_call(cls, _chunk)->bool:
+        if _chunk and hasattr(cls._chunk_from_provider(_chunk).delta, "tool_calls") and cls._chunk_from_provider(_chunk).delta.tool_calls:
             return True
         return False
 
@@ -641,9 +641,17 @@ class LlmBaseProvider(BaseModel):
         await logger_fn(chunk_message)
         return cls._handle_reasoning_steps(chunk_message, message, _skip)
     
+    @staticmethod
+    def _chunk_from_provider(_chunk):
+        return _chunk[0]
+    
+    @classmethod
+    def _tool_chunk_from_provider(cls, _chunk):
+        return cls._chunk_from_provider(_chunk).delta.tool_calls[0]
+
     def _no_stream(self, response) -> Union[str, ToolCalls]:
         _chunk = self.normalize_fn(response)
-        message = _chunk[0].message
+        message = self._chunk_from_provider(_chunk).message
         if hasattr(message, "tool_calls") and message.tool_calls:
             return ToolCalls(root=[
                 ToolCallSchema(
@@ -705,7 +713,8 @@ class LlmBaseProvider(BaseModel):
                 _skip = await self._handle_astream_messages(_chunk, logger_fn, message, _skip)
 
             if self._is_tool_call(_chunk):
-                tool_chunk = _chunk[0].delta.tool_calls[0]
+                ### TODO recheck this line to ensure it covers multiple tool calling in stream mode
+                tool_chunk = self._tool_chunk_from_provider(_chunk)
                 # print(tool_chunk,"\n")
                 if not _calling_tool:
                     _calling_tool = True

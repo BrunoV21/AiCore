@@ -5,9 +5,10 @@ from pydantic import model_validator
 from typing import Any, Optional, Dict, Union, List
 from typing_extensions import Self
 from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
+from anthropic.types import RawContentBlockStartEvent, ToolUseBlock, RawContentBlockDeltaEvent, InputJSONDelta
 from functools import partial
 
-from aicore.llm.mcp.models import ToolSchema
+from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 
 class AnthropicLlm(LlmBaseProvider):
 
@@ -69,6 +70,7 @@ class AnthropicLlm(LlmBaseProvider):
         event_type = event.type
         input_tokens = 0
         output_tokens = 0
+        print(event)
         if event_type == "message_start":
             input_tokens = event.message.usage.input_tokens
             output_tokens = event.message.usage.output_tokens
@@ -84,6 +86,8 @@ class AnthropicLlm(LlmBaseProvider):
             )
         elif event_type == "content_block_delta":
             return event
+        elif event_type == "content_block_start" and isinstance(getattr(event, "content_block", None), ToolUseBlock):
+            return event
         elif event_type == "message_delta":
             output_tokens = event.usage.output_tokens
             self.usage.record_completion(
@@ -92,28 +96,71 @@ class AnthropicLlm(LlmBaseProvider):
                 completion_id=completion_id
             )
 
+    @staticmethod
+    def _chunk_from_provider(_chunk :RawContentBlockStartEvent):
+        return _chunk
+    
+    
+    @classmethod
+    def _tool_chunk_from_provider(cls, _chunk):
+        return cls._chunk_from_provider(_chunk).delta.tool_calls[0]
+    
+    def _no_stream(self, response) -> Union[str, ToolCalls]:
+        _chunk = self.normalize_fn(response)
+        message = self._chunk_from_provider(_chunk).message
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            return ToolCalls(root=[
+                ToolCallSchema(
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                    _raw=tool_call.function
+                ) for tool_call in message.tool_calls
+            ])
+        else:
+            return message.content
+
+    @classmethod
+    def _is_tool_call(cls, _chunk)->bool:
+        print(f"{_chunk=}")
+        print(f"{type(_chunk)=}\n")
+        if isinstance(_chunk, RawContentBlockStartEvent) and isinstance(_chunk.content_block, ToolUseBlock):
+            print("HERE TOOL_CALL START")
+            return True
+        elif isinstance(_chunk, RawContentBlockDeltaEvent) and isinstance(_chunk.delta, InputJSONDelta):
+            print("HERE TOOL_CALL DELTA")
+            return True
+        
+        # hasattr(cls._chunk_from_provider(_chunk).delta, "tool_calls") and cls._chunk_from_provider(_chunk).delta.tool_calls:
+            # return True
+        return False
+
     @classmethod
     def _handle_stream_messages(cls, event, message, _skip=False)->bool:
-        delta = event.delta
-        chunk_message = getattr(delta, "text", "")
-        chunk_thinking = getattr(delta, "thinking", None)
-        chunk_signature = getattr(delta, "signature", None)
-        chunk_stream = chunk_message or chunk_thinking or chunk_signature
-        default_stream_handler(chunk_stream)
-        if chunk_message:
-            message.append(chunk_message)
+        if hasattr(event, "delta"):
+            delta = event.delta
+            chunk_message = getattr(delta, "text", "")
+            chunk_thinking = getattr(delta, "thinking", None)
+            chunk_signature = getattr(delta, "signature", None)
+            chunk_stream = chunk_message or chunk_thinking or chunk_signature
+            default_stream_handler(chunk_stream)
+            if chunk_stream:
+                if chunk_message:
+                    message.append(chunk_message)
         return False
     
     @classmethod
     async def _handle_astream_messages(cls, event, logger_fn, message, _skip=False)->bool:
-        delta = event.delta
-        chunk_message = getattr(delta, "text", "")
-        chunk_thinking = getattr(delta, "thinking", None)
-        chunk_signature = getattr(delta, "signature", None)
-        chunk_stream = chunk_message or chunk_thinking or chunk_signature
-        await logger_fn(chunk_stream)
-        if chunk_message:
-            message.append(chunk_message)
+        if hasattr(event, "delta"):
+            delta = event.delta
+            chunk_message = getattr(delta, "text", "")
+            chunk_thinking = getattr(delta, "thinking", None)
+            chunk_signature = getattr(delta, "signature", None)
+            chunk_stream = chunk_message or chunk_thinking or chunk_signature
+            if chunk_stream:
+                await logger_fn(chunk_stream)
+                if chunk_message:
+                    message.append(chunk_message)
         return False
 
     def _handle_system_prompt(self,
@@ -172,4 +219,29 @@ class AnthropicLlm(LlmBaseProvider):
                 **{k: v for k, v in tool.input_schema.model_dump().items() 
                    if k not in ["type", "properties", "required"]}
             }
+        }
+    
+    @staticmethod
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+        toolCallSchema._raw = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": toolCallSchema.id,
+                    "function": {
+                        "name": toolCallSchema.name,
+                        "arguments": toolCallSchema.arguments
+                    },
+                    "type": "function"
+                }
+            ]
+        }        
+        return toolCallSchema
+
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+        return {
+            "type": "function_call_output",
+            "role": "tool",
+            "tool_call_id": toolCallSchema.id,
+            "content": str(content)
         }
