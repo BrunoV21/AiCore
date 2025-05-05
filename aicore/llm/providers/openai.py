@@ -90,7 +90,7 @@ class OpenAiLlm(LlmBaseProvider):
         }
     
     @staticmethod
-    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema, previous_tool_call_raw :Optional[None]=None)->ToolCallSchema:
         toolCallSchema._raw = {
             "role": "assistant",
             "tool_calls": [

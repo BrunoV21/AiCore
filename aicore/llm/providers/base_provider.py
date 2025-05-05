@@ -302,13 +302,17 @@ class LlmBaseProvider(BaseModel):
         raise NotImplementedError("the selected model-provider does not support tool calling")
     
     @staticmethod
-    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:        
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema, previous_tool_call_raw :Optional[None]=None)->ToolCallSchema:        
         raise NotImplementedError("the selected model-provider does not support tool calling")
 
-    
     def _tool_call_message(self, **kwargs)->Dict[str, str]:        
         raise NotImplementedError("the selected model-provider does not support tool calling")
     
+    @staticmethod
+    def _handle_special_tool_msg_empty_content_anthropic(prompts :List)->str:
+        """placeholder to be overwritten by the anthropic provider"""
+        return None
+
     @staticmethod
     def get_default_tokenizer(model_name: str) -> str:
         """Get default tokenizer name for a model.
@@ -466,7 +470,7 @@ class LlmBaseProvider(BaseModel):
             
             role = next_role_maps.get(role)
             prompt_messages.append(_prompt)
-        
+
         return prompt_messages[::-1]
     
     def _handle_system_prompt(self,
@@ -730,7 +734,6 @@ class LlmBaseProvider(BaseModel):
             if self._is_tool_call(_chunk):
                 ### TODO recheck this line to ensure it covers multiple tool calling in stream mode
                 tool_chunk = self._tool_chunk_from_provider(_chunk)
-                print(tool_chunk,"\n")
                 if not _calling_tool:
                     _calling_tool = True
                     await logger_fn(TOOL_CALL_START_TOKEN)
@@ -738,6 +741,9 @@ class LlmBaseProvider(BaseModel):
                     continue
 
                 if self._tool_call_change_condition(tool_chunk):
+                    if message:
+                        ### cover anthropic
+                        tool_call._raw = "\n".join(message)
                     tool_calls.root.append(tool_call)
                     tool_call = self._fill_tool_schema(tool_chunk)
                     continue
@@ -746,8 +752,9 @@ class LlmBaseProvider(BaseModel):
         
         if _calling_tool:
             ### colect last call
-            print("\n\nRAW??")
-            print(tool_call._raw)
+            if message:
+                ### cover anthropic
+                tool_call._raw = "\n".join(message)
             tool_calls.root.append(tool_call)
             return tool_calls
         
@@ -767,7 +774,7 @@ class LlmBaseProvider(BaseModel):
                 self.mcp._needs_update = False
 
     @property
-    def _exceeded_tool_calls(self)->bool:
+    def _has_not_exceeded_tool_calls(self)->bool:
         return self.config.max_tool_calls_per_response is None  or self._n_sucessive_tool_calls < self.config.max_tool_calls_per_response
     
     @staticmethod
@@ -925,7 +932,7 @@ class LlmBaseProvider(BaseModel):
             system_prompt=system_prompt,
             prefix_prompt=prefix_prompt,
             img_b64_str=img_b64_str,
-            tools=self.tools if self._exceeded_tool_calls else None,
+            tools=self.tools if self._has_not_exceeded_tool_calls else None,
             stream=stream
         )
         
@@ -947,21 +954,22 @@ class LlmBaseProvider(BaseModel):
                     cost = self.usage.latest_completion.cost
                 _logger.logger.info(str(self.usage))
 
-            if isinstance(output, ToolCalls) and self._exceeded_tool_calls:
+            if isinstance(output, ToolCalls) and self._has_not_exceeded_tool_calls: # not self? TODO
                 tools_messages = []
+                previous_tool_call_raw = self._handle_special_tool_msg_empty_content_anthropic(prompt)
                 for tool_call in output.root:
                     tool_call_response = await self.mcp.servers.call_tool(
                         tool_name=tool_call.name,
                         arguments=json.loads(tool_call.arguments)
                     )
                     tools_messages.extend([
-                        self._to_provider_tool_call_schema(tool_call),
+                        self._to_provider_tool_call_schema(tool_call, previous_tool_call_raw),
                         self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
                     ])
                 
                 if stream:
                     await stream_handler(TOOL_CALL_END_TOKEN)
-
+                
                 prompt.extend(tools_messages)
                 self._n_sucessive_tool_calls += 1
                 return await self.acomplete(
