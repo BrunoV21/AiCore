@@ -1,3 +1,4 @@
+import json
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
@@ -11,6 +12,7 @@ from functools import partial
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 
 class AnthropicLlm(LlmBaseProvider):
+    ### TODO implement integration between max_tool_calls from cnfig and Anthropic tools calls
 
     @staticmethod
     def anthropic_count_tokens(contents :str, client :AsyncAnthropic, model :str):
@@ -70,7 +72,6 @@ class AnthropicLlm(LlmBaseProvider):
         event_type = event.type
         input_tokens = 0
         output_tokens = 0
-        print(event)
         if event_type == "message_start":
             input_tokens = event.message.usage.input_tokens
             output_tokens = event.message.usage.output_tokens
@@ -139,15 +140,10 @@ class AnthropicLlm(LlmBaseProvider):
 
     @classmethod
     def _is_tool_call(cls, _chunk)->bool:
-        print(f"{_chunk=}")
-        print(f"{type(_chunk)=}\n")
         if isinstance(_chunk, RawContentBlockStartEvent) and isinstance(_chunk.content_block, ToolUseBlock):
-            print("HERE TOOL_CALL START")
             return True
         elif isinstance(_chunk, RawContentBlockDeltaEvent) and isinstance(_chunk.delta, InputJSONDelta):
-            print("HERE TOOL_CALL DELTA")
-            return True
-        
+            return True        
         # hasattr(cls._chunk_from_provider(_chunk).delta, "tool_calls") and cls._chunk_from_provider(_chunk).delta.tool_calls:
             # return True
         return False
@@ -239,21 +235,23 @@ class AnthropicLlm(LlmBaseProvider):
         }
     
     @staticmethod
-    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema, previous_tool_call_raw :Optional[None]=None)->ToolCallSchema:
         """
         https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview#single-tool-example
         """
-
-        toolCallSchema._raw = {
+        toolCallSchema._raw =  {
             "role": "assistant",
-            "tool_calls": [
+            "content": [
                 {
+                    "type": "text",
+                    "text": toolCallSchema._raw or previous_tool_call_raw,
+                    #or "Executing tool" #TODO review this and understand hy original message is not sent here
+                },
+                {
+                    "type": "tool_use",
                     "id": toolCallSchema.id,
-                    "function": {
-                        "name": toolCallSchema.name,
-                        "arguments": toolCallSchema.arguments
-                    },
-                    "type": "function"
+                    "name": toolCallSchema.name,
+                    "input": json.loads(toolCallSchema.arguments),
                 }
             ]
         }        
@@ -261,8 +259,21 @@ class AnthropicLlm(LlmBaseProvider):
 
     def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
         return {
-            "type": "function_call_output",
-            "role": "tool",
-            "tool_call_id": toolCallSchema.id,
-            "content": str(content)
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": toolCallSchema.id,
+                    "content": str(content)
+                }
+            ]
         }
+    
+    @staticmethod
+    def _handle_special_tool_msg_empty_content_anthropic(prompts :List)->str:
+        if isinstance(prompts, list) and prompts:
+            for prompt in prompts[::-1]:
+                if isinstance(prompt, dict) and prompt.get("role") == "user" and isinstance(prompt.get("content"), list):
+                    content  = prompt.get("content")[0].get("text")
+                    return content
+        return None
