@@ -930,8 +930,6 @@ class LlmBaseProvider(BaseModel):
             tools=self.tools if self._has_not_exceeded_tool_calls else None,
             stream=stream
         )
-
-        print(json.dumps(completion_args, indent=4))
         
         output = None 
         error_message = None
