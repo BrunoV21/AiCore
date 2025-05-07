@@ -15,6 +15,7 @@ if __name__ == "__main__":
         response = await llm.acomplete(
             "Search for Elon Musk and tell me what do the news from today say about him",
             system_prompt="You are an helpfull assistant with tool calling capabilities. Make sure you use the tools at your disposal with relevant arguments passed! When makibng websearches always suggest three different queries to be obtian relevant information!",
+            # stream=False,
             agent_id="mcp-agent", 
             action_id="tool-call"
         )
