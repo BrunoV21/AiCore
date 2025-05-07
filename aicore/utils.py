@@ -23,7 +23,10 @@ def should_retry(exception: Exception) -> bool:
     if isinstance(exception, NotImplementedError):
         return False
     
-    if isinstance(exception, ExceptionGroup):
+    try: ### cover python 3.10 incompatibility
+        if isinstance(exception, ExceptionGroup): # noqa: F821
+            return False
+    except Exception as e:
         return False
     
     if isinstance(exception, asyncio.CancelledError):
