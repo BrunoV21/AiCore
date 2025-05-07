@@ -23,6 +23,9 @@ def should_retry(exception: Exception) -> bool:
     if isinstance(exception, NotImplementedError):
         return False
     
+    if is_out_of_balance(exception, ExceptionGroup):
+        return False
+    
     if isinstance(exception, asyncio.CancelledError):
         return False
     
