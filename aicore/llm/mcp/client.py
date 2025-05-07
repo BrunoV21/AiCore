@@ -15,6 +15,7 @@ from fastmcp.client.transports import (
 )
 
 from aicore.llm.mcp.models import MCPParameters, MCPServerConfig, ToolSchema
+from aicore.llm.mcp.utils import raise_fast_mcp_error
 from aicore.logger import _logger
 
 class ServerConnection(AsyncContextManager):
@@ -51,6 +52,7 @@ class ServerManager:
         
         return ServerConnection(self._parent.transports[server_name])
     
+    @raise_fast_mcp_error(prefix="mcp-get-tools")
     async def get_tools(self) -> Dict[str, List[ToolSchema]]:
         """Get all tools from all connected servers as a dictionary mapping server names to tool lists."""
         result = {}
@@ -87,6 +89,7 @@ class ServerManager:
             
         return all_tools
     
+    @raise_fast_mcp_error(prefix="mcp-call-tool")
     async def call_tool(self, tool_name: str, arguments: Any = None) -> Any:
         """
         Call a tool by name without specifying which server it belongs to.
@@ -185,7 +188,8 @@ class MCPClient(BaseModel):
         )
         self.transports[name] = self._create_transport(self.server_configs[name])
         self._needs_update = True
-        
+    
+    @raise_fast_mcp_error(prefix="mcp-connect")
     async def connect(self, server_name: Optional[str] = None) -> None:
         """
         Connect to one or all configured MCP servers.
