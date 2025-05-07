@@ -6,7 +6,7 @@ from pydantic import model_validator
 from typing import Any, Optional, Dict, Union, List
 from typing_extensions import Self
 from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
-from anthropic.types import RawContentBlockStartEvent, ToolUseBlock, RawContentBlockDeltaEvent, InputJSONDelta
+from anthropic.types import RawContentBlockStartEvent, ToolUseBlock, RawContentBlockDeltaEvent, InputJSONDelta, Message
 from functools import partial
 
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
@@ -87,6 +87,8 @@ class AnthropicLlm(LlmBaseProvider):
             )
         elif event_type == "content_block_delta":
             return event
+        elif event_type == "content_block":
+            return event
         elif event_type == "content_block_start" and isinstance(getattr(event, "content_block", None), ToolUseBlock):
             return event
         elif event_type == "message_delta":
@@ -128,15 +130,37 @@ class AnthropicLlm(LlmBaseProvider):
         tool_call.arguments += tool_chunk.partial_json
         return tool_call
     
-    def _no_stream(self, response) -> Union[str, ToolCalls]:
-        _chunk = self.normalize_fn(response)
-        message = self._chunk_from_provider(_chunk).message
-        if hasattr(message, "tool_calls") and message.tool_calls:
-            return ToolCalls(root=[
-                self._fill_tool_schema(tool_call) for tool_call in message.tool_calls
-            ])
-        else:
-            return message.content
+    def _no_stream(self, response: Message) -> Union[str, ToolCalls]:
+        """Process a non-streaming response, handling tool calls appropriately."""
+        # Extract and process content blocks
+        messages = [
+            self._fill_tool_schema(block) if isinstance(block, ToolUseBlock) else block.text
+            for block in response.content
+        ]
+        
+        # Separate text messages from tool calls
+        text_messages = []
+        tool_call_messages = []
+        first_tool_call_index = None
+        
+        for i, message in enumerate(messages):
+            if isinstance(message, ToolCallSchema):
+                tool_call_messages.append(message)
+                if first_tool_call_index is None:
+                    first_tool_call_index = i
+            else:
+                text_messages.append(message)
+        
+        # If no tool calls, just return the joined text messages
+        if not tool_call_messages:
+            return "\n".join(text_messages)
+        
+        # Otherwise, build the result with tool calls at the proper position
+        result = text_messages.copy()
+        if first_tool_call_index is not None:
+            result.insert(first_tool_call_index, ToolCalls(root=tool_call_messages))
+        
+        return result
 
     @classmethod
     def _is_tool_call(cls, _chunk)->bool:
