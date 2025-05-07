@@ -263,12 +263,14 @@ class AnthropicLlm(LlmBaseProvider):
         """
         https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview#single-tool-example
         """
+        #TODO understand why previous_tool_call_raw is not being properly mapped here
+        # using model_dump_json as temporary placeholder
         toolCallSchema._raw =  {
             "role": "assistant",
             "content": [
                 {
                     "type": "text",
-                    "text": toolCallSchema._raw or previous_tool_call_raw,
+                    "text": toolCallSchema._raw or previous_tool_call_raw or toolCallSchema.model_dump_json(),
                     #or "Executing tool" #TODO review this and understand hy original message is not sent here
                 },
                 {
