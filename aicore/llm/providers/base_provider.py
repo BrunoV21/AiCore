@@ -953,20 +953,37 @@ class LlmBaseProvider(BaseModel):
                     output_tokens = self.usage.latest_completion.response_tokens
                     cost = self.usage.latest_completion.cost
                 _logger.logger.info(str(self.usage))
-
-            if isinstance(output, ToolCalls) and self._has_not_exceeded_tool_calls: # not self? TODO
-                tools_messages = []
-                previous_tool_call_raw = self._handle_special_tool_msg_empty_content_anthropic(prompt)
-                for tool_call in output.root:
-                    tool_call_response = await self.mcp.servers.call_tool(
-                        tool_name=tool_call.name,
-                        arguments=json.loads(tool_call.arguments)
-                    )
-                    tools_messages.extend([
-                        self._to_provider_tool_call_schema(tool_call, previous_tool_call_raw),
-                        self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
-                    ])
+            
+            ### handle scenarios of text + toolcalssblock i.e anthropic
+            _is_not_list = False
+            if not isinstance(output, list):
+                _is_not_list = True
+                output = [output]
                 
+            call_tool = False            
+            tools_messages = []
+            for _output in output:
+                if isinstance(_output, ToolCalls) and self._has_not_exceeded_tool_calls: # not self? TODO
+                    call_tool = True
+                    previous_tool_call_raw = self._handle_special_tool_msg_empty_content_anthropic(prompt)
+                    # TODO change this to async with gather for paralel tool caling
+                    # if len tools higher than 1
+                    for tool_call in _output.root:
+                        tool_call_response = await self.mcp.servers.call_tool(
+                            tool_name=tool_call.name,
+                            arguments=json.loads(tool_call.arguments or "{}")
+                        )
+                        tools_messages.extend([
+                            self._to_provider_tool_call_schema(tool_call, previous_tool_call_raw),
+                            self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
+                        ])
+                elif isinstance(_output, str):
+                    tools_messages.append(self._message_body(_output, role="assistant"))                  
+
+            if call_tool:
+                output = [
+                    _.model_dump() if isinstance(_, ToolCalls) else _ for _ in output
+                ]
                 if stream:
                     await stream_handler(TOOL_CALL_END_TOKEN)
                 
@@ -985,6 +1002,8 @@ class LlmBaseProvider(BaseModel):
                 )
             
             self._n_sucessive_tool_calls = 0
+            if _is_not_list:
+                output = output[-1]
             
             output = output if not json_output else self.extract_json(output)
 
@@ -1001,7 +1020,7 @@ class LlmBaseProvider(BaseModel):
                     provider=self.config.provider,
                     operation_type="acompletion",
                     completion_args=completion_args,
-                    response=output.model_dump_json(indent=4) if isinstance(output, ToolCallSchema) else output,
+                    response=output.model_dump_json(indent=4) if isinstance(output, ToolCalls) else output,
                     session_id=self.session_id,
                     workspace=self.worspace,
                     agent_id=agent_id or self.agent_id,
