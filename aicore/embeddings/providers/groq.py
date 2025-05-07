@@ -2,7 +2,8 @@ from aicore.embeddings.providers.base_provider import EmbeddingsBaseProvider
 from pydantic import model_validator
 from groq import Groq, AsyncGroq
 from groq.types import CreateEmbeddingResponse
-from typing import List, Self
+from typing import List
+from typing_extensions import Self
 
 class GroqEmbeddings(EmbeddingsBaseProvider):
     vector_dimensions :int=1024

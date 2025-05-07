@@ -1,4 +1,5 @@
-from typing import Literal, Optional, Self
+from typing import Literal, Optional
+from typing_extensions import Self
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 
 from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
@@ -14,6 +15,9 @@ class LlmConfig(BaseModel):
     reasoner :Optional["LlmConfig"]=None
     pricing :Optional[PricingConfig]=None
     _context_window :Optional[int]=None
+
+    mcp_config_path :Optional[str]=None
+    max_tool_calls_per_response :Optional[int]=None
 
     model_config = ConfigDict(
         extra="allow",

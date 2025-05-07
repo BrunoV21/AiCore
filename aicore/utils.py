@@ -5,7 +5,7 @@ import requests
 import asyncio
 import time
 
-from aicore.models import BalanceError
+from aicore.models import BalanceError, FastMcpError
 from aicore.logger import _logger
 from aicore.const import (
     DEFAULT_MAX_ATTEMPTS,
@@ -20,11 +20,17 @@ def should_retry(exception: Exception) -> bool:
     if isinstance(exception, KeyboardInterrupt):
         return False
     
+    if isinstance(exception, NotImplementedError):
+        return False
+    
     if isinstance(exception, asyncio.CancelledError):
         return False
     
     # Don't retry JSONDecodeError
     if isinstance(exception, JSONDecodeError):
+        return False
+    
+    if isinstance(exception, FastMcpError):
         return False
         
     # Don't retry BalanceError instances

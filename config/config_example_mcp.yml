@@ -1,0 +1,7 @@
+llm:
+  mcp_config_path: "./mcp_config.json"
+  temperature: 0
+  max_tokens: 8192
+  provider: "deepseek"
+  api_key: "your-super-secret-deeepseek-api-key"
+  model: "deepseek-chat"

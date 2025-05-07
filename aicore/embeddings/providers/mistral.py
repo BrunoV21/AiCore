@@ -1,7 +1,8 @@
 from aicore.embeddings.providers.base_provider import EmbeddingsBaseProvider
 from pydantic import model_validator
 from mistralai import Mistral, EmbeddingResponse, EmbeddingResponseData
-from typing import List, Self
+from typing import List
+from typing_extensions import Self
 
 class MistralEmbeddings(EmbeddingsBaseProvider):
     vector_dimensions :int=1024

@@ -1,8 +1,10 @@
+from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
-from typing import Self, Optional
+from typing import Any, Dict, List, Optional
+from typing_extensions import Self
 import tiktoken
 
 class OpenAiLlm(LlmBaseProvider):
@@ -19,7 +21,8 @@ class OpenAiLlm(LlmBaseProvider):
             api_key=self.config.api_key,
             base_url=self.base_url
         )
-        self.validate_config(AuthenticationError)
+        self._auth_exception = AuthenticationError
+        self.validate_config()
         self.aclient = _aclient
         self.completion_fn = self.client.chat.completions.create
         self.acompletion_fn = _aclient.chat.completions.create
@@ -62,3 +65,66 @@ class OpenAiLlm(LlmBaseProvider):
             reasoning_efftort = getattr(self.config, "reasoning_efftort", None)
             if reasoning_efftort is not None:
                 self.completion_args["reasoning_efftort"] = reasoning_efftort
+
+    @staticmethod
+    def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
+        """
+        Convert to OpenAi tool schema format.
+        
+        Returns:
+            Dictionary in OpenAi tool schema format
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": tool.input_schema.type,
+                    "properties": tool.input_schema.properties.model_dump(),
+                    "required": tool.input_schema.required,
+                    **{k: v for k, v in tool.input_schema.model_dump().items() 
+                       if k not in ["type", "properties", "required"]}
+                }
+            }
+        }
+    
+    @staticmethod
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+        toolCallSchema._raw = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": toolCallSchema.id,
+                    "function": {
+                        "name": toolCallSchema.name,
+                        "arguments": toolCallSchema.arguments
+                    },
+                    "type": "function"
+                }
+            ]
+        }
+        
+        # ChatCompletionMessage(
+        #     role="assistant",
+        #     tool_calls=[
+        #         ChatCompletionMessageToolCall(
+        #             id=toolCallSchema.id,
+        #             function=Function(
+        #                 name=toolCallSchema.name,
+        #                 arguments=toolCallSchema.arguments
+        #             ),
+        #             type="function"
+        #         )
+        #     ]
+        # )
+
+        return toolCallSchema
+    
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+        return {
+            "type": "function_call_output",
+            "role": "tool",
+            "tool_call_id": toolCallSchema.id,
+            "content": str(content)
+        }

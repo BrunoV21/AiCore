@@ -1,8 +1,10 @@
+from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.openai import OpenAiLlm
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletionChunk
 from deepseek_tokenizer import ds_token
 from pydantic import model_validator
-from typing import Optional, Self
+from typing import Any, Dict, Optional
+from typing_extensions import Self
 
 class DeepSeekLlm(OpenAiLlm):
     """
@@ -17,7 +19,7 @@ class DeepSeekLlm(OpenAiLlm):
 
         return self
 
-    def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
+    def normalize(self, chunk :ChatCompletionChunk, completion_id :Optional[str]=None):
         usage = chunk.usage
         if usage is not None:
             ### https://api-docs.deepseek.com/news/news0802

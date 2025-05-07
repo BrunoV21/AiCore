@@ -5,7 +5,8 @@ from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistralai import Mistral, CompletionEvent, CompletionResponseStreamChoice, models
-from typing import Self, Optional, Union, List, Literal, Dict
+from typing import Optional, Union, List, Literal, Dict
+from typing_extensions import Self
 import tiktoken
 
 #TODO replace Tiktoken with Mistral tekken encoder when it is updated to work on python 3.13#
@@ -17,7 +18,8 @@ class MistralLlm(LlmBaseProvider):
         self.client :Mistral = Mistral(
             api_key=self.config.api_key
         )
-        self.validate_config(models.SDKError)
+        self._auth_exception = models.SDKError
+        self.validate_config()
         ### Suspect Misral will always stream by default
         self.completion_fn = self.client.chat.stream
         self.acompletion_fn = self.client.chat.stream_async

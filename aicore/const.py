@@ -6,6 +6,8 @@ METADATA_JSON = Path(os.path.abspath(os.path.dirname(__file__))) / "models_metad
 
 DEFAULT_CONFIG_PATH = os.getenv("CONFIG_PATH") or "./config/config.yml"
 
+DEFAULT_MCP_JSON_PATH = os.getenv("MCP_JSON_PATH") or "./config/mcp_config.json"
+
 DEFAULT_LOGS_DIR = os.getenv("LOGS_PATH") or "logs"
 
 CUSTOM_MODELS = [
@@ -33,6 +35,10 @@ REASONING_START_TOKEN = "<think>"
 
 REASONING_STOP_TOKEN = "</think>"
 
+TOOL_CALL_START_TOKEN = "<tool>"
+
+TOOL_CALL_END_TOKEN = "</tool>"
+
 STREAM_START_TOKEN = "<start>"
 
 STREAM_END_TOKEN = "</end>"
@@ -40,6 +46,8 @@ STREAM_END_TOKEN = "</end>"
 SPECIAL_TOKENS = [
     REASONING_START_TOKEN,
     REASONING_STOP_TOKEN,
+    TOOL_CALL_START_TOKEN,
+    TOOL_CALL_END_TOKEN,
     STREAM_START_TOKEN,
     STREAM_END_TOKEN
 ]

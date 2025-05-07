@@ -1,5 +1,6 @@
 from aicore.llm.providers.openai import OpenAiLlm
 from typing import Optional, List, Dict
+from typing_extensions import Self
 
 class NvidiaLlm(OpenAiLlm):
     """

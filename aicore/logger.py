@@ -1,5 +1,6 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, List, Self, AsyncGenerator, Literal
+from typing import Optional, List, AsyncGenerator, Literal
+from typing_extensions import Self
 from asyncio import Queue as AsyncQueue
 from datetime import datetime
 from loguru import logger
@@ -13,14 +14,18 @@ from aicore.const import (
     STREAM_START_TOKEN,
     STREAM_END_TOKEN,
     REASONING_START_TOKEN,
-    REASONING_STOP_TOKEN
+    REASONING_STOP_TOKEN,
+    TOOL_CALL_START_TOKEN,
+    TOOL_CALL_END_TOKEN
 )
 
 SPECIAL_TOKENS = [
     STREAM_START_TOKEN,
     STREAM_END_TOKEN,
     REASONING_START_TOKEN,
-    REASONING_STOP_TOKEN
+    REASONING_STOP_TOKEN,
+    TOOL_CALL_START_TOKEN,
+    TOOL_CALL_END_TOKEN,
 ]
 
 SPECIAL_END_TOKENS = [

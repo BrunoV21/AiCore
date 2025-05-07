@@ -54,6 +54,7 @@ class CompletionUsage(BaseModel):
         pricing: Optional[PricingConfig] = None
     ) -> "CompletionUsage":
         """Creates a CompletionUsage instance with calculated cost based on pricing config."""
+        total_input_tokens = prompt_tokens + cached_tokens + cache_write_tokens
         if pricing is not None:
             # Apply happy hour pricing if active
             if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
@@ -66,7 +67,7 @@ class CompletionUsage(BaseModel):
 
             # Apply dynamic pricing only if threshold is exceeded
             if pricing.dynamic is not None:
-                total_tokens = prompt_tokens + response_tokens
+                total_tokens = total_input_tokens + response_tokens
                 if total_tokens > pricing.dynamic.threshold:
                     # Calculate how many tokens are over the threshold
                     tokens_over_threshold = total_tokens - pricing.dynamic.threshold
@@ -93,7 +94,7 @@ class CompletionUsage(BaseModel):
 
         return cls(
             completion_id=completion_id,
-            prompt_tokens=prompt_tokens,
+            prompt_tokens=total_input_tokens,
             response_tokens=response_tokens,
             cached_tokens=cached_tokens,
             cache_write_tokens=cache_write_tokens,

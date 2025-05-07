@@ -1,5 +1,6 @@
 from pydantic import BaseModel, model_validator
-from typing import Self, List
+from typing import List
+from typing_extensions import Self
 from enum import Enum
 
 from aicore.utils import retry_on_failure
