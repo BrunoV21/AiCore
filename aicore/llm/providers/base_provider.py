@@ -302,16 +302,11 @@ class LlmBaseProvider(BaseModel):
         raise NotImplementedError("the selected model-provider does not support tool calling")
     
     @staticmethod
-    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema, previous_tool_call_raw :Optional[None]=None)->ToolCallSchema:        
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:        
         raise NotImplementedError("the selected model-provider does not support tool calling")
 
     def _tool_call_message(self, **kwargs)->Dict[str, str]:        
         raise NotImplementedError("the selected model-provider does not support tool calling")
-    
-    @staticmethod
-    def _handle_special_tool_msg_empty_content_anthropic(prompts :List)->str:
-        """placeholder to be overwritten by the anthropic provider"""
-        return None
 
     @staticmethod
     def get_default_tokenizer(model_name: str) -> str:
@@ -935,6 +930,8 @@ class LlmBaseProvider(BaseModel):
             tools=self.tools if self._has_not_exceeded_tool_calls else None,
             stream=stream
         )
+
+        print(json.dumps(completion_args, indent=4))
         
         output = None 
         error_message = None
@@ -965,7 +962,6 @@ class LlmBaseProvider(BaseModel):
             for _output in output:
                 if isinstance(_output, ToolCalls) and self._has_not_exceeded_tool_calls: # not self? TODO
                     call_tool = True
-                    previous_tool_call_raw = self._handle_special_tool_msg_empty_content_anthropic(prompt)
                     # TODO change this to async with gather for paralel tool caling
                     # if len tools higher than 1
                     for tool_call in _output.root:
@@ -974,7 +970,7 @@ class LlmBaseProvider(BaseModel):
                             arguments=json.loads(tool_call.arguments or "{}")
                         )
                         tools_messages.extend([
-                            self._to_provider_tool_call_schema(tool_call, previous_tool_call_raw),
+                            self._to_provider_tool_call_schema(tool_call),
                             self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
                         ])
                 elif isinstance(_output, str):

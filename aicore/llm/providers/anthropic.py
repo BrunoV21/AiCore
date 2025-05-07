@@ -259,18 +259,17 @@ class AnthropicLlm(LlmBaseProvider):
         }
     
     @staticmethod
-    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema, previous_tool_call_raw :Optional[None]=None)->ToolCallSchema:
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
         """
         https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview#single-tool-example
         """
-        #TODO understand why previous_tool_call_raw is not being properly mapped here
-        # using model_dump_json as temporary placeholder
+        #TODO  using model_dump_json as temporary placeholder
         toolCallSchema._raw =  {
             "role": "assistant",
             "content": [
                 {
                     "type": "text",
-                    "text": toolCallSchema._raw or previous_tool_call_raw or toolCallSchema.model_dump_json(),
+                    "text": toolCallSchema._raw or toolCallSchema.model_dump_json(),
                     #or "Executing tool" #TODO review this and understand hy original message is not sent here
                 },
                 {
@@ -294,12 +293,3 @@ class AnthropicLlm(LlmBaseProvider):
                 }
             ]
         }
-    
-    @staticmethod
-    def _handle_special_tool_msg_empty_content_anthropic(prompts :List)->str:
-        if isinstance(prompts, list) and prompts:
-            for prompt in prompts[::-1]:
-                if isinstance(prompt, dict) and prompt.get("role") == "user" and isinstance(prompt.get("content"), list):
-                    content  = prompt.get("content")[0].get("text")
-                    return content
-        return None
