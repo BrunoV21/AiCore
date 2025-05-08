@@ -1,9 +1,10 @@
+from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from pydantic import model_validator
 from groq import Groq, AsyncGroq, AuthenticationError
 from groq.types.chat import ChatCompletionChunk
-from typing import Optional
+from typing import Any, Dict, Optional
 from typing_extensions import Self
 import tiktoken
 
@@ -44,3 +45,51 @@ class GroqLlm(LlmBaseProvider):
                 completion_id=completion_id or chunk.id
             )
         return chunk.choices
+    
+    @staticmethod
+    def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
+        """
+        Convert to OpenAi tool schema format.
+        
+        Returns:
+            Dictionary in OpenAi tool schema format
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": tool.input_schema.type,
+                    "properties": tool.input_schema.properties.model_dump(),
+                    "required": tool.input_schema.required,
+                    **{k: v for k, v in tool.input_schema.model_dump().items() 
+                       if k not in ["type", "properties", "required"]}
+                }
+            }
+        }
+    
+    @staticmethod
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+        toolCallSchema._raw = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": toolCallSchema.id,
+                    "function": {
+                        "name": toolCallSchema.name,
+                        "arguments": toolCallSchema.arguments
+                    },
+                    "type": "function"
+                }
+            ]
+        }
+
+        return toolCallSchema
+    
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+        return {
+            "role": "tool",
+            "tool_call_id": toolCallSchema.id,
+            "content": str(content)
+        }
