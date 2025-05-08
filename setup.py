@@ -62,7 +62,7 @@ extras_require = {
 
 setuptools.setup(
     name="core-for-ai",
-    version="0.1.91",
+    version="0.1.92",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
     description="A unified interface for interacting with various LLM and embedding providers, with observability tools.",
