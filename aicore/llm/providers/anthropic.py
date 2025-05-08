@@ -89,6 +89,20 @@ class AnthropicLlm(LlmBaseProvider):
             return event
         elif event_type == "content_block":
             return event
+        elif event_type == "message":
+            input_tokens = event.usage.input_tokens
+            output_tokens = event.usage.output_tokens
+            cache_write_tokens = event.usage.cache_creation_input_tokens
+            cached_tokens = event.usage.cache_read_input_tokens
+            ### https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+            self.usage.record_completion(
+                prompt_tokens=input_tokens,
+                response_tokens=output_tokens,
+                cached_tokens=cached_tokens,
+                cache_write_tokens=cache_write_tokens,
+                completion_id=completion_id or event.id
+            )
+            return event
         elif event_type == "content_block_start" and isinstance(getattr(event, "content_block", None), ToolUseBlock):
             return event
         elif event_type == "message_delta":
@@ -132,6 +146,8 @@ class AnthropicLlm(LlmBaseProvider):
     
     def _no_stream(self, response: Message) -> Union[str, ToolCalls]:
         """Process a non-streaming response, handling tool calls appropriately."""
+        print(f"{response=}")
+        response = self.normalize_fn(response)
         # Extract and process content blocks
         messages = [
             self._fill_tool_schema(block) if isinstance(block, ToolUseBlock) else block.text

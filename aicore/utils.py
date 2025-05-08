@@ -92,7 +92,6 @@ def wait_for_retry(retry_state):
     next_attempt_in = retry_state.next_action.sleep  # Time until next retry in seconds
     
     last_exception = retry_state.outcome.exception()
-    print(f"{last_exception=}")
     exception_str = str(last_exception)
     
     # Handle Retry-After header if present (for rate limiting)

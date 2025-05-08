@@ -15,11 +15,11 @@ class OpenAiLlm(LlmBaseProvider):
 
         self.client :OpenAI = OpenAI(
             api_key=self.config.api_key,
-            base_url=self.base_url
+            base_url=self.base_url or self.config.base_url
         )
         _aclient :AsyncOpenAI = AsyncOpenAI(
             api_key=self.config.api_key,
-            base_url=self.base_url
+            base_url=self.base_url or self.config.base_url
         )
         self._auth_exception = AuthenticationError
         self.validate_config()
