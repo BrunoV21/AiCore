@@ -10,6 +10,7 @@ The `LlmBaseProvider` class serves as the abstract base class for all LLM provid
 - **Streaming Support**: Built-in handling for streaming responses
 - **Usage Tracking**: Automatic token counting and cost estimation
 - **Observability Integration**: Built-in metrics collection for monitoring
+- **MCP Integration**: Built-in support for connecting to MCP servers via tool calling
 - **Error Handling**: Standardized retry mechanism for failed requests
 
 ## Interface Methods
@@ -64,9 +65,21 @@ config = LlmConfig(
     model="gpt-4",
     temperature=0.7,
     max_tokens=1000,
+    mcp_config_path="path/to/mcp_config.json",  # Optional MCP configuration
     timeout=30.0
 )
 ```
+
+## MCP Integration
+
+The base provider includes built-in support for connecting to MCP (Multi-Component Platform) servers via tool calling. Key features:
+
+- Automatic tool discovery from connected MCP servers
+- Unified interface for calling tools across multiple servers
+- Configurable maximum tool calls per response
+- Support for multiple transport types (WebSocket, SSE, Stdio)
+
+See [MCP Integration Documentation](./mcp.md) for full details.
 
 ## Implementing a New Provider
 
@@ -76,6 +89,7 @@ To create a new provider implementation:
 2. Implement required abstract methods
 3. Handle provider-specific API communication
 4. Normalize responses to standard format
+5. Implement tool calling support if applicable
 
 ### Example Provider Skeleton
 
@@ -102,6 +116,7 @@ The base provider includes standardized error handling for:
 - Rate limits (automatic retry with backoff)
 - Invalid requests
 - Authentication failures
+- MCP server connection failures
 - Service unavailable errors
 
 See [retry mechanism documentation](./retry.md) for details.
@@ -113,5 +128,6 @@ All providers automatically track:
 - Token usage
 - Cost calculations
 - Error rates
+- Tool calling metrics (when using MCP)
 
 Metrics are available through the [observability system](../observability/overview.md).

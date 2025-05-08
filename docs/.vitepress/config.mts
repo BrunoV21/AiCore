@@ -12,6 +12,7 @@ export default withMermaid(
       nav: [
         { text: 'Home', link: '/' },
         { text: 'Quickstart', link: '/quickstart/index.md' },
+        { text: 'News', link: '/news/mcp-integration.md' },
         { text: 'Configuration', link: '/config/index.md' },
         { text: 'LLM System', link: '/llm/index.md' },
         { text: 'Providers', link: '/providers/index.md' },
@@ -34,6 +35,12 @@ export default withMermaid(
           ]
         },
         {
+          text: 'News',
+          items: [
+            { text: 'MCP Integration', link: '/news/mcp-integration.md' }
+          ]
+        },
+        {
           text: 'Configuration',
           items: [
             { text: 'LLM Configuration', link: '/config/llmconfig.md' }
@@ -47,7 +54,8 @@ export default withMermaid(
             { text: 'Usage', link: '/llm/usage.md' },
             { text: 'Retry Mechanism', link: '/llm/retry.md' },
             { text: 'Base Provider', link: '/llm/base_provider.md' },
-            { text: 'Models Metadata', link: '/llm/models_metadata.md' }
+            { text: 'Models Metadata', link: '/llm/models_metadata.md' },
+            { text: 'MCP Integration', link: '/llm/mcp.md' }
           ]
         },
         {
@@ -87,7 +95,8 @@ export default withMermaid(
             { text: 'Observability Dashboard', link: '/examples/observability_dashboard.md' },
             { text: 'Reasoning Example', link: '/examples/reasoning_example.md' },
             { text: 'Simple Async LLM Call', link: '/examples/simple_async_llm_call.md' },
-            { text: 'Simple LLM Call', link: '/examples/simple_llm_call.md' }
+            { text: 'Simple LLM Call', link: '/examples/simple_llm_call.md' },
+            { text: 'Async LLM Call with MCP', link: '/examples/async_llm_call_with_mcp.md' }
           ]
         },
         {
