@@ -13,7 +13,8 @@
 🤖 **Reasoning augmentation**: Enhance traditional LLMs with reasoning capabilities  
 📊 **Observability**: Built-in monitoring and analytics  
 💰 **Token tracking**: Detailed usage metrics and cost tracking  
-⚡ **Flexible deployment**: Chainlit, FastAPI, and standalone script support
+⚡ **Flexible deployment**: Chainlit, FastAPI, and standalone script support  
+🛠️ **MCP Integration**: Connect to Model Control Protocol servers via tool calling
 
 ## Quickstart
 ```bash
@@ -69,7 +70,7 @@ async def main():
   llm = Llm.from_config(llm_config)
 
   # Generate completion
-  response = llm.acomplete("Hello, how are you?")
+  response = await llm.acomplete("Hello, how are you?")
   print(response)
 
 if __name__ == "__main__":
@@ -104,6 +105,11 @@ more examples available at [examples/](https://github.com/BrunoV21/AiCore/tree/m
 - Token usage and latency monitoring
 - Cost tracking
 
+**MCP Integration:**
+- Connect to multiple MCP servers simultaneously
+- Automatic tool discovery and calling
+- Support for WebSocket, SSE, and stdio transports
+
 To configure the application for testing, you need to set up a `config.yml` file with the necessary API keys and model names for each provider you intend to use. The `CONFIG_PATH` environment variable should point to the location of this file. Here's an example of how to set up the `config.yml` file:
 
 ```yaml
@@ -120,8 +126,63 @@ llm:
   temperature: 0.1
   max_tokens: 1028
   reasonning_effort: "high"
+  mcp_config_path: "./mcp_config.json" # Path to MCP configuration
+  max_tool_calls_per_response: 3 # Optional limit on tool calls
 ```
 config examples for the multiple providers are included in the [config dir](https://github.com/BrunoV21/AiCore/tree/main/config)
+
+## MCP Integration Example
+
+```python
+from aicore.llm import Llm
+from aicore.config import Config
+import asyncio
+
+async def main():
+    # Load configuration with MCP settings
+    config = Config.from_yaml("./config/config_example_mcp.yml")
+    
+    # Initialize LLM with MCP capabilities
+    llm = Llm.from_config(config.llm)
+    
+    # Make async request that can use MCP-connected tools
+    response = await llm.acomplete(
+        "Search for latest news about AI advancements",
+        system_prompt="Use available tools to gather information"
+    )
+    print(response)
+
+asyncio.run(main())
+```
+
+Example MCP configuration (`mcp_config.json`):
+```json
+{
+  "mcpServers": {
+    "search-server": {
+      "transport_type": "ws",
+      "url": "ws://localhost:8080",
+      "description": "WebSocket server for search functionality"
+    },
+    "data-server": {
+      "transport_type": "stdio",
+      "command": "python",
+      "args": ["data_server.py"],
+      "description": "Local data processing server"
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "BSApeUEgTfLYRikQwW8NAd4Qv8wK2v2"
+      }
+    }
+  }
+}
+```
 
 ## Usage
 
@@ -171,6 +232,7 @@ AiCore includes a comprehensive observability module that tracks:
 - **Token usage** (prompt, completion, total)
 - **Latency metrics** (response time, time-to-first-token)
 - **Cost estimates** (based on provider pricing)
+- **Tool call statistics** (for MCP integrations)
 
 ### Dashboard Features
 ![Observability Dashboard](https://brunov21.github.io/AiCore/assets/dashboard-overview.Ch5Sfrrh.png)
@@ -188,6 +250,7 @@ from aicore.observability import ObservabilityDashboard
 dashboard = ObservabilityDashboard(storage="observability_data.json")
 dashboard.run_server(port=8050)
 ```
+
 ## Advanced Usage
 
 **Reasoner Augmented Config**
@@ -236,7 +299,6 @@ Graph representation of codebases for enhanced retrieval
 
 
 ## Future Plans
-- **MCP Integration**: Support for Model Context Protocol via fastmcp
 - **Extended Provider Support**: Additional LLM and embedding providers
 - **Add support for Speech**: Integrate text2speech and speech to text objects with usage and observability4
   
