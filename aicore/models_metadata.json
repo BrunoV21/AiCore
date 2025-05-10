@@ -13,6 +13,7 @@
     "openai-o3": {"max_tokens": 100000, "context_window": 200000, "pricing": {"input": 10, "output": 40, "cached": 2.50}},
     "openai-o4-mini": {"max_tokens": 100000, "context_window": 200000, "pricing": {"input": 1.1, "output": 4.40, "cached": 0.275}},
     "mistral-mistral-large-latest": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 2, "output": 6}},
+    "mistral-mistral-medium-2505": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.4, "output": 2}},
     "mistral-mistral-small-latest": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.1, "output": 0.3}},
     "mistral-pixtral-large-latest": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 2, "output": 6}},
     "mistral-codestral-latest": {"max_tokens": 8192, "context_window": 200000, "pricing": {"input": 0.3, "output": 0.9}},

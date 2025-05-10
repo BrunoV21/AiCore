@@ -1,11 +1,12 @@
+from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.logger import default_stream_handler
-from aicore.const import STREAM_START_TOKEN, STREAM_END_TOKEN, REASONING_STOP_TOKEN
+from aicore.const import STREAM_START_TOKEN, STREAM_END_TOKEN, REASONING_STOP_TOKEN, TOOL_CALL_START_TOKEN
 from pydantic import model_validator
 # from mistral_common.protocol.instruct.messages import UserMessage
 # from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistralai import Mistral, CompletionEvent, CompletionResponseStreamChoice, models
-from typing import Optional, Union, List, Literal, Dict
+from typing import Any, Optional, Union, List, Literal, Dict
 from typing_extensions import Self
 import tiktoken
 
@@ -34,6 +35,7 @@ class MistralLlm(LlmBaseProvider):
     
     def normalize(self, chunk:CompletionEvent, completion_id :Optional[str]=None)->CompletionResponseStreamChoice:
         data = chunk.data
+        # print(f"{data=}")
         if data.usage is not None:
             self.usage.record_completion(
                 prompt_tokens=data.usage.prompt_tokens,
@@ -78,21 +80,56 @@ class MistralLlm(LlmBaseProvider):
         message = []
     
         await logger_fn(STREAM_START_TOKEN) if not prefix_prompt else ...
+
+        _calling_tool = False
+        tool_calls = ToolCalls()
+
         prefix_prompt = "".join(prefix_prompt) if isinstance(prefix_prompt, list) else prefix_prompt
         prefix_buffer = []
         prefix_completed = not bool(prefix_prompt)
+        
         async for chunk in stream:
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                if prefix_completed:
+                if prefix_completed and isinstance(chunk_message, str):
                     await logger_fn(chunk_message)
                     message.append(chunk_message)
+                elif isinstance(chunk_message, list):
+                    ### ignore aditional mistral information like citations for now
+                    pass
                 else:
                     prefix_buffer.append(chunk_message)
                     if "".join(prefix_buffer) == prefix_prompt:
                         prefix_completed = True
                         await logger_fn(STREAM_START_TOKEN)
+
+            if self._is_tool_call(_chunk):
+                ### TODO recheck this line to ensure it covers multiple tool calling in stream mode
+                tool_chunk = self._tool_chunk_from_provider(_chunk)
+                if not _calling_tool:
+                    _calling_tool = True
+                    await logger_fn(TOOL_CALL_START_TOKEN)
+                    tool_call = self._fill_tool_schema(tool_chunk)
+                    continue
+
+                if self._tool_call_change_condition(tool_chunk):
+                    if message:
+                        ### cover anthropic
+                        tool_call._raw = "\n".join(message)
+                    tool_calls.root.append(tool_call)
+                    tool_call = self._fill_tool_schema(tool_chunk)
+                    continue
+                
+                tool_call = self._handle_tool_call_stream(tool_call, tool_chunk)
+        
+        if _calling_tool:
+            ### colect last call
+            if message:
+                ### cover anthropic
+                tool_call._raw = "\n".join(message)
+            tool_calls.root.append(tool_call)
+            return tool_calls
         
         if self._is_reasoner:
             await logger_fn(REASONING_STOP_TOKEN)
@@ -100,3 +137,52 @@ class MistralLlm(LlmBaseProvider):
             await logger_fn(STREAM_END_TOKEN)
         response = "".join(message)
         return response
+    
+    @staticmethod
+    def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
+        """
+        Convert to OpenAi tool schema format.
+        
+        Returns:
+            Dictionary in OpenAi tool schema format
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": tool.input_schema.type,
+                    "properties": tool.input_schema.properties.model_dump(),
+                    "required": tool.input_schema.required,
+                    **{k: v for k, v in tool.input_schema.model_dump().items() 
+                       if k not in ["type", "properties", "required"]}
+                }
+            }
+        }
+    
+    @staticmethod
+    def _to_provider_tool_call_schema(toolCallSchema :ToolCallSchema)->ToolCallSchema:
+        toolCallSchema._raw = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": toolCallSchema.id,
+                    "function": {
+                        "name": toolCallSchema.name,
+                        "arguments": toolCallSchema.arguments
+                    },
+                    "type": "function"
+                }
+            ]
+        }
+
+        return toolCallSchema
+    
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+        return {
+            "type": "function_call_output",
+            "role": "tool",
+            "tool_call_id": toolCallSchema.id,
+            "content": str(content)
+        }
