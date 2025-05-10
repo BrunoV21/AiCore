@@ -14,11 +14,12 @@ from aicore.llm.usage import UsageInfo
 from aicore.models import AuthenticationError, ModelError
 from aicore.models_metadata import METADATA
 from aicore.observability.collector import LlmOperationCollector
-from typing import Any, Dict, Optional, Literal, List, Union, Callable
+from typing import Any, Dict, Optional, Literal, List, Tuple, Union, Callable
 from pydantic import BaseModel, RootModel, Field
 from functools import partial, wraps
 from pathlib import Path
 import tiktoken
+import asyncio
 import json
 import time
 import ulid
@@ -773,6 +774,71 @@ class LlmBaseProvider(BaseModel):
     def _has_not_exceeded_tool_calls(self)->bool:
         return self.config.max_tool_calls_per_response is None  or self._n_sucessive_tool_calls < self.config.max_tool_calls_per_response
     
+    async def _execute_tool_calls(self, output :list)->Tuple[list, bool]:
+        """
+        Execute multiple tool calls in parallel using asyncio.gather.
+        
+        Args:
+            output: The output containing potential tool calls
+            logger: Logger instance for logging execution information
+        
+        Returns:
+            List of tool messages generated from tool calls
+        """
+        tools_messages = []
+        call_tool = False
+        
+        for _output in output:
+            if isinstance(_output, ToolCalls) and self._has_not_exceeded_tool_calls:
+                call_tool = True
+                tool_calls = _output.root
+                
+                # If there are multiple tool calls, execute them in parallel
+                if len(tool_calls) > 1:
+                    
+                    tool_names = [tool_call.name for tool_call in tool_calls]
+                    # Log the start of tool execution
+                    _logger.logger.info(f"Executing {len(tool_calls)} tools: {tool_names}")                    
+                    start_time = time.time()
+                    
+                    tool_coroutines = [
+                        self.mcp.servers.call_tool(
+                            tool_name=tool_call.name,
+                            arguments=json.loads(tool_call.arguments or "{}"),
+                            silent=True
+                        )
+                        for tool_call in tool_calls
+                    ]
+                    
+                    # Execute all tool calls in parallel
+                    tool_responses = await asyncio.gather(*tool_coroutines)
+                    
+                    # Process the responses
+                    for tool_call, tool_call_response in zip(tool_calls, tool_responses):
+                        tools_messages.extend([
+                            self._to_provider_tool_call_schema(tool_call),
+                            self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response),
+                        ])
+
+                    execution_time = time.time() - start_time
+                    _logger.logger.info(f"Finished executing {len(tool_calls)} tools in {execution_time:.2f} seconds")
+                else:
+                    # If there's only one tool call, execute it directly
+                    for tool_call in tool_calls:
+                        tool_call_response = await self.mcp.servers.call_tool(
+                            tool_name=tool_call.name,
+                            arguments=json.loads(tool_call.arguments or "{}"),
+                        )
+                        tools_messages.extend([
+                            self._to_provider_tool_call_schema(tool_call),
+                            self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
+                        ])
+                    
+            elif isinstance(_output, str):
+                tools_messages.append(self._message_body(_output, role="assistant"))
+        
+        return tools_messages, call_tool
+
     @staticmethod
     def model_to_str(model: Union[BaseModel, RootModel]) -> str:
         """Convert model to JSON string representation."""
@@ -955,25 +1021,8 @@ class LlmBaseProvider(BaseModel):
             if not isinstance(output, list):
                 _is_not_list = True
                 output = [output]
-                
-            call_tool = False            
-            tools_messages = []
-            for _output in output:
-                if isinstance(_output, ToolCalls) and self._has_not_exceeded_tool_calls: # not self? TODO
-                    call_tool = True
-                    # TODO change this to async with gather for paralel tool caling
-                    # if len tools higher than 1
-                    for tool_call in _output.root:
-                        tool_call_response = await self.mcp.servers.call_tool(
-                            tool_name=tool_call.name,
-                            arguments=json.loads(tool_call.arguments or "{}")
-                        )
-                        tools_messages.extend([
-                            self._to_provider_tool_call_schema(tool_call),
-                            self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
-                        ])
-                elif isinstance(_output, str):
-                    tools_messages.append(self._message_body(_output, role="assistant"))                  
+            
+            tools_messages, call_tool = await self._execute_tool_calls(output)
 
             if call_tool:
                 output = [
