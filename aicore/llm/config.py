@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Union, Dict
 from typing_extensions import Self
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 
@@ -17,6 +17,7 @@ class LlmConfig(BaseModel):
     _context_window :Optional[int]=None
 
     mcp_config_path :Optional[str]=None
+    tool_choice :Union[str, Dict, None]=None
     max_tool_calls_per_response :Optional[int]=None
 
     model_config = ConfigDict(
@@ -61,3 +62,10 @@ class LlmConfig(BaseModel):
                 self.context_window = model_metadata.context_window
         
         return self
+    
+    @field_validator("tool_choice", mode="before")
+    @classmethod
+    def auto_tool_choice_from_mcp(cls, kwargs :Dict)->Dict:
+        if kwargs.get("mcp_config_path") and not kwargs.get("tool_choice"):
+            kwargs["tool_choice"] = "auto"
+        return kwargs

@@ -531,6 +531,7 @@ class LlmBaseProvider(BaseModel):
             max_tokens=self.config.max_tokens,
             messages=messages,
             tools=tools,
+            tool_choice=self.config.tool_choice,
             stream=stream
         )
         
