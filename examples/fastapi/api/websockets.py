@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from services.llm_service import initialize_llm_session, trim_messages, run_concurrent_tasks
-from aicore.const import SPECIAL_TOKENS, STREAM_END_TOKEN
+from aicore.const import SPECIAL_TOKENS, STREAM_END_TOKEN, TOOL_CALL_END_TOKEN
 import ulid
 
 router = APIRouter()
@@ -41,12 +41,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id : Optional[str]=No
                 llm,
                 message=history
             ):
-                if chunk == STREAM_END_TOKEN:
+                if chunk in [STREAM_END_TOKEN]:
+                    await websocket.send_text(json.dumps({"type": "complete"}))
                     break
+
                 elif chunk in SPECIAL_TOKENS:
                     continue
-                
-                await websocket.send_text(json.dumps({"chunk": chunk}))
+
+                await websocket.send_text(json.dumps({"type": "chunk", "content": chunk}))
                 response.append(chunk)
             
             history.append("".join(response))
