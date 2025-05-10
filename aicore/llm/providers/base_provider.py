@@ -997,7 +997,6 @@ class LlmBaseProvider(BaseModel):
             tools=self.tools if self._has_not_exceeded_tool_calls else None,
             stream=stream
         )
-        
         output = None 
         call_tool = False
         error_message = None
@@ -1032,7 +1031,9 @@ class LlmBaseProvider(BaseModel):
                 if stream:
                     await stream_handler(TOOL_CALL_END_TOKEN)
                 
-                prompt.extend(tools_messages)
+                messages = completion_args.get("messages")
+                messages = [_ for _ in messages]
+                messages.extend(tools_messages)
                 self._n_sucessive_tool_calls += 1
 
                 if self.collector:
@@ -1056,7 +1057,7 @@ class LlmBaseProvider(BaseModel):
                     )
 
                 return await self.acomplete(
-                    prompt=prompt,
+                    prompt=messages,
                     system_prompt=system_prompt,
                     prefix_prompt=prefix_prompt,
                     img_path=img_path,
