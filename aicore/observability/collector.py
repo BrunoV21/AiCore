@@ -20,7 +20,7 @@ class LlmOperationRecord(BaseModel):
     action_id: Optional[str] = ""
     operation_id: str = Field(default_factory=ulid.ulid)
     timestamp: Optional[str] = ""
-    operation_type: Literal["completion", "acompletion", "acompletion_tool_call"]
+    operation_type: Literal["completion", "acompletion", "acompletion.tool_call"]
     provider: str
     input_tokens: Optional[int] = 0
     output_tokens: Optional[int] = 0
