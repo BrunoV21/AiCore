@@ -999,6 +999,7 @@ class LlmBaseProvider(BaseModel):
         )
         
         output = None 
+        call_tool = False
         error_message = None
         try:
             output = await self.acompletion_fn(**completion_args)
