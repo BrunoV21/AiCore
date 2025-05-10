@@ -1086,7 +1086,7 @@ class LlmBaseProvider(BaseModel):
                         provider=self.config.provider,
                         operation_type="acompletion",
                         completion_args=completion_args,
-                        response=output.model_dump_json(indent=4),
+                        response=output,
                         session_id=self.session_id,
                         workspace=self.worspace,
                         agent_id=agent_id or self.agent_id,
