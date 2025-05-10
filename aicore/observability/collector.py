@@ -240,16 +240,73 @@ class LlmOperationCollector(RootModel):
         self._storage_path = value
 
     def _store_to_file(self, new_record: LlmOperationRecord) -> None:
-        if not os.path.exists(self.storage_path):
+        """Store a new record by appending it to the JSON file.
+        Always maintains a valid JSON array format with proper closing bracket.
+        """
+        # Create directory if it doesn't exist
+        if not os.path.exists(os.path.dirname(self.storage_path)):
             os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-            records = LlmOperationCollector.model_construct(root=[])
-        else:
-            with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f: 
-                records = LlmOperationCollector.model_construct(root=[LlmOperationRecord(**kwargs) for kwargs in json.loads(f.read())])
-        records.root.append(new_record)
+        
+        # Case 1: File doesn't exist or is empty
+        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
+            # Create a new file with just this record
+            with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
+                f.write('[\n')
+                f.write(json.dumps(new_record.model_dump(), indent=4))
+                f.write('\n]')
+            return
+        
+        # Case 2: File exists with content - need to append
+        with open(self.storage_path, 'r+', encoding=DEFAULT_ENCODING) as f:
+            # Seek to the position right before the closing bracket
+            f.seek(0, os.SEEK_END)  # Go to end of file
+            pos = f.tell()          # Get current position
+            
+            # Go backwards until we find the closing bracket
+            while pos > 0:
+                pos -= 1
+                f.seek(pos)
+                char = f.read(1)
+                if char == ']':
+                    # Found the closing bracket
+                    break
+            
+            if pos <= 0:  # Sanity check - this shouldn't happen with valid JSON
+                # File might be corrupted, handle accordingly
+                # For simplicity, we'll overwrite with a new file
+                with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f_new:
+                    f_new.write('[\n')
+                    f_new.write(json.dumps(new_record.model_dump(), indent=4))
+                    f_new.write('\n]')
+                return
+            
+            # Truncate the file at this position to remove the closing bracket
+            f.seek(pos)
+            f.truncate()
+            
+            # Now append the new record and closing bracket
+            f.write(',\n')
+            f.write(json.dumps(new_record.model_dump(), indent=4))
+            f.write('\n]')
 
-        with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
-            f.write(records.model_dump_json(indent=4))
+    def read_all_records(self) -> "LlmOperationCollector":
+        """Read all records from the file.
+        The file is always maintained in valid JSON format.
+        """
+        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
+            return LlmOperationCollector.model_construct(root=[])
+        
+        # File is always in valid JSON format, so we can read directly
+        with open(self.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
+            try:
+                data = json.loads(f.read())
+                records = LlmOperationCollector.model_construct(
+                    root=[LlmOperationRecord(**kwargs) for kwargs in data]
+                )
+                return records
+            except json.JSONDecodeError:
+                # Handle potential corrupted file
+                return LlmOperationCollector.model_construct(root=[])
 
     @staticmethod
     def _clean_completion_args(args: Dict[str, Any]) -> Dict[str, Any]:
