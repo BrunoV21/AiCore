@@ -102,14 +102,20 @@ class LlmOperationRecord(BaseModel):
     def assistant_message(self) -> Optional[str]:
         for msg in self.messages[::-1]:
             if msg.get("role") == "assistant":
-                return msg.get("content", "")
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    content = "\n".join([str(entry) for entry in content])
+                return content
         return ""
 
     @computed_field
     def user_prompt(self) -> Optional[str]:
         for msg in self.messages[::-1]:
             if msg.get("role") == "user":
-                return msg.get("content", "")
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    content = "\n".join([str(entry) for entry in content])
+                return content
         return ""
 
     @computed_field

@@ -1033,6 +1033,27 @@ class LlmBaseProvider(BaseModel):
                 
                 prompt.extend(tools_messages)
                 self._n_sucessive_tool_calls += 1
+
+                if self.collector:
+                    end_time = time.time()
+                    latency_ms = (end_time - start_time) * 1000
+                    await self.collector.arecord_completion(
+                        provider=self.config.provider,
+                        operation_type="acompletion.tool_call",
+                        completion_args=completion_args,
+                        response=output.model_dump_json(indent=4) if isinstance(output, ToolCalls) else output,
+                        session_id=self.session_id,
+                        workspace=self.worspace,
+                        agent_id=agent_id or self.agent_id,
+                        action_id=action_id,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        cost=cost,
+                        latency_ms=latency_ms,
+                        error_message=error_message,
+                        extras=self.extras
+                    )
+
                 return await self.acomplete(
                     prompt=prompt,
                     system_prompt=system_prompt,
@@ -1057,24 +1078,25 @@ class LlmBaseProvider(BaseModel):
             raise e
         
         finally:
-            end_time = time.time()
-            latency_ms = (end_time - start_time) * 1000
-            if self.collector:
-                await self.collector.arecord_completion(
-                    provider=self.config.provider,
-                    operation_type="acompletion",
-                    completion_args=completion_args,
-                    response=output.model_dump_json(indent=4) if isinstance(output, ToolCalls) else output,
-                    session_id=self.session_id,
-                    workspace=self.worspace,
-                    agent_id=agent_id or self.agent_id,
-                    action_id=action_id,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    cost=cost,
-                    latency_ms=latency_ms,
-                    error_message=error_message,
-                    extras=self.extras
-                )
+            if not call_tool:
+                if self.collector:
+                    end_time = time.time()
+                    latency_ms = (end_time - start_time) * 1000
+                    await self.collector.arecord_completion(
+                        provider=self.config.provider,
+                        operation_type="acompletion",
+                        completion_args=completion_args,
+                        response=output.model_dump_json(indent=4),
+                        session_id=self.session_id,
+                        workspace=self.worspace,
+                        agent_id=agent_id or self.agent_id,
+                        action_id=action_id,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        cost=cost,
+                        latency_ms=latency_ms,
+                        error_message=error_message,
+                        extras=self.extras
+                    )
             
         return output

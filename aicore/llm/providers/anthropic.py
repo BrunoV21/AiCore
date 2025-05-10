@@ -12,7 +12,6 @@ from functools import partial
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 
 class AnthropicLlm(LlmBaseProvider):
-    ### TODO implement integration between max_tool_calls from cnfig and Anthropic tools calls
 
     @staticmethod
     def anthropic_count_tokens(contents :str, client :AsyncAnthropic, model :str):
