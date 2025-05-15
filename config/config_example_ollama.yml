@@ -1,0 +1,7 @@
+llm:
+  provider: "openai"
+  api_key: "NA"
+  model: "qwen3:14b"
+  base_url: "OLLAMA_INFERENCE_ENDPOINT/v1"
+  temperature: 0
+  max_tokens: 8192
