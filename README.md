@@ -177,7 +177,7 @@ Example MCP configuration (`mcp_config.json`):
         "@modelcontextprotocol/server-brave-search"
       ],
       "env": {
-        "BRAVE_API_KEY": "BSApeUEgTfLYRikQwW8NAd4Qv8wK2v2"
+        "BRAVE_API_KEY": "SUPER-SECRET-BRAVE-SEARCH-API-KEY"
       }
     }
   }
