@@ -296,7 +296,7 @@ class LlmBaseProvider(BaseModel):
     
     @mcp.setter
     def mcp(self, client :MCPClient):
-        self._client = client
+        self._mcp = client
 
     @staticmethod
     def _to_provider_tool_schema(tool_schema: ToolSchema)->Dict[str, Any]:
