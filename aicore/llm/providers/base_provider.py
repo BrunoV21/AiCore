@@ -110,7 +110,7 @@ class LlmBaseProvider(BaseModel):
         """
         return self._aclient
     
-    @client.setter
+    @aclient.setter
     def aclient(self, aclient: Any):
         """Set the asynchronous client instance.
         
