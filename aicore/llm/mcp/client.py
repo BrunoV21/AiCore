@@ -1,10 +1,10 @@
-import time
+from typing import Dict, List, Optional, Any, AsyncContextManager, Union
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Dict, List, Optional, Any, AsyncContextManager
+from pathlib import Path
 import asyncio
+import time
 import json
 import os
-from contextlib import asynccontextmanager
 
 from fastmcp import Client as FastMCPClient
 from fastmcp.client.transports import (
@@ -151,18 +151,19 @@ class MCPClient(BaseModel):
         return self._servers
     
     @classmethod
-    def from_config_file(cls, config_path: str) -> "MCPClient":
+    def from_config(cls, config: Union[str, Path, Dict[str, str]]) -> "MCPClient":
         """Create an MCPClient instance from a config file."""
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"MCP config file not found: {config_path}")
-        
-        with open(config_path, "r") as f:
-            config_data = json.load(f)
+        if not isinstance(config, dict):
+            if not os.path.exists(config):
+                raise FileNotFoundError(f"MCP config file not found: {config}")
+            
+            with open(config, "r") as f:
+                config = json.load(f)
         
         client = cls()
         
-        if "mcpServers" in config_data and isinstance(config_data["mcpServers"], dict):
-            for server_name, server_config in config_data["mcpServers"].items():
+        if "mcpServers" in config and isinstance(config["mcpServers"], dict):
+            for server_name, server_config in config["mcpServers"].items():
                 transport_type = server_config.get("transport_type", "stdio")
                 client.server_configs[server_name] = MCPServerConfig(
                     name=server_name,
