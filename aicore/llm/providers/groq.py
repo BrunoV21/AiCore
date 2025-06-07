@@ -1,6 +1,5 @@
 from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
-from aicore.models import AuthenticationError
 from pydantic import model_validator
 from groq import Groq, AsyncGroq, AuthenticationError
 from groq.types.chat import ChatCompletionChunk
