@@ -1,9 +1,10 @@
 
 from fastmcp.client.transports import StdioServerParameters
+from fastmcp import FastMCP as FastMCPServer
 from mcp.types import Tool
 
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, ConfigDict, Field, RootModel, computed_field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 from enum import Enum
 
 class WSParameters(BaseModel):
@@ -18,9 +19,13 @@ class SSSEParameters(BaseModel):
 class MCPServerConfig(BaseModel):
     """Configuration for a single MCP server connection."""
     name: str
-    parameters :Union[StdioServerParameters, SSSEParameters, WSParameters]
+    parameters :Union[FastMCPServer, StdioServerParameters, SSSEParameters, WSParameters]
     transport_type: Literal["stdio", "sse", "ws"] = "stdio"  # Can be "fastmcp", "stdio", "ws", "sse", or None for stdio
     additional_params: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True
+    )
 
 class MCPParameters(Enum):
     ws :WSParameters=WSParameters

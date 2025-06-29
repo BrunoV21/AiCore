@@ -66,6 +66,6 @@ class LlmConfig(BaseModel):
     @field_validator("tool_choice", mode="before")
     @classmethod
     def auto_tool_choice_from_mcp(cls, kwargs :Dict)->Dict:
-        if kwargs.get("mcp_config_path") and not kwargs.get("tool_choice"):
+        if kwargs and kwargs.get("mcp_config_path") and not kwargs.get("tool_choice"):
             kwargs["tool_choice"] = "auto"
         return kwargs

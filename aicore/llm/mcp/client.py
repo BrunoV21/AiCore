@@ -7,14 +7,16 @@ import json
 import os
 
 from fastmcp import Client as FastMCPClient
+from fastmcp import FastMCP as FastMCPServer
 from fastmcp.client.transports import (
     FastMCPTransport,
     WSTransport, 
     SSETransport,
-    StdioTransport
+    StdioTransport,
+    StdioServerParameters
 )
 
-from aicore.llm.mcp.models import MCPParameters, MCPServerConfig, ToolSchema
+from aicore.llm.mcp.models import MCPParameters, MCPServerConfig, SSSEParameters, ToolSchema, WSParameters
 from aicore.llm.mcp.utils import raise_fast_mcp_error
 from aicore.logger import _logger
 
@@ -174,17 +176,11 @@ class MCPClient(BaseModel):
         
         return client
     
-    def add_server(self, name: str, command: Optional[str] = None, args: List[str] = None, 
-                  env: Dict[str, str] = None, url: Optional[str] = None, 
-                  transport_type: Optional[str] = None, **kwargs) -> None:
+    def add_server(self, name: str, parameters :Union[FastMCPServer, StdioServerParameters, SSSEParameters, WSParameters], **kwargs) -> None:
         """Add a server configuration manually."""        
         self.server_configs[name] = MCPServerConfig(
             name=name,
-            command=command,
-            args=args or [],
-            env=env or {},
-            url=url,
-            transport_type=transport_type,
+            parameters=parameters,
             additional_params=kwargs
         )
         self.transports[name] = self._create_transport(self.server_configs[name])
@@ -211,28 +207,23 @@ class MCPClient(BaseModel):
     
     def _create_transport(self, server_config: MCPServerConfig) -> FastMCPTransport:
         """Create an appropriate transport based on the server configuration."""
-        transport_type = server_config.transport_type
         params = server_config.parameters
         
-        if transport_type == "fastmcp" and server_config.url:
-            # Assume it's a Python module import path
-            module_path, attr = server_config.url.split(":", 1) if ":" in server_config.url else (server_config.url, "mcp")
-            module = __import__(module_path, fromlist=[attr])
-            mcp_server = getattr(module, attr)
-            return FastMCPTransport(mcp_server)
-        elif transport_type == "stdio":
+        if isinstance(params, FastMCPServer):
+            return FastMCPTransport(params)
+        elif isinstance(params, StdioServerParameters):
             return StdioTransport(
                 command=params.command,
                 args=params.args,
                 env=params.env,
                 cwd=params.cwd
             )
-        elif transport_type == "ws":
+        elif isinstance(params, WSParameters):
             return WSTransport(url=params.url)
-        elif transport_type == "sse":
+        elif isinstance(params, SSSEParameters):
             return SSETransport(url=params.url, headers=params.headers)
         else:
-            raise ValueError(f"Unsupported transport type: {transport_type}")
+            raise ValueError("Unsupported transport type")
             
     async def __aenter__(self) -> "MCPClient":
         """Connect to all servers when entering the context manager."""

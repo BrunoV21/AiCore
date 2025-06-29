@@ -292,6 +292,8 @@ class LlmBaseProvider(BaseModel):
     def mcp(self)->MCPClient:
         if self.config.mcp_config_path and self._mcp is None:
             self._mcp = MCPClient.from_config(self.config.mcp_config_path)
+        elif self._mcp is None:            
+            self._mcp = MCPClient()
         return self._mcp
     
     @mcp.setter
@@ -485,6 +487,10 @@ class LlmBaseProvider(BaseModel):
         """placeholder to be overwritten by the anthropic provider"""
         pass
 
+    def _handle_openai_response_only_models(self, args :Dict):
+        """Placeholder to be overwritten by the openai provider"""
+        pass
+
     @classmethod
     def _handle_tools(cls, tools  :List[ToolSchema])->Dict:
         if not tools:
@@ -541,6 +547,7 @@ class LlmBaseProvider(BaseModel):
                 self.completion_args.pop("stream_options", None)
             args.update(self.completion_args)
 
+        self._handle_openai_response_only_models(args)
         self._handle_special_sys_prompt_anthropic(args, system_prompt)
         
         args = {arg: value for arg, value in args.items() if value is not None}

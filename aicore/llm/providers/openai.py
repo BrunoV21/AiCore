@@ -1,9 +1,10 @@
-from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
+from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
+from aicore.const import OPENAI_RESPONSE_ONLY_MODELS
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from typing_extensions import Self
 import tiktoken
 
@@ -24,8 +25,14 @@ class OpenAiLlm(LlmBaseProvider):
         self._auth_exception = AuthenticationError
         self.validate_config()
         self.aclient = _aclient
-        self.completion_fn = self.client.chat.completions.create
-        self.acompletion_fn = _aclient.chat.completions.create
+        
+        if self.config.model in OPENAI_RESPONSE_ONLY_MODELS:
+            self.completion_fn = self.client.responses.create
+            self.acompletion_fn = _aclient.responses.create
+        else:
+            self.completion_fn = self.client.chat.completions.create
+            self.acompletion_fn = _aclient.chat.completions.create
+            
         self.completion_args["stream_options"] = {
             "include_usage": True
         }
@@ -65,6 +72,12 @@ class OpenAiLlm(LlmBaseProvider):
             reasoning_efftort = getattr(self.config, "reasoning_efftort", None)
             if reasoning_efftort is not None:
                 self.completion_args["reasoning_efftort"] = reasoning_efftort
+
+    def _handle_openai_response_only_models(self, args :Dict):
+        if self.config.model in OPENAI_RESPONSE_ONLY_MODELS:
+            args["input"] = args.pop("messages")
+            args.pop("stream_options")
+            args.pop("max_completion_tokens")
 
     @staticmethod
     def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:

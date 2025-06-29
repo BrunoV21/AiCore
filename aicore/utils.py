@@ -1,4 +1,5 @@
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from fastmcp.exceptions import FastMCPError
 from json import JSONDecodeError
 from functools import wraps
 import requests
@@ -31,6 +32,9 @@ def should_retry(exception: Exception) -> bool:
         return False
     
     if isinstance(exception, FastMcpError):
+        return False
+    
+    if isinstance(exception, FastMCPError):
         return False
         
     # Don't retry BalanceError instances
