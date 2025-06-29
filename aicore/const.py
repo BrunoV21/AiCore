@@ -17,6 +17,10 @@ CUSTOM_MODELS = [
     # "gemini-2.5-pro-preview-03-25"
 ]
 
+OPENAI_RESPONSE_ONLY_MODELS = [
+    "o3-pro"
+]
+
 try:
     custom_models = json.loads(os.getenv("CUSTOM_MODELS", "[]"))
     CUSTOM_MODELS.extend(custom_models)

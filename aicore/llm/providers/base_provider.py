@@ -487,6 +487,10 @@ class LlmBaseProvider(BaseModel):
         """placeholder to be overwritten by the anthropic provider"""
         pass
 
+    def _handle_openai_response_only_models(self, args :Dict):
+        """Placeholder to be overwritten by the openai provider"""
+        pass
+
     @classmethod
     def _handle_tools(cls, tools  :List[ToolSchema])->Dict:
         if not tools:
@@ -543,6 +547,7 @@ class LlmBaseProvider(BaseModel):
                 self.completion_args.pop("stream_options", None)
             args.update(self.completion_args)
 
+        self._handle_openai_response_only_models(args)
         self._handle_special_sys_prompt_anthropic(args, system_prompt)
         
         args = {arg: value for arg, value in args.items() if value is not None}
