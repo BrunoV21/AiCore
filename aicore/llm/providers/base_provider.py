@@ -437,7 +437,7 @@ class LlmBaseProvider(BaseModel):
             AssertionError: If message structure is invalid
         """
         assert message_dict.get("role") in ["user", "system", "assistant", "tool"], f"{message_dict} 'role' attribute must be one of ['user', 'system', 'assistant', 'tool]"
-        assert message_dict.get("content") is not None, f"{message_dict} 'content' attribute is missing"
+        assert message_dict.get("content") is not None or message_dict.get("tool_calls") is not None, f"{message_dict} 'content' or 'tool_calls' attribute is missing"
         return True
 
     def _map_multiple_prompts(self, prompt: Union[List[str], List[Dict[str, str]]]) -> List[str]:
