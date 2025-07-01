@@ -1,5 +1,6 @@
 aioodbc==0.5.0
 asyncpg==0.30.0
+greenlet>=3.1.1 
 psycopg2==2.9.10
 pyodbc==5.2.0
 python-dotenv==1.1.0
