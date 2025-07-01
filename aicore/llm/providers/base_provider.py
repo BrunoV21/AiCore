@@ -801,7 +801,7 @@ class LlmBaseProvider(BaseModel):
                 tool_calls = _output.root
                 
                 # If there are multiple tool calls, execute them in parallel
-                if len(tool_calls) > 1:
+                if len(tool_calls) > 1 and self.config.concurrent_tool_calls:
                     
                     tool_names = [tool_call.name for tool_call in tool_calls]
                     # Log the start of tool execution

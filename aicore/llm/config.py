@@ -19,6 +19,7 @@ class LlmConfig(BaseModel):
     mcp_config_path :Optional[str]=None
     tool_choice :Union[str, Dict, None]=None
     max_tool_calls_per_response :Optional[int]=None
+    concurrent_tool_calls :Optional[bool]=True
 
     model_config = ConfigDict(
         extra="allow",
