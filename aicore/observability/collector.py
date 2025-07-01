@@ -226,10 +226,12 @@ class LlmOperationCollector(RootModel):
             
         except ModuleNotFoundError:
              _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
-                    
-        async with self._async_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            self._table_initialized = True
+        try:
+            async with self._async_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                self._table_initialized = True
+        finally:
+            await self._async_engine.dispose()
 
     @property
     def storage_path(self) -> Optional[Union[str, Path]]:
@@ -601,6 +603,9 @@ class LlmOperationCollector(RootModel):
             except Exception as e:
                 await session.rollback()
                 raise e
+            
+            finally:
+                await self._async_engine.dispose()
 
     @classmethod
     def polars_from_db(cls,
@@ -758,6 +763,7 @@ class LlmOperationCollector(RootModel):
         
         async with self._async_session_factory() as session:
             try:
+                session = self._async_session_factory()
                 query = (
                     select(
                         Session.session_id, Session.workspace, Session.agent_id,
@@ -806,7 +812,10 @@ class LlmOperationCollector(RootModel):
             except Exception as e:
                 _logger.logger.error(f"Error executing database query: {str(e)}")
                 await session.rollback()  # Explicitly rollback on error
-                return pl.DataFrame()
+                return pl.DataFrame()            
+            
+            finally:
+                await self._async_engine.dispose()
 
 if __name__ == "__main__":
     LlmOperationCollector()
