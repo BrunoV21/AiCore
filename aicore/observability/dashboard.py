@@ -143,7 +143,7 @@ class ObservabilityDashboard:
                                             html.Div([
                                                 dcc.DatePickerRange(
                                                     id='date-picker-range',
-                                                    start_date=(datetime.now() - timedelta(days=7)).date(),
+                                                    start_date=(datetime.now() - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).date(),
                                                     end_date=datetime.now().date(),
                                                     display_format='YYYY-MM-DD',
                                                     style={"background-color": "#333", "color": "white"}
