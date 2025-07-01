@@ -466,20 +466,17 @@ class ObservabilityDashboard:
                              selected_rows, selected_row_ids):
             # If the clear button is clicked, reset selection
             df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
-
-            if active_cell and page_current is not None:
-                row_index = active_cell['row']
+            
+            if active_cell is not None and page_current is not None:
+                row_index = active_cell.get('row')
                 row_id = df_filtered["operation_id"][row_index]
-
                 if row_id not in selected_row_ids:
                     selected_rows.append(row_index)
                     selected_row_ids.append(row_id)
-                    # active_cell = {'row': row_index}
                 else:
                     idx = selected_row_ids.index(row_id)
                     selected_row_ids.pop(idx)
                     selected_rows.pop(idx)
-                    # active_cell = {'row': selected_rows[-1]} if selected_rows else None
 
             if selected_rows:
                 contents = []
