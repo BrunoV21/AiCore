@@ -462,32 +462,40 @@ class ObservabilityDashboard:
                              refresh_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions,
                              selected_rows):
             # If the clear button is clicked, reset selection
+            df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
+
             if active_cell and page_current is not None:
                 row_index = active_cell['row'] + page_current * PAGE_SIZE
+                row_id = df_filtered["operation_id"][row_index]
+                
                 # Automatically add the clicked row to the selection if not already selected.
-                if row_index not in selected_rows:
-                    selected_rows.append(row_index)
+                if row_id not in selected_rows:
+                    selected_rows.append(row_id)
                 # Optionally, you could toggle the row selection if desired:
                 else:
-                    selected_rows.remove(row_index)
-                    active_cell['row'] = selected_rows[-1] - page_current * PAGE_SIZE if selected_rows else None
+                    selected_rows.remove(row_id)
+                    active_cell['row'] = selected_rows[-1] if selected_rows else None
 
             if selected_rows:
-                df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
-                contents = f"\n\n{MULTISEP}".join([
-                    MESSAGES_TEMPLATE.format(
-                    SEP=SEP,
-                    row=row,
-                    timestamp=df_filtered[row]["timestamp"][0],
-                    agent=df_filtered[row]["agent_id"][0],
-                    action=f" @ {df_filtered[row]['action_id'][0]}" if df_filtered[row]['action_id'][0] else "",
-                    history=json.dumps(df_filtered[row]["history_messages"][0], indent=4),
-                    system=df_filtered[row]["system_prompt"][0],
-                    assistant=df_filtered[row]["assistant_message"][0],
-                    prompt=df_filtered[row]["user_prompt"][0],
-                    response=df_filtered[row]["response"][0]
-                ) for row in selected_rows[::-1]
-                ])
+                contents = []
+                for row in selected_rows[::-1]:
+                    row = df_filtered["operation_id"].index_of(row_id)
+                    contents.append(
+                        MESSAGES_TEMPLATE.format(
+                            SEP=SEP,
+                            row=row,
+                            timestamp=df_filtered[row]["timestamp"][0],
+                            agent=df_filtered[row]["agent_id"][0],
+                            action=f" @ {df_filtered[row]['action_id'][0]}" if df_filtered[row]['action_id'][0] else "",
+                            history=json.dumps(df_filtered[row]["history_messages"][0], indent=4),
+                            system=df_filtered[row]["system_prompt"][0],
+                            assistant=df_filtered[row]["assistant_message"][0],
+                            prompt=df_filtered[row]["user_prompt"][0],
+                            response=df_filtered[row]["response"][0]
+                        )
+                    )
+
+                contents = f"\n\n{MULTISEP}".join(contents)
                 return selected_rows, contents, active_cell
             return selected_rows, "Click a cell to select its row.", active_cell
         
