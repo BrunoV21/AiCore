@@ -1,8 +1,8 @@
 import os
 import json
 import asyncio
-from datetime import datetime
 from pathlib import Path
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Union, Literal
 from typing_extensions import Self
 
@@ -614,7 +614,20 @@ class LlmOperationCollector(RootModel):
         """
         Query the database and return results as a Polars DataFrame.
         Works with any database supported by SQLAlchemy.
+        
+        Defaults:
+            - start_date: Midnight of the previous day
+            - end_date: Now (current time)
         """
+        # Set default start_date to midnight of the previous day
+        if start_date is None:
+            yesterday = datetime.now() - timedelta(days=1)
+            start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+        # Set default end_date to now (optional)
+        if end_date is None:
+            end_date = datetime.now().isoformat()
+
         instance = cls()
         
         if instance._session_factory and instance._engine:
@@ -622,9 +635,17 @@ class LlmOperationCollector(RootModel):
                 agent_id, action_id, session_id, workspace, start_date, end_date
             )
         elif instance._async_session_factory and instance._async_engine:
-            return asyncio.run(instance._apolars_from_db(
-                agent_id, action_id, session_id, workspace, start_date, end_date
-            ))
+            coro = instance._apolars_from_db(agent_id, action_id, session_id, workspace, start_date, end_date)
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop: safe to use asyncio.run
+                return asyncio.run(coro)
+            else:
+                # Already inside a running loop — use `ensure_future` or `create_task`
+                future = asyncio.ensure_future(coro)
+                return asyncio.get_event_loop().run_until_complete(future)
         else:
             try:
                 import polars as pl
@@ -669,6 +690,9 @@ class LlmOperationCollector(RootModel):
                     Message, Session.session_id == Message.session_id
                 ).join(
                     Metric, Message.operation_id == Metric.operation_id
+                ).filter(
+                    Message.timestamp >= start_date,
+                    Message.timestamp <= end_date
                 )
                 
                 # Apply filters
@@ -748,6 +772,10 @@ class LlmOperationCollector(RootModel):
                     )
                     .join(Message, Session.session_id == Message.session_id)
                     .join(Metric, Message.operation_id == Metric.operation_id)
+                    .filter(
+                        Message.timestamp >= start_date,
+                        Message.timestamp <= end_date
+                    )
                 )
 
                 # Apply filters
@@ -759,16 +787,12 @@ class LlmOperationCollector(RootModel):
                     query = query.where(Session.session_id == session_id)
                 if workspace:
                     query = query.where(Session.workspace == workspace)
-                if start_date:
-                    query = query.where(Message.timestamp >= start_date)
-                if end_date:
-                    query = query.where(Message.timestamp <= end_date)
                 
                 query = query.order_by(desc(Message.operation_id))
 
                 # Execute query and immediately consume all results
                 result = await session.execute(query)
-                rows = list(result.all())  # Force consumption of all results
+                rows = result.fetchall()  # eager fetch
                 
                 # Explicitly commit to ensure connection is cleared
                 await session.commit()
