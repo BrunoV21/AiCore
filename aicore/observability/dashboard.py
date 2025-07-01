@@ -385,6 +385,7 @@ class ObservabilityDashboard:
                                         id='operations-table',
                                         row_selectable="multi",  # Allow multiple rows to be selected
                                         selected_rows=[],        # Initial selection (empty)
+                                        selected_row_ids=[],
                                         page_current=0,
                                         page_size=PAGE_SIZE,
                                         style_table={'overflowX': 'auto'},
@@ -439,6 +440,7 @@ class ObservabilityDashboard:
         
         @self.app.callback(
             Output('operations-table', 'selected_rows'),
+            Output('operations-table', 'selected_row_ids'),
             Output('tbl_out', 'children'),
             Output('operations-table', 'active_cell'),
             # The current list of selected rows is needed to update the selection state
@@ -457,29 +459,35 @@ class ObservabilityDashboard:
             Input('agent-dropdown', 'value'),
             Input('action-dropdown', 'value'),
             State('operations-table', 'selected_rows'),
+            State('operations-table', 'selected_row_ids')
         )
         def update_selection(active_cell, page_current, n_clicks,
                              refresh_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions,
-                             selected_rows):
+                             selected_rows, selected_row_ids):
             # If the clear button is clicked, reset selection
             df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
 
             if active_cell and page_current is not None:
-                row_index = active_cell['row'] + page_current * PAGE_SIZE
+                row_index = active_cell['row']
                 row_id = df_filtered["operation_id"][row_index]
-                
-                # Automatically add the clicked row to the selection if not already selected.
-                if row_id not in selected_rows:
-                    selected_rows.append(row_id)
-                # Optionally, you could toggle the row selection if desired:
+
+                if row_id not in selected_row_ids:
+                    selected_rows.append(row_index)
+                    selected_row_ids.append(row_id)
+                    # active_cell = {'row': row_index}
                 else:
-                    selected_rows.remove(row_id)
-                    active_cell['row'] = selected_rows[-1] if selected_rows else None
+                    idx = selected_row_ids.index(row_id)
+                    selected_row_ids.pop(idx)
+                    selected_rows.pop(idx)
+                    # active_cell = {'row': selected_rows[-1]} if selected_rows else None
 
             if selected_rows:
                 contents = []
-                for row in selected_rows[::-1]:
+                for row_id in selected_row_ids[::-1]:
                     row = df_filtered["operation_id"].index_of(row_id)
+                    if not row:
+                        continue
+                    
                     contents.append(
                         MESSAGES_TEMPLATE.format(
                             SEP=SEP,
@@ -496,8 +504,8 @@ class ObservabilityDashboard:
                     )
 
                 contents = f"\n\n{MULTISEP}".join(contents)
-                return selected_rows, contents, active_cell
-            return selected_rows, "Click a cell to select its row.", active_cell
+                return selected_rows, selected_row_ids, contents, active_cell
+            return selected_rows, selected_row_ids, "Click a cell to select its row.", active_cell
         
         @self.app.callback(
             [Output('provider-dropdown', 'options'),
