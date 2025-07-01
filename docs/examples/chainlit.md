@@ -1,14 +1,22 @@
-
 # Chainlit Chat Interface Example
 
-This guide demonstrates how to build a chat interface using Chainlit with AiCore's LLM capabilities.
+This guide demonstrates how to build a chat interface using Chainlit with AiCore's LLM capabilities, including advanced features like reasoning integration and dynamic chat profiles.
 
 ## Prerequisites
 
 - Python 3.8+
 - Chainlit installed (`pip install chainlit`)
-- AiCore installed (`pip install core-for-ao`)
-- API key for your chosen LLM provider
+- AiCore installed (`pip install core-for-ai`)
+- API keys for supported LLM providers
+
+## Chat Profiles
+
+The example provides two default chat profiles:
+
+1. **Reasoner4All** - Uses Mistral with a Groq-powered reasoner
+2. **OpenAi** - Uses OpenAI with a Groq-powered reasoner
+
+You can customize these in the `DEFAULT_LLM_CONFIG` dictionary in `app.py`.
 
 ## Setup
 
@@ -19,15 +27,12 @@ mkdir chainlit-app
 cd chainlit-app
 ```
 
-2. Create a configuration file (`config.yml`):
+2. Create a `.env` file with API keys:
 
-```yaml
-llm:
-  provider: "openai"  # or any supported provider
-  api_key: "your_api_key"
-  model: "gpt-4o"     # or your preferred model
-  temperature: 0.7
-  max_tokens: 1000
+```env
+OPENAI_API_KEY=your_openai_key
+MISTRAL_API_KEY=your_mistral_key
+GROQ_API_KEY=your_groq_key
 ```
 
 3. Install required packages:
@@ -41,42 +46,7 @@ pip install chainlit core-for-ai
 Create an `app.py` file with the following content:
 
 ```python
-import chainlit as cl
-from aicore.llm import Llm
-from aicore.config import Config
-
-# Load configuration
-config = Config.from_yaml("config.yml")
-
-@cl.on_chat_start
-async def start_chat():
-    # Initialize LLM when chat starts
-    llm = Llm(config=config.llm)
-    cl.user_session.set("llm", llm)
-    
-    # Send welcome message
-    await cl.Message(
-        content=f"Hello! I'm powered by {config.llm.provider}'s {config.llm.model}. How can I help you?"
-    ).send()
-
-@cl.on_message
-async def main(message: cl.Message):
-    # Get LLM instance from session
-    llm = cl.user_session.get("llm")
-    
-    # Create a message placeholder
-    msg = cl.Message(content="")
-    await msg.send()
-    
-    # Stream the response
-    response = await llm.acomplete(
-        message.content,
-        stream=True,
-        stream_handler=msg.stream_token
-    )
-    
-    # Update the message with full response
-    await msg.update()
+[See full implementation in examples/chainlit/app/app.py]
 ```
 
 ## Running the Application
@@ -87,109 +57,21 @@ Start the Chainlit app with:
 chainlit run app.py -w
 ```
 
-This will:
-1. Start a local server (usually on port 8000)
-2. Open the chat interface in your default browser
+## Key Features
 
-## Advanced Features
+1. **Dynamic Chat Profiles** - Switch between different LLM configurations
+2. **Reasoning Integration** - Built-in reasoning capabilities via secondary LLM
+3. **API Key Validation** - On-demand key validation
+4. **Conversation History** - Automatic message trimming based on token count
+5. **Observability** - Built-in logging and monitoring
 
-### Adding Memory
+## Customization
 
-To maintain conversation history:
+To customize the implementation:
 
-```python
-@cl.on_chat_start
-async def start_chat():
-    llm = Llm(config=config.llm)
-    cl.user_session.set("llm", llm)
-    cl.user_session.set("history", [])  # Initialize history
-    
-    await cl.Message(
-        content=f"Hello! I remember our conversation. How can I help?"
-    ).send()
-
-async def run_concurrent_tasks(llm, message):
-    asyncio.create_task(llm.acomplete(message))
-    asyncio.create_task(_logger.distribute())
-    # Stream logger output while LLM is running
-    while True:        
-        async for chunk in _logger.get_session_logs(llm.session_id):
-            yield chunk  # Yield each chunk directly
-
-@cl.on_message
-async def main(message: cl.Message):    
-    llm = cl.user_session.get("llm")
-    msg = cl.Message(content="")
-    async for chunk in run_concurrent_tasks(
-            llm,
-            message=history
-        ):
-        if chunk == STREAM_START_TOKEN:
-            continue
-
-        if chunk == STREAM_END_TOKEN:
-                break
-        
-        await msg.stream_token(chunk)
-    
-hst_msg = msg.content.replace(model_id, "") if model_id else msg.content
-history.append(hst_msg)
-await msg.send()
-```
-
-### File Upload Support
-
-```python
-@cl.on_message
-async def main(message: cl.Message):
-    llm = cl.user_session.get("llm")
-    
-    # Check for uploaded files
-    if message.elements:
-        file_content = []
-        for element in message.elements:
-            if "text" in element.mime:
-                with open(element.path, "r") as f:
-                    file_content.append(f.read())
-        
-        prompt = f"{message.content}\n\nFile contents:\n{'\n'.join(file_content)}"
-    else:
-        prompt = message.content
-    
-    msg = cl.Message(content="")
-    await msg.send()
-    
-    response = await llm.acomplete(
-        prompt,
-        stream=True,
-        stream_handler=msg.stream_token
-    )
-    
-    await msg.update()
-```
-
-### Customizing the UI
-
-Chainlit provides several ways to customize the UI:
-
-```python
-@cl.on_chat_start
-async def init():
-    settings = {
-        "model": config.llm.model,
-        "temperature": config.llm.temperature,
-        "max_tokens": config.llm.max_tokens
-    }
-    
-    await cl.ChatSettings(settings).send()
-    
-    # Add custom elements
-    await cl.Image(
-        display="inline",
-        path="logo.png",
-        size="large"
-    ).send()
-```
+1. Edit `DEFAULT_LLM_CONFIG` in `app.py` to change default models
+2. Modify `PROFILES_SETTINGS` in `settings.py` to customize chat profiles
+3. Update `MODELS_PROVIDERS_MAP` in `utils.py` to add new model-provider mappings
 
 ## Deployment Options
 
@@ -222,24 +104,15 @@ docker build -t chainlit-app .
 docker run -p 8000:8000 chainlit-app
 ```
 
-### Cloud Deployment
-
-Chainlit apps can be deployed to any cloud platform that supports Python applications, such as:
-- AWS Elastic Beanstalk
-- Google App Engine
-- Azure App Service
-- Render
-- Fly.io
-
 ## Troubleshooting
 
 1. **API Key Errors**:
-   - Ensure your API key is correctly set in `config.yml`
-   - Verify the key has proper permissions
+   - Ensure your API keys are correctly set in `.env`
+   - Verify the keys have proper permissions
 
 2. **Model Not Found**:
    - Check the model name matches your provider's available models
-   - Some providers require specific model formats (e.g., "gpt-4" vs "gpt4")
+   - Some providers require specific model formats
 
 3. **Rate Limiting**:
    - Implement retry logic in your LLM configuration

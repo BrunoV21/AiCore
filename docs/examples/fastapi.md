@@ -1,18 +1,18 @@
-
 # FastAPI Integration Guide
 
-This guide demonstrates how to integrate AiCore's LLM capabilities with FastAPI to build production-ready AI applications.
+This guide demonstrates how to integrate AiCore's LLM capabilities with FastAPI to build production-ready AI applications, including Multi-Chat Platform (MCP) integration.
 
 ## Prerequisites
 
 1. Python 3.9+
 2. FastAPI and Uvicorn
 3. AiCore package
+4. For MCP integration: `fastmcp>=2.2.6`
 
 ## Installation
 
 ```bash
-pip install fastapi uvicorn core-for-ai
+pip install fastapi uvicorn core-for-ai fastmcp
 ```
 
 ## Basic Setup
@@ -24,7 +24,7 @@ Create a `config.yml` file:
 ```yaml
 llm:
   provider: "openai"
-  api_key: "your_api_key"
+  api_key: "YOur_api_key"
   model: "gpt-4o"
   temperature: 0.7
   max_tokens: 1000
@@ -58,6 +58,49 @@ uvicorn main:app --reload
 
 ## Advanced Features
 
+### MCP (Multi-Chat Platform) Integration
+
+First, create an MCP configuration file (`mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "brave-search": {
+      "transport_type": "stdio",
+      "command": "python",
+      "args": ["-m", "brave_search.server"],
+      "env": {
+        "API_KEY": "YOur_api_key"
+      }
+    }
+  }
+}
+```
+
+Then implement MCP endpoints:
+
+```python
+from fastapi import APIRouter
+from aicore.llm.mcp.client import MCPClient
+from pathlib import Path
+
+router = APIRouter()
+
+@router.get("/tools")
+async def list_tools():
+    """List all available MCP tools"""
+    async with MCPClient.from_config("mcp_config.json") as mcp:
+        tools = await mcp.servers.tools
+        return {"tools": [tool.dict() for tool in tools]}
+
+@router.post("/call-tool/{tool_name}")
+async def call_tool(tool_name: str, arguments: dict):
+    """Call an MCP tool by name"""
+    async with MCPClient.from_config("mcp_config.json") as mcp:
+        result = await mcp.servers.call_tool(tool_name, arguments)
+        return {"result": result}
+```
+
 ### Authentication
 
 Add JWT authentication using FastAPI's OAuth2:
@@ -69,7 +112,7 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
 # Configuration
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = "YOur-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -106,106 +149,30 @@ async def secure_chat(
 Add real-time chat with WebSockets:
 
 ```python
-### helper functions
-llm_sessions: Dict[str, Llm] = {}
-
-async def initialize_llm_session(session_id: str, config: Optional[LlmConfig] = None) -> Llm:
-    """
-    Initialize or retrieve an LLM session
-    
-    Args:
-        session_id: The session identifier
-        config: Optional custom LLM configuration
-        
-    Returns:
-        An initialized LLM instance
-    """
-    if session_id in llm_sessions:
-        return llm_sessions[session_id]
-    
-    try:
-        # Initialize LLM based on whether custom config is provided
-        if config:
-            # Convert Pydantic model to dict and use for LLM initialization
-            config_dict = config.dict(exclude_none=True)
-            llm = Llm.from_config(config_dict)
-        else:
-            # Use the default configuration from environment
-            os.environ["CONFIG_PATH"] = CONFIG_PATH
-            config = Config.from_yaml()
-            llm = Llm.from_config(config.llm)
-        llm.session_id = session_id
-        llm_sessions[session_id] = llm
-        return llm
-    except Exception as e:
-        print(f"Error initializing LLM for session {session_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to initialize LLM: {str(e)}")
-
-def trim_messages(messages, tokenizer_fn, max_tokens :Optional[int]=None):
-    max_tokens = max_tokens or int(os.environ.get("MAX_HISTORY_TOKENS", 16000))
-    while messages and sum(len(tokenizer_fn(msg)) for msg in messages) > max_tokens:
-        messages.pop(0)  # Remove from the beginning
-    return messages
-    
-async def run_concurrent_tasks(llm, message):
-    asyncio.create_task(llm.acomplete(message))
-    asyncio.create_task(_logger.distribute())
-    # Stream logger output while LLM is running
-    while True:        
-        async for chunk in _logger.get_session_logs(llm.session_id):
-            yield chunk  # Yield each chunk directly
-```
-
-```python
-### websocket endpoint
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 import json
-from typing import Optional
+from ulid import ulid
 
-from services.llm_service import initialize_llm_session, trim_messages, run_concurrent_tasks
-from aicore.const import SPECIAL_TOKENS, STREAM_END_TOKEN
-import ulid
-
-router = APIRouter()
-
-# WebSocket connection storage
 active_connections = {}
 active_histories = {}
 
-@router.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id : Optional[str]=None):
+@app.websocket("/ws/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str = None):
     await websocket.accept()
-
-    if not session_id:
-        session_id = ulid.ulid()
     
-    # Store the connection
+    if not session_id:
+        session_id = ulid()
+    
     active_connections[session_id] = websocket
+    history = active_histories.get(session_id, [])
 
-    history  = []
     try:
-        # Initialize LLM
-        llm = await initialize_llm_session(session_id)
-        if session_id not in active_histories:
-            active_histories[session_id] = history
-        else:
-            history = active_histories[session_id]
-        
         while True:
             data = await websocket.receive_text()
-            message = data
-            history.append(message)
-            history = trim_messages(history, llm.tokenizer)
+            history.append(data)
+            
             response = []
-            async for chunk in run_concurrent_tasks(
-                llm,
-                message=history
-            ):
-                if chunk == STREAM_END_TOKEN:
-                    break
-                elif chunk in SPECIAL_TOKENS:
-                    continue
-                
+            async for chunk in llm.acomplete(history, stream=True):
                 await websocket.send_text(json.dumps({"chunk": chunk}))
                 response.append(chunk)
             
@@ -213,10 +180,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id : Optional[str]=No
     
     except WebSocketDisconnect:
         if session_id in active_connections:
-            del active_connections[session_id]
-    except Exception as e:
-        if session_id in active_connections:
-            await websocket.send_text(json.dumps({"error": str(e)}))
             del active_connections[session_id]
 ```
 
@@ -239,33 +202,6 @@ async def limited_chat(request: Request, message: str):
     """Rate-limited chat endpoint"""
     response = await llm.acomplete(message)
     return {"response": response}
-```
-
-### Session Management
-
-Track conversations with session IDs:
-
-```python
-from uuid import uuid4
-from pydantic import BaseModel
-
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str = None
-
-@app.post("/session-chat")
-async def session_chat(request: ChatRequest):
-    """Chat endpoint with session tracking"""
-    if not request.session_id:
-        request.session_id = str(uuid4())
-    
-    llm.session_id = request.session_id
-    response = await llm.acomplete(request.message)
-    
-    return {
-        "response": response,
-        "session_id": request.session_id
-    }
 ```
 
 ## Production Deployment
@@ -307,7 +243,7 @@ spec:
     spec:
       containers:
       - name: aicore-api
-        image: your-registry/aicore-api:latest
+        image: YOur-registry/aicore-api:latest
         ports:
         - containerPort: 8000
         envFrom:
@@ -343,3 +279,7 @@ async def get_metrics():
 6. Implement proper logging
 7. Set appropriate rate limits
 8. Use HTTPS in production
+9. For MCP integration:
+   - Cache tool schemas to reduce startup time
+   - Implement retry logic for tool calls
+   - Monitor MCP server health
