@@ -476,7 +476,7 @@ class ObservabilityDashboard:
                     idx = selected_row_ids.index(row_id)
                     selected_row_ids.pop(idx)
                     selected_rows.pop(idx)
-                    active_cell = {"row": selected_rows[0]} if selected_rows else None
+                    active_cell = {"row": selected_rows[-1] - page_current * PAGE_SIZE} if selected_rows else None
     
             if selected_rows:
                 contents = []
