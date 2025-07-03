@@ -1,4 +1,10 @@
----
+# Overview
+
+Learn about the AiCore framework's architecture, core modules, and how its components interact to provide a unified, extensible LLM and embedding interface.
+
+- [Overview](/overview.md): High-level examination of AiCore's architecture and design principles.
+- [Architecture](/architecture.md): In-depth breakdown of the framework's structure, including mermaid diagrams and component interactions.
+
 # https://vitepress.dev/reference/default-theme-home-page
 layout: home
 
@@ -24,6 +30,3 @@ features:
     details: Automatically track tokens, latency, and cost per call, storing everything in your SQL database of choice.
   - title: 📈 Observability Dashboard
     details: Visualize model performance, cost trends, full prompt details and usage patterns with a built-in dashboard powered by SQL or local data.
-
----
-
