@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vitepress'
 import { withMermaid } from "vitepress-plugin-mermaid";
 
@@ -11,6 +10,8 @@ export default withMermaid(
     themeConfig: {
       nav: [
         { text: 'Home', link: '/' },
+        { text: 'Overview', link: '/overview.md' },
+        { text: 'Architecture', link: '/architecture.md' },
         { text: 'Quickstart', link: '/quickstart/index.md' },
         { text: 'News', link: '/news/mcp-integration.md' },
         { text: 'Configuration', link: '/config/index.md' },
@@ -21,6 +22,13 @@ export default withMermaid(
       ],
 
       sidebar: [
+        {
+          text: 'Overview & Architecture',
+          items: [
+            { text: 'Overview', link: '/overview.md' },
+            { text: 'Architecture', link: '/architecture.md' }
+          ]
+        },
         {
           text: 'Getting Started',
           items: [
