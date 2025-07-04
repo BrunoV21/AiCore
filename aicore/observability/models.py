@@ -20,7 +20,7 @@ class Message(Base):
     operation_id = Column(String(255), primary_key=True)  # Specify a fixed length
     session_id = Column(String(255), ForeignKey('Session.session_id'))
     action_id = Column(String)
-    timestamp = Column(String)
+    timestamp = Column(String) #TODO in future this will be replaced with DateTime
     system_prompt = Column(Text)
     user_prompt = Column(Text)
     response = Column(Text)
