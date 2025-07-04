@@ -857,6 +857,15 @@ class LlmBaseProvider(BaseModel):
             return json.loads(parse_content(output))
         except json.JSONDecodeError:
             return output
+  
+    @staticmethod
+    def _get_message_records(completion_args :Dict[str, str], excluded_roles :Optional[List[Literal["user", "system", "assistant"]]]=None)->List[Dict[str, str]]:
+        messages = completion_args.get("messages")
+        records = [
+            message for message in messages
+            if not excluded_roles or message.get("role") not in excluded_roles
+        ]
+        return records
 
     def complete(
         self,
@@ -958,11 +967,12 @@ class LlmBaseProvider(BaseModel):
         prefix_prompt: Optional[Union[str, List[str]]] = None,
         img_path: Optional[Union[Union[str, Path], List[Union[str, Path]]]] = None,
         json_output: bool = False,
-        stream: bool = True,
+        stream: bool = True,       
+        as_message_records :bool=False,
         stream_handler: Optional[Callable[[str], None]] = default_stream_handler,
         agent_id: Optional[str]=None,
         action_id :Optional[str]=None
-        ) -> Union[str, Dict]:
+        ) -> Union[str, Dict, List[Union[str, Dict[str, str]]]]:
         """
         Async version of complete() to generate completions.
         
@@ -1070,6 +1080,7 @@ class LlmBaseProvider(BaseModel):
                     img_path=img_path,
                     json_output=json_output,
                     stream=stream,
+                    as_message_records=as_message_records,
                     stream_handler=stream_handler,
                     agent_id=agent_id,
                     action_id=action_id
@@ -1107,5 +1118,10 @@ class LlmBaseProvider(BaseModel):
                         error_message=error_message,
                         extras=self.extras
                     )
+        
+        if as_message_records:
+            records = self._get_message_records(completion_args, excluded_roles=["system"])
+            records.append(output)
+            output = records
             
         return output

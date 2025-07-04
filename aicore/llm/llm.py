@@ -316,8 +316,9 @@ class Llm(BaseModel):
                  img_path :Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]]=None,
                  json_output :bool=False,
                  stream :bool=True,
+                 as_message_records :bool=False,
                  agent_id :Optional[str]=None,
-                 action_id :Optional[str]=None)->Union[str, Dict]:
+                 action_id :Optional[str]=None) -> Union[str, Dict, List[Union[str, Dict[str, str]]]]:
         """Async version of complete() to generate completions.
         
         Args:
@@ -328,7 +329,7 @@ class Llm(BaseModel):
             json_output: Whether to parse output as JSON
             stream: Whether to stream the response
             agent_id: Optional agent identifier
-            action_id: Optional action identifier
+            action_id: Optional ac*tion identifier
             
         Returns:
             The completion result as either a string or dictionary (if json_output=True)
@@ -341,4 +342,4 @@ class Llm(BaseModel):
          
         sys_prompt = system_prompt or self.system_prompt
         prefix_prompt = await self._areason(prompt, None, prefix_prompt, img_path, stream, agent_id, action_id)
-        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, self.logger_fn, agent_id, action_id)
+        return await self.provider.acomplete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, as_message_records, self.logger_fn, agent_id, action_id)
