@@ -17,6 +17,7 @@ from aicore.observability.collector import LlmOperationCollector
 from typing import Any, Dict, Optional, Literal, List, Tuple, Union, Callable
 from pydantic import BaseModel, RootModel, Field
 from functools import partial, wraps
+from json_repair import repair_json
 from pathlib import Path
 import tiktoken
 import asyncio
@@ -805,13 +806,13 @@ class LlmBaseProvider(BaseModel):
                     
                     tool_names = [tool_call.name for tool_call in tool_calls]
                     # Log the start of tool execution
-                    _logger.logger.info(f"Executing {len(tool_calls)} tools: {tool_names}")                    
+                    _logger.logger.info(f"Executing {len(tool_calls)} tools: {tool_names}")
                     start_time = time.time()
                     
                     tool_coroutines = [
                         self.mcp.servers.call_tool(
                             tool_name=tool_call.name,
-                            arguments=json.loads(tool_call.arguments or "{}"),
+                            arguments=json.loads(repair_json(tool_call.arguments) or "{}"),
                             silent=True
                         )
                         for tool_call in tool_calls
@@ -834,7 +835,7 @@ class LlmBaseProvider(BaseModel):
                     for tool_call in tool_calls:
                         tool_call_response = await self.mcp.servers.call_tool(
                             tool_name=tool_call.name,
-                            arguments=json.loads(tool_call.arguments or "{}"),
+                            arguments=json.loads(repair_json(tool_call.arguments) or "{}"),
                         )
                         tools_messages.extend([
                             self._to_provider_tool_call_schema(tool_call),
