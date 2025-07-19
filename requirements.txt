@@ -15,4 +15,5 @@ pytest-asyncio==0.25.2
 PyYAML==6.0.2
 python-dateutil==2.9.0
 setuptools==78.1.1
+json_repair==0.35.0
 ulid==1.1
