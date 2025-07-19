@@ -1,6 +1,7 @@
 import pytest
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta
 from unittest.mock import patch
+import pytz
 
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models_metadata import PricingConfig, HappyHour, DynamicPricing
@@ -23,7 +24,7 @@ def static_pricing_config():
 @pytest.fixture
 def happy_hour_pricing_config():
     """Fixture for pricing config with happy hour"""
-    now = datetime.now(UTC)
+    now = datetime.now(pytz.UTC)
     return PricingConfig(
         input=10.0,
         output=20.0,
@@ -96,7 +97,7 @@ class TestHappyHourPricing:
     @patch('aicore.llm.usage.datetime')
     def test_active_happy_hour(self, mock_datetime, happy_hour_pricing_config):
         """Test happy hour pricing when active"""
-        now = datetime.now(UTC)
+        now = datetime.now(pytz.UTC)
         mock_datetime.now.return_value = now
         
         usage = CompletionUsage(
@@ -111,7 +112,7 @@ class TestHappyHourPricing:
     @patch('aicore.llm.usage.datetime')
     def test_inactive_happy_hour(self, mock_datetime, happy_hour_pricing_config):
         """Test happy hour pricing when inactive"""
-        now = datetime.now(UTC) + timedelta(hours=2)  # Outside happy hour
+        now = datetime.now(pytz.UTC) + timedelta(hours=2)  # Outside happy hour
         mock_datetime.now.return_value = now
         
         usage = CompletionUsage(

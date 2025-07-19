@@ -1,6 +1,7 @@
 from pydantic import BaseModel, model_validator
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta
 from typing import Optional, Dict
+import pytz
 import json
 
 from aicore.const import METADATA_JSON, DEFAULT_ENCODING
@@ -28,25 +29,25 @@ class HappyHour(BaseModel):
                 continue
 
             if isinstance(value, datetime):
-                # If already a datetime, ensure it's UTC
+                # If already a datetime, ensure it's pytz.UTC
                 if value.tzinfo is None:
-                    parsed_args[key] = value.replace(tzinfo=UTC)
+                    parsed_args[key] = value.replace(tzinfo=pytz.UTC)
                     continue
-                parsed_args[key] = value.astimezone(UTC)
+                parsed_args[key] = value.astimezone(pytz.UTC)
                 
             elif isinstance(value, str):
                 try:
                     # Parse time string (e.g. "16:30")
                     time_obj = datetime.strptime(value, "%H:%M").time()
-                    # Get today's date in UTC
-                    today = datetime.now(UTC).date()
+                    # Get today's date in pytz.UTC
+                    today = datetime.now(pytz.UTC).date()
                     # Combine date and time
                     naive_dt = datetime.combine(today, time_obj)
                     # Handle overnight case (e.g. finish time is next day)
                     if key == 'finish' and time_obj.hour < 12:
                         naive_dt += timedelta(days=1)
                     # Make timezone aware
-                    parsed_args[key] = naive_dt.replace(tzinfo=UTC)
+                    parsed_args[key] = naive_dt.replace(tzinfo=pytz.UTC)
                     
                 except ValueError as e:
                     raise ValueError(f"Invalid time format: {value}. Expected HH:MM") from e
@@ -92,7 +93,7 @@ class PricingConfig(BaseModel):
         return cost * 1e-6  # Convert from per 1M tokens to per token
 
     def _get_active_pricing(self, timestamp: Optional[datetime] = None) -> "PricingConfig":
-        timestamp = timestamp or datetime.now(UTC)
+        timestamp = timestamp or datetime.now(pytz.UTC)
         if self.happy_hour and self.happy_hour.start <= timestamp <= self.happy_hour.finish:
             return self.happy_hour.pricing
         return self
