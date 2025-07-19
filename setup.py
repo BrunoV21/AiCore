@@ -9,7 +9,7 @@ install_requires = [
     "anthropic==0.52.0",
     "google-genai==1.11.0",
     "groq==0.13.1",
-    "fastmcp==2.2.6",
+    "fastmcp>=2.2.6",
     "mistralai==1.7.0",
     "loguru==0.7.3",
     # mistral_common==1.5.1
