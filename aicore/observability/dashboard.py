@@ -482,7 +482,7 @@ class ObservabilityDashboard:
                 contents = []
                 for row_id in selected_row_ids[::-1]:
                     row = df_filtered["operation_id"].index_of(row_id)
-                    if not row:
+                    if row is None:
                         continue
                     
                     contents.append(
