@@ -1,7 +1,6 @@
 from pydantic import BaseModel, model_validator
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Union
-import pytz
+from datetime import datetime, timedelta, UTC
+from typing import Optional, Dict
 import json
 
 from aicore.const import METADATA_JSON, DEFAULT_ENCODING
@@ -31,23 +30,23 @@ class HappyHour(BaseModel):
             if isinstance(value, datetime):
                 # If already a datetime, ensure it's UTC
                 if value.tzinfo is None:
-                    parsed_args[key] = value.replace(tzinfo=pytz.UTC)
+                    parsed_args[key] = value.replace(tzinfo=UTC)
                     continue
-                parsed_args[key] = value.astimezone(pytz.UTC)
+                parsed_args[key] = value.astimezone(UTC)
                 
             elif isinstance(value, str):
                 try:
                     # Parse time string (e.g. "16:30")
                     time_obj = datetime.strptime(value, "%H:%M").time()
                     # Get today's date in UTC
-                    today = datetime.now(pytz.UTC).date()
+                    today = datetime.now(UTC).date()
                     # Combine date and time
                     naive_dt = datetime.combine(today, time_obj)
                     # Handle overnight case (e.g. finish time is next day)
                     if key == 'finish' and time_obj.hour < 12:
                         naive_dt += timedelta(days=1)
                     # Make timezone aware
-                    parsed_args[key] = naive_dt.replace(tzinfo=pytz.UTC)
+                    parsed_args[key] = naive_dt.replace(tzinfo=UTC)
                     
                 except ValueError as e:
                     raise ValueError(f"Invalid time format: {value}. Expected HH:MM") from e
@@ -93,7 +92,7 @@ class PricingConfig(BaseModel):
         return cost * 1e-6  # Convert from per 1M tokens to per token
 
     def _get_active_pricing(self, timestamp: Optional[datetime] = None) -> "PricingConfig":
-        timestamp = timestamp or datetime.now(pytz.UTC)
+        timestamp = timestamp or datetime.now(UTC)
         if self.happy_hour and self.happy_hour.start <= timestamp <= self.happy_hour.finish:
             return self.happy_hour.pricing
         return self

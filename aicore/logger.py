@@ -2,7 +2,7 @@ from pydantic import BaseModel, model_validator
 from typing import Optional, List, AsyncGenerator, Literal
 from typing_extensions import Self
 from asyncio import Queue as AsyncQueue
-from datetime import datetime
+from datetime import datetime, UTC
 from loguru import logger
 import asyncio
 import time
@@ -51,7 +51,7 @@ class LogEntry(BaseModel):
     def init_timestamp(self) -> Self:
         """Initialize timestamp if not provided"""
         if not self.timestamp:
-            self.timestamp = datetime.now().isoformat()
+            self.timestamp = datetime.now(UTC).isoformat()
         return self
 
 class Logger:
