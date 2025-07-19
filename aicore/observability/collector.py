@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional, List, Union, Literal
 from typing_extensions import Self
 
 import ulid
-from pydantic import BaseModel, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
+from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
 
 from aicore.logger import _logger
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
@@ -32,8 +32,9 @@ class LlmOperationRecord(BaseModel):
     completion_args: Union[Dict[str, Any], str]
     response: Optional[Union[str, Dict, List]] = ""
 
-    class Config:
+    model_config = ConfigDict(
         arbitrary_types_allowed = True
+    )
 
     @field_validator(*["session_id", "workspace", "agent_id", "action_id", "timestamp", "error_message", "response"])
     @classmethod
