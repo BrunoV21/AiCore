@@ -9,6 +9,17 @@
         "env": {
           "BRAVE_API_KEY": "your-brave-api-key"
         }
+      },
+      "codetide": {
+        "command": "uvx",
+        "args": [
+          "--from",
+          "codetide",
+          "codetide-mcp-server"
+        ],
+        "env": {
+          "CODETIDE_WORKSPACE": "./"
+        }
       }
     }
   }
