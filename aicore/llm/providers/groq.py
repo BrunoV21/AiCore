@@ -47,6 +47,8 @@ class GroqLlm(LlmBaseProvider):
                 completion_id=completion_id or chunk.id
             )
         # for now if the answer is in json groq does not return any type of usage in x_usage for openai oss models
+        # possible cause bellow
+        # Note: For a limited time, tool calls used with OpenAI's open models will not be charged. Learn more at groq.com/pricing.
 
         return chunk.choices
     
