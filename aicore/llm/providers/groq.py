@@ -37,12 +37,20 @@ class GroqLlm(LlmBaseProvider):
     
     def normalize(self, chunk :ChatCompletionChunk, completion_id :Optional[str]=None):
         x_usage = chunk.x_groq
-        if x_usage is not None and x_usage.usage is not None:
+        if x_usage is not None and getattr(x_usage, "usage", None) is not None:
             self.usage.record_completion(
                 prompt_tokens=x_usage.usage.prompt_tokens,
                 response_tokens=x_usage.usage.completion_tokens,
                 completion_id=completion_id or chunk.id
             )
+        elif isinstance(x_usage, dict):
+            print(f"{x_usage=}")
+            # self.usage.record_completion(
+            #     prompt_tokens=x_usage.usage.prompt_tokens,
+            #     response_tokens=x_usage.usage.completion_tokens,
+            #     completion_id=completion_id or chunk.id
+            # )
+
         return chunk.choices
     
     @staticmethod
