@@ -1,5 +1,6 @@
 from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
+from aicore.const import GROQ_OPEN_AI_OSS_MODELS
 from pydantic import model_validator
 from groq import Groq, AsyncGroq, AuthenticationError
 from groq.types.chat import ChatCompletionChunk
@@ -33,6 +34,8 @@ class GroqLlm(LlmBaseProvider):
             )
         ).encode
 
+        self._handle_reasoning_models()
+
         return self
     
     def normalize(self, chunk :ChatCompletionChunk, completion_id :Optional[str]=None):
@@ -43,13 +46,7 @@ class GroqLlm(LlmBaseProvider):
                 response_tokens=x_usage.usage.completion_tokens,
                 completion_id=completion_id or chunk.id
             )
-        elif isinstance(x_usage, dict):
-            print(f"{x_usage=}")
-            # self.usage.record_completion(
-            #     prompt_tokens=x_usage.usage.prompt_tokens,
-            #     response_tokens=x_usage.usage.completion_tokens,
-            #     completion_id=completion_id or chunk.id
-            # )
+        # for now if the answer is in json groq does not return any type of usage in x_usage for openai oss models
 
         return chunk.choices
     
@@ -100,3 +97,13 @@ class GroqLlm(LlmBaseProvider):
             "tool_call_id": toolCallSchema.id,
             "content": str(content)
         }
+    
+    def _handle_reasoning_models(self):
+        ### gpt oss series models series models
+        if self.config.model in GROQ_OPEN_AI_OSS_MODELS:
+            # self.completion_args["temperature"] = None
+            self.completion_args["max_tokens"] = None
+            self.completion_args["max_completion_tokens"] = self.config.max_tokens
+            reasoning_efftort = getattr(self.config, "reasoning_efftort", None)
+            if reasoning_efftort is not None:
+                self.completion_args["reasoning_efftort"] = reasoning_efftort

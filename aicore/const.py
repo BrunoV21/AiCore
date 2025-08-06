@@ -35,6 +35,11 @@ SUPPORTED_REASONER_MODELS = [
     "deepseek/deepseek-r1:free"
 ]
 
+GROQ_OPEN_AI_OSS_MODELS = [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b"
+]
+
 REASONING_START_TOKEN = "<think>"
 
 REASONING_STOP_TOKEN = "</think>"
