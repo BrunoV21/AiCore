@@ -3,14 +3,28 @@ import json
 import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Union, Literal
+from typing import Dict, Any, Optional, List, Union, Literal, Any as _Any
 from typing_extensions import Self
 
 import ulid
-from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    RootModel,
+    Field,
+    field_validator,
+    computed_field,
+    model_validator,
+    model_serializer,
+    field_serializer,
+)
 
 from aicore.logger import _logger
-from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
+from aicore.const import (
+    DEFAULT_OBSERVABILITY_DIR,
+    DEFAULT_OBSERVABILITY_FILE,
+    DEFAULT_ENCODING,
+)
 
 # Cleanup utilities – run once per dashboard launch
 from aicore.observability.cleanup import (
@@ -18,8 +32,10 @@ from aicore.observability.cleanup import (
     register_cleanup_task,
 )
 
+
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
+
     session_id: Optional[str] = ""
     workspace: Optional[str] = ""
     agent_id: Optional[str] = ""
@@ -41,15 +57,13 @@ class LlmOperationRecord(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @field_validator(
-        *[
-            "session_id",
-            "workspace",
-            "agent_id",
-            "action_id",
-            "timestamp",
-            "error_message",
-            "response",
-        ]
+        "session_id",
+        "workspace",
+        "agent_id",
+        "action_id",
+        "timestamp",
+        "error_message",
+        "response",
     )
     @classmethod
     def ensure_non_nulls(cls, value: Optional[str] = None) -> str:
@@ -68,7 +82,7 @@ class LlmOperationRecord(BaseModel):
             return json.dumps(response, indent=4)
         raise TypeError("response must be a string or JSON‑serializable object")
 
-    @field_validator(*["completion_args", "extras"])
+    @field_validator("completion_args", "extras")
     @classmethod
     def json_loads_response(cls, args: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
         """Parse JSON strings for args/extras."""
@@ -84,10 +98,10 @@ class LlmOperationRecord(BaseModel):
         self.workspace = self.workspace or os.getenv("WORKSPACE", "")
         return self
 
-    @field_serializer(*["completion_args", "extras"], when_used="json")
-    def json_dump_completion_args(self, completion_args: Dict[str, Any]) -> str:
+    @field_serializer("completion_args", "extras", when_used="json")
+    def json_dump_completion_args(self, value: Dict[str, Any]) -> str:
         """Serialize ``completion_args`` for JSON output."""
-        return json.dumps(completion_args, indent=4)
+        return json.dumps(value, indent=4)
 
     @property
     def messages(self) -> List[Dict[str, str]]:
@@ -200,12 +214,12 @@ class LlmOperationCollector(RootModel):
 
     root: List[LlmOperationRecord] = []
     _storage_path: Optional[Union[str, Path]] = None
-    _table_initialized: Optional[bool] = False
+    _table_initialized: bool = False
     _last_inserted_record: Optional[str] = None
-    _engine: Optional[Any] = None
-    _async_engine: Optional[Any] = None
-    _session_factory: Optional[Any] = None
-    _async_session_factory: Optional[Any] = None
+    _engine: Optional[_Any] = None
+    _async_engine: Optional[_Any] = None
+    _session_factory: Optional[_Any] = None
+    _async_session_factory: Optional[_Any] = None
 
     # Cleanup flags – ensure cleanup runs only once per launch
     _cleanup_done: bool = False
@@ -214,68 +228,62 @@ class LlmOperationCollector(RootModel):
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
         """Initialize SQLAlchemy engines and run cleanup."""
+        # -----------------------------------------------------------------
+        # Database engine setup
+        # -----------------------------------------------------------------
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
-            from sqlalchemy.ext.asyncio import (
-                create_async_engine,
-                    async_sessionmaker,
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            from aicore.observability.models import Base
+            from dotenv import load_dotenv
+
+            load_dotenv()
+
+            conn_str = os.getenv("CONNECTION_STRING")
+            async_conn_str = os.getenv("ASYNC_CONNECTION_STRING")
+
+            if conn_str:
+                self._engine = create_engine(conn_str)
+                self._session_factory = sessionmaker(bind=self._engine)
+                Base.metadata.create_all(self._engine)
+                self._table_initialized = True
+
+            if async_conn_str:
+                self._async_engine = create_async_engine(async_conn_str)
+                self._async_session_factory = async_sessionmaker(
+                    bind=self._async_engine,
+                    expire_on_commit=False,
                 )
-                from aicore.observability.models import Base
-                from dotenv import load_dotenv
+        except ModuleNotFoundError:
+            _logger.logger.warning(
+                "pip install core-for-ai[sql] and set CONNECTION_STRING/ASYNC_CONNECTION_STRING"
+            )
+        except Exception as e:
+            _logger.logger.warning(f"Database connection failed: {e}")
 
-                load_dotenv()
-
-                conn_str = os.getenv("CONNECTION_STRING")
-                async_conn_str = os.getenv("ASYNC_CONNECTION_STRING")
-
-                try:
-                    if conn_str:
-                        self._engine = create_engine(conn_str)
-                        self._session_factory = sessionmaker(bind=self._engine)
-                        Base.metadata.create_all(self._engine)
-                        self._table_initialized = True
-
-                    if async_conn_str:
-                        self._async_engine = create_async_engine(async_conn_str)
-                        self._async_session_factory = async_sessionmaker(
-                            bind=self._async_engine,
-                            expire_on_commit=False,
-                        )
-                except Exception as e:
-                    _logger.logger.warning(f"Database connection failed: {e}")
-
-            except ModuleNotFoundError:
-                _logger.logger.warning(
-                    "pip install core-for-ai[sql] and set CONNECTION_STRING/ASYNC_CONNECTION_STRING"
-                )
-
-            # -----------------------------------------------------------------
-            # Run cleanup of old observability messages (once per launch)
-            # -----------------------------------------------------------------
-            if not self.__class__._cleanup_done or self.__class__._cleanup_failed:
-                try:
-                    deleted = cleanup_old_observability_messages()
+        # -----------------------------------------------------------------
+        # Run cleanup of old observability messages (once per launch)
+        # -----------------------------------------------------------------
+        if not self.__class__._cleanup_done or self.__class__._cleanup_failed:
+            try:
+                deleted = cleanup_old_observability_messages()
+                    # Log the number of deleted rows for auditing.
                     _logger.logger.info(
                         f"Observability cleanup removed {deleted} old messages."
                     )
                     self.__class__._cleanup_done = True
                     self.__class__._cleanup_failed = False
                 except Exception as e:
-                    _logger.logger.warning(
-                        f"Observability cleanup failed: {e}"
-                    )
+                    _logger.logger.warning(f"Observability cleanup failed: {e}")
                     self.__class__._cleanup_failed = True
 
-            # Register recurring cleanup task if a scheduler is available
-            try:
-                register_cleanup_task()
-            except Exception:
-                # Scheduler not available – ignore silently
-                pass
-
-        except Exception as e:
-            _logger.logger.warning(f"Unexpected error during DB init: {e}")
+        # Register recurring cleanup task if a scheduler is available
+        try:
+            register_cleanup_task()
+        except Exception:
+            # Scheduler not available – ignore silently
+            pass
 
         return self
 
@@ -316,18 +324,21 @@ class LlmOperationCollector(RootModel):
         with open(self.storage_path, "r+", encoding=DEFAULT_ENCODING) as f:
             f.seek(0, os.SEEK_END)
             pos = f.tell()
+            # Find the position of the closing bracket ']'
             while pos > 0:
                 pos -= 1
                 f.seek(pos)
-                    if f.read(1) == "]":
-                        break
+                if f.read(1) == "]":
+                    break
             if pos <= 0:
+                # File is malformed; rewrite from scratch
                 with open(self.storage_path, "w", encoding=DEFAULT_ENCODING) as f_new:
                     f_new.write("[\n")
                     f_new.write(json.dumps(new_record.model_dump(), indent=4))
                     f_new.write("\n]")
                 return
 
+            # Truncate the closing bracket and append the new record
             f.seek(pos)
             f.truncate()
             f.write(",\n")
@@ -349,7 +360,8 @@ class LlmOperationCollector(RootModel):
                 )
                 return records
             except json.JSONDecodeError:
-                return LlmOperationModel
+                # Return an empty collector on malformed JSON
+                return LlmOperationCollector.model_construct(root=[])
 
     @staticmethod
     def _clean_completion_args(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -362,6 +374,7 @@ class LlmOperationCollector(RootModel):
     def from_observable_storage_path(
         cls, storage_path: Optional[str] = None
     ) -> "LlmOperationCollector":
+        """Create a collector with a storage path, respecting env var."""
         obj = cls()
         env_path = os.getenv("OBSERVABILITY_DATA_DEFAULT_FILE")
         if storage_path:
@@ -371,6 +384,14 @@ class LlmOperationCollector(RootModel):
         else:
             obj.storage_path = Path(DEFAULT_OBSERVABILITY_DIR) / DEFAULT_OBSERVABILITY_FILE
         return obj
+
+    # Compatibility alias for tests that used a misspelled method name.
+    @classmethod
+    def fom_observable_storage_path(
+        cls, storage_path: Optional[str] = None
+    ) -> "LlmOperationCollector":
+        """Alias for ``from_observable_storage_path``."""
+        return cls.from_observable_storage_path(storage_path)
 
     @classmethod
     def polars_from_file(
@@ -407,10 +428,10 @@ class LlmOperationCollector(RootModel):
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None,
         extras: Optional[Dict[str, Any]] = None,
-    ) -> LlmOperationRecord:
+    ) -> Optional[LlmOperationRecord]:
         cleaned_args = self._clean_completion_args(completion_args)
 
-        if not isinstance(response, (str, dict, list)) and response is not None:
+        if response is not None and not isinstance(response, (str, dict, list)):
             return None
 
         record = LlmOperationRecord(
@@ -453,7 +474,7 @@ class LlmOperationCollector(RootModel):
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None,
         extras: Optional[Dict[str, Any]] = None,
-    ) -> LlmOperationRecord:
+    ) -> Optional[LlmOperationRecord]:
         record = self._handle_record(
             completion_args,
             operation_type,
@@ -474,10 +495,10 @@ class LlmOperationCollector(RootModel):
         if self._engine and self._session_factory and record:
             try:
                 self._insert_record_to_db(record)
-                _logger.logger.info("Record inserted into DB.")
-                self._last_inserted_record = record.operation_id
-            except Exception as e:
-                _logger.logger.error(f"Error inserting record to DB: {e}")
+                    _logger.logger.info("Record inserted into DB.")
+                    self._last_inserted_record = record.operation_id
+                except Exception as e:
+                    _logger.logger.error(f"Error inserting record to DB: {e}")
         return record
 
     async def arecord_completion(
@@ -497,7 +518,7 @@ class LlmOperationCollector(RootModel):
         latency_ms: Optional[float] = None,
         error_message: Optional[str] = None,
         extras: Optional[Dict[str, Any]] = None,
-    ) -> LlmOperationRecord:
+    ) -> Optional[LlmOperationRecord]:
         record = self._handle_record(
             completion_args,
             operation_type,
@@ -523,7 +544,7 @@ class LlmOperationCollector(RootModel):
                 _logger.logger.info("Async record inserted into DB.")
                 self._last_inserted_record = record.operation_id
             except Exception as e:
-                _logger.logger.error(f"Error inserting async record: {e}")
+                _logger.error(f"Error inserting async record: {e}")
         return record
 
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
@@ -586,9 +607,9 @@ class LlmOperationCollector(RootModel):
                 )
                 session.add(metric)
                 session.commit()
-            except Exception as e:
+            except Exception:
                 session.rollback()
-                raise e
+                raise
 
     async def _a_insert_record_to_db(self, record: LlmOperationRecord) -> None:
         """Insert a record into the DB asynchronously."""
@@ -649,9 +670,9 @@ class LlmOperationCollector(RootModel):
                 session.add(metric)
 
                 await session.commit()
-            except Exception as e:
+            except Exception:
                 await session.rollback()
-                raise e
+                raise
             finally:
                 await self._async_engine.dispose()
 
@@ -754,12 +775,12 @@ class LlmOperationCollector(RootModel):
                         Metric.temperature,
                         Metric.max_tokens,
                         Metric.input_tokens,
-                        Metric.output_tokens,
-                        Metric.cached_tokens,
-                        Metric.total_tokens,
-                        Metric.cost,
-                        Metric.latency_ms,
-                        Metric.extras,
+                        Output.output_tokens,
+                        Cached.cached_tokens,
+                        Total.total_tokens,
+                        Cost.cost,
+                        Latency.latency_ms,
+                        Extras.extras,
                     )
                     .join(Message, Session.session_id == Message.session_id)
                     .join(Metric, Message.operation_id == Metric.operation_id)
@@ -836,7 +857,7 @@ class LlmOperationCollector(RootModel):
                         Metric.success,
                         Metric.temperature,
                         Metric.max_tokens,
-                        Input.input_tokens,
+                        Metric.input_tokens,
                         Output.output_tokens,
                         Cached.cached_tokens,
                         Total.total_tokens,
@@ -855,7 +876,7 @@ class LlmOperationCollector(RootModel):
                 if session_id:
                     query = query.where(Session.session_id == session_id)
                 if workspace:
-                    query = query.where(Session.workspace == workspace)
+                    query = where(Session.workspace == workspace)
 
                 query = query.order_by(desc(Message.operation_id))
                 result = await session.execute(query)
@@ -866,7 +887,7 @@ class LlmOperationCollector(RootModel):
                 records = [dict(row._asdict()) for row in rows]
                 return pl.from_dicts(records)
             except Exception as e:
-                _logger.logger.error(f"Async DB query error: {e}")
+                _logger.error(f"Async DB query error: {e}")
                 await session.rollback()
                 return pl.DataFrame()
             finally:
