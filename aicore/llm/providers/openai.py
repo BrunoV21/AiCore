@@ -1,6 +1,6 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.llm.mcp.models import ToolCallSchema, ToolSchema
-from aicore.const import OPENAI_RESPONSE_ONLY_MODELS
+from aicore.const import OPENAI_RESPONSE_API_MODELS, OPENAI_RESPONSE_ONLY_MODELS
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
@@ -65,7 +65,7 @@ class OpenAiLlm(LlmBaseProvider):
     
     def _handle_reasoning_models(self):
         ### o series models
-        if self.config.model.startswith("o"):
+        if self.config.model.startswith("o") or self.config.model in OPENAI_RESPONSE_API_MODELS:
             self.completion_args["temperature"] = None
             self.completion_args["max_tokens"] = None
             self.completion_args["max_completion_tokens"] = self.config.max_tokens

@@ -21,6 +21,13 @@ OPENAI_RESPONSE_ONLY_MODELS = [
     "o3-pro"
 ]
 
+OPENAI_RESPONSE_API_MODELS = [
+    "o1",
+    "o3-mini", "o3", "o3-pro",
+    "o4-mini",
+    "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat-latest"
+]
+
 try:
     custom_models = json.loads(os.getenv("CUSTOM_MODELS", "[]"))
     CUSTOM_MODELS.extend(custom_models)
