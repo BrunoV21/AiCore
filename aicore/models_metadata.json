@@ -1,9 +1,13 @@
 {
+    "anthropic-claude-opus-4-1-20250805": {"max_tokens": 64000, "context_window": 200000, "pricing": {"input": 15, "output": 75, "cached": 1.50, "cache_write": 18.75}},
     "anthropic-claude-opus-4-20250514": {"max_tokens": 64000, "context_window": 200000, "pricing": {"input": 15, "output": 75, "cached": 1.50, "cache_write": 18.75}},
     "anthropic-claude-sonnet-4-20250514": {"max_tokens": 64000, "context_window": 200000, "pricing": {"input": 3, "output": 15, "cached": 0.30, "cache_write": 3.75}},
     "anthropic-claude-3-7-sonnet-latest": {"max_tokens": 64000, "context_window": 200000, "pricing": {"input": 3, "output": 15, "cached": 0.30, "cache_write": 3.75}},
     "anthropic-claude-3-5-sonnet-latest": {"max_tokens": 8192, "context_window": 200000, "pricing": {"input": 3, "output": 15, "cached": 0.30, "cache_write": 3.75}},
     "anthropic-claude-3-5-haiku-latest": {"max_tokens": 8192, "context_window": 200000, "pricing": {"input": 0.8, "output": 4, "cached": 1, "cache_write": 0.08}},
+    "openai-gpt-5": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 1.25, "output": 10, "cached": 0.125}},
+    "openai-gpt-5-mini": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 0.25, "output": 2, "cached": 0.025}},
+    "openai-gpt-5-nano": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 0.05, "output": 0.4, "cached": 0.005}},
     "openai-gpt-4.1": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 2, "output": 8, "cached": 0.5}},
     "openai-gpt-4o": {"max_tokens": 64000, "context_window": 128000, "pricing": {"input": 2.5, "output": 10, "cached": 1.25}},
     "openai-gpt-4.1-mini": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 0.4, "output": 1.6, "cached": 0.1}},
