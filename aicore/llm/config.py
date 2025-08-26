@@ -2,7 +2,7 @@ from typing import Literal, Optional, Union, Dict
 from typing_extensions import Self
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 
-from aicore.const import SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
+from aicore.const import DEFAULT_TIMEOUT, SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
 from aicore.models_metadata import METADATA, PricingConfig
 
 class LlmConfig(BaseModel):
@@ -20,6 +20,8 @@ class LlmConfig(BaseModel):
     tool_choice :Union[str, Dict, None]=None
     max_tool_calls_per_response :Optional[int]=None
     concurrent_tool_calls :Optional[bool]=True
+
+    timeout :Optional[int]=DEFAULT_TIMEOUT
 
     model_config = ConfigDict(
         extra="allow",

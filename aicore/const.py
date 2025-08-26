@@ -76,6 +76,8 @@ DEFAULT_WAIT_MIN = int(os.getenv("WAIT_MIN", "0")) or 1
 DEFAULT_WAIT_MAX = int(os.getenv("WAIT_MAX", "0")) or 60
 DEFAULT_WAIT_EXP_MULTIPLIER = int(os.getenv("WAIT_EXP_MULTIPLIER", "0")) or 1
 
+DEFAULT_TIMEOUT = int(os.getenv("AICORE_TIMEOUT"), 20*60)
+
 # Observability constants
 DEFAULT_OBSERVABILITY_DIR = os.getenv("OBSERVABILITY_DIR") or "observability_data"
 DEFAULT_OBSERVABILITY_FILE = os.getenv("OBSERVABILITY_FILE") or "llm_operations.json"

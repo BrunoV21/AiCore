@@ -32,13 +32,15 @@ class AnthropicLlm(LlmBaseProvider):
     @model_validator(mode="after")
     def set_anthropic(self)->Self:
         _client :Anthropic = Anthropic(
-            api_key=self.config.api_key
+            api_key=self.config.api_key,
+            timeout=self.config.timeout
         )
         self.client :Anthropic = _client
         self._auth_exception = AuthenticationError
         self.validate_config()
         _aclient :AsyncAnthropic = AsyncAnthropic(
-            api_key=self.config.api_key
+            api_key=self.config.api_key,
+            timeout=self.config.timeout
         )
         self._aclient = _aclient
         self.completion_fn = _client.messages.create
