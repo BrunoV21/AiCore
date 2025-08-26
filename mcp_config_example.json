@@ -20,6 +20,21 @@
         "env": {
           "CODETIDE_WORKSPACE": "./"
         }
+      },
+      "context7": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@upstash/context7-mcp@latest"
+        ]
+      },
+      "exa": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "https://mcp.exa.ai/mcp?exaApiKey=your-exa-api-key"
+        ]
       }
     }
   }
