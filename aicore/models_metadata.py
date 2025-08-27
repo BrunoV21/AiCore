@@ -101,6 +101,7 @@ class PricingConfig(BaseModel):
 class ModelMetaData(BaseModel):
     context_window: int = 128000
     max_tokens: int = 8192
+    tool_use: bool = True
     pricing: Optional[PricingConfig] = None
 
 METADATA: Dict[str, ModelMetaData] = {

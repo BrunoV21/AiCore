@@ -22,6 +22,7 @@ class LlmConfig(BaseModel):
     concurrent_tool_calls :Optional[bool]=True
 
     timeout :Optional[int]=DEFAULT_TIMEOUT
+    tool_use :Optional[bool]=None
 
     model_config = ConfigDict(
         extra="allow",
@@ -63,6 +64,8 @@ class LlmConfig(BaseModel):
                 self.max_tokens = model_metadata.max_tokens
             if self.context_window is None and model_metadata.context_window:
                 self.context_window = model_metadata.context_window
+            if self.tool_use is None:
+                self.tool_use = model_metadata.tool_use
         
         return self
     
