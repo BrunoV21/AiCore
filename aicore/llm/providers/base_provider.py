@@ -771,7 +771,7 @@ class LlmBaseProvider(BaseModel):
         return response
     
     async def connect_to_mcp(self):
-        if self.mcp is not None:
+        if self.mcp is not None and self.config.tool_use is not False:
             if not self.mcp._is_connected or self.mcp._needs_update:
                 await self.mcp.connect()
                 tools = await self.mcp.servers.tools
