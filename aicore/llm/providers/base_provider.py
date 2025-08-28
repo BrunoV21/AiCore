@@ -1057,21 +1057,24 @@ class LlmBaseProvider(BaseModel):
                 if self.collector:
                     end_time = time.time()
                     latency_ms = (end_time - start_time) * 1000
-                    await self.collector.arecord_completion(
-                        provider=self.config.provider,
-                        operation_type="acompletion.tool_call",
-                        completion_args=completion_args,
-                        response=output.model_dump_json(indent=4) if isinstance(output, ToolCalls) else output,
-                        session_id=self.session_id,
-                        workspace=self.worspace,
-                        agent_id=agent_id or self.agent_id,
-                        action_id=action_id,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        cost=cost,
-                        latency_ms=latency_ms,
-                        error_message=error_message,
-                        extras=self.extras
+                    asyncio.create_task(
+                        self.collector.arecord_completion(
+                            provider=self.config.provider,
+                            operation_type="acompletion.tool_call",
+                            completion_args=completion_args,
+                            response=output.model_dump_json(indent=4) if isinstance(output, ToolCalls) else output,
+                            session_id=self.session_id,
+                            workspace=self.worspace,
+                            agent_id=agent_id or self.agent_id,
+                            action_id=action_id,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            cost=cost,
+                            latency_ms=latency_ms,
+                            error_message=error_message,
+                            extras=self.extras
+                        ), 
+                        name="collector.arecord_completion.tool_call"
                     )
 
                 return await self.acomplete(
@@ -1103,21 +1106,24 @@ class LlmBaseProvider(BaseModel):
                 if self.collector:
                     end_time = time.time()
                     latency_ms = (end_time - start_time) * 1000
-                    await self.collector.arecord_completion(
-                        provider=self.config.provider,
-                        operation_type="acompletion",
-                        completion_args=completion_args,
-                        response=output,
-                        session_id=self.session_id,
-                        workspace=self.worspace,
-                        agent_id=agent_id or self.agent_id,
-                        action_id=action_id,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        cost=cost,
-                        latency_ms=latency_ms,
-                        error_message=error_message,
-                        extras=self.extras
+                    asyncio.create_task(
+                        self.collector.arecord_completion(
+                            provider=self.config.provider,
+                            operation_type="acompletion",
+                            completion_args=completion_args,
+                            response=output,
+                            session_id=self.session_id,
+                            workspace=self.worspace,
+                            agent_id=agent_id or self.agent_id,
+                            action_id=action_id,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            cost=cost,
+                            latency_ms=latency_ms,
+                            error_message=error_message,
+                            extras=self.extras
+                        ),
+                        name="collector.arecord_completion"
                     )
         
         if as_message_records:
