@@ -549,7 +549,6 @@ class LlmOperationCollector(RootModel):
         # Use async context manager for session handling
         async with self._async_session_factory() as session:
             try:
-                from sqlalchemy import exists
                 from sqlalchemy.future import select
                 from aicore.observability.models import Session, Message, Metric
                 # Check if session exists, create if it doesn't
@@ -567,9 +566,10 @@ class LlmOperationCollector(RootModel):
                             agent_id=serialized['agent_id']
                         )
                         session.add(db_session)
-                        await session.flush()  # Flush changes to DB
+                        await session.commit()
 
-                        self._is_sessions_initialized.add(serialized['session_id'])
+                        self._is_sessions_initialized.add(serialized['session_id'])                        
+
 
                 # Create message record
                 message = Message(
@@ -586,6 +586,7 @@ class LlmOperationCollector(RootModel):
                     error_message=serialized['error_message']
                 )
                 session.add(message)
+                await session.commit()
 
                 # Create metrics record
                 metric = Metric(
