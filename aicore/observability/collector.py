@@ -558,8 +558,9 @@ class LlmOperationCollector(RootModel):
                     db_session = await session.scalar(
                         select(1).where(Session.session_id == serialized['session_id'])
                     )
+                    reuslt = db_session is not None
 
-                    if not db_session:
+                    if not reuslt:
                         db_session = Session(
                             session_id=serialized['session_id'],
                             workspace=serialized['workspace'],
