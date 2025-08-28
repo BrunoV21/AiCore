@@ -556,7 +556,7 @@ class LlmOperationCollector(RootModel):
                 if serialized['session_id'] not in self._is_sessions_initialized:
                     # Check if any row exists
                     db_session = await session.scalar(
-                        select(exists().where(Session.session_id == serialized['session_id']))
+                        select(1).where(Session.session_id == serialized['session_id'])
                     )
                     
                     if not db_session:
