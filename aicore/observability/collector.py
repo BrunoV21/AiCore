@@ -36,6 +36,8 @@ class LlmOperationRecord(BaseModel):
         arbitrary_types_allowed = True
     )
 
+    _is_sessions_initialized :bool=False
+
     @field_validator(*["session_id", "workspace", "agent_id", "action_id", "timestamp", "error_message", "response"])
     @classmethod
     def ensure_non_nulls(cls, value: Optional[str] = None) -> str:
@@ -551,17 +553,20 @@ class LlmOperationCollector(RootModel):
                 from sqlalchemy.future import select
                 from aicore.observability.models import Session, Message, Metric
                 # Check if session exists, create if it doesn't
-                result = await session.execute(select(Session).filter_by(session_id=serialized['session_id']))
-                db_session = result.scalars().first()
-                
-                if not db_session:
-                    db_session = Session(
-                        session_id=serialized['session_id'],
-                        workspace=serialized['workspace'],
-                        agent_id=serialized['agent_id']
-                    )
-                    session.add(db_session)
-                    await session.flush()  # Flush changes to DB
+                if not self._is_sessions_initialized:
+                    result = await session.execute(select(Session).filter_by(session_id=serialized['session_id']))
+                    db_session = result.scalars().first()
+                    
+                    if not db_session:
+                        db_session = Session(
+                            session_id=serialized['session_id'],
+                            workspace=serialized['workspace'],
+                            agent_id=serialized['agent_id']
+                        )
+                        session.add(db_session)
+                        await session.flush()  # Flush changes to DB
+
+                    self._is_sessions_initialized = True
 
                 # Create message record
                 message = Message(
