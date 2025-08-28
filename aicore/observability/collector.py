@@ -180,7 +180,7 @@ class LlmOperationCollector(RootModel):
     _async_engine: Optional[Any] = None
     _session_factory: Optional[Any] = None
     _async_session_factory: Optional[Any] = None
-    _is_sessions_initialized :bool=False
+    _is_sessions_initialized :set = set()
 
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
@@ -553,7 +553,7 @@ class LlmOperationCollector(RootModel):
                 from sqlalchemy.future import select
                 from aicore.observability.models import Session, Message, Metric
                 # Check if session exists, create if it doesn't
-                if not self._is_sessions_initialized:
+                if serialized['session_id'] not in self._is_sessions_initialized:
                     # Check if any row exists
                     db_session = await session.scalar(
                         select(exists().where(Session.session_id == serialized['session_id']))
@@ -568,7 +568,7 @@ class LlmOperationCollector(RootModel):
                         session.add(db_session)
                         await session.flush()  # Flush changes to DB
 
-                    self._is_sessions_initialized = True
+                    self._is_sessions_initialized.add(serialized['session_id'])
 
                 # Create message record
                 message = Message(
