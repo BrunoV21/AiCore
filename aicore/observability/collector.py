@@ -36,8 +36,6 @@ class LlmOperationRecord(BaseModel):
         arbitrary_types_allowed = True
     )
 
-    _is_sessions_initialized :bool=False
-
     @field_validator(*["session_id", "workspace", "agent_id", "action_id", "timestamp", "error_message", "response"])
     @classmethod
     def ensure_non_nulls(cls, value: Optional[str] = None) -> str:
@@ -182,6 +180,7 @@ class LlmOperationCollector(RootModel):
     _async_engine: Optional[Any] = None
     _session_factory: Optional[Any] = None
     _async_session_factory: Optional[Any] = None
+    _is_sessions_initialized :bool=False
 
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
