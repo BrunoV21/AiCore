@@ -558,7 +558,7 @@ class LlmOperationCollector(RootModel):
                     db_session = await session.scalar(
                         select(1).where(Session.session_id == serialized['session_id'])
                     )
-                    
+
                     if not db_session:
                         db_session = Session(
                             session_id=serialized['session_id'],
@@ -568,7 +568,7 @@ class LlmOperationCollector(RootModel):
                         session.add(db_session)
                         await session.flush()  # Flush changes to DB
 
-                    self._is_sessions_initialized.add(serialized['session_id'])
+                        self._is_sessions_initialized.add(serialized['session_id'])
 
                 # Create message record
                 message = Message(
