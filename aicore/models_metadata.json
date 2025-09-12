@@ -13,7 +13,7 @@
     "openai-gpt-4o": {"max_tokens": 64000, "context_window": 128000, "pricing": {"input": 2.5, "output": 10, "cached": 1.25}},
     "openai-gpt-4.1-mini": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 0.4, "output": 1.6, "cached": 0.1}},
     "openai-gpt-4.1-nano": {"max_tokens": 32768, "context_window": 1047576, "pricing": {"input": 0.1, "output": 0.4, "cached": 0.025}},
-    "openai-gpt-4o-mini": {"max_tokens": 16384, "context_window": 1047576, "pricing": {"input": 0.15, "output": 0.6, "cached": 0.075}},
+    "openai-gpt-4o-mini": {"max_tokens": 16384, "context_window": 131072, "pricing": {"input": 0.15, "output": 0.6, "cached": 0.075}},
     "openai-gpt-4.5": {"max_tokens": 64000, "context_window": 128000, "pricing": {"input": 75, "output": 150, "cached": 37.5}},
     "openai-o1": {"max_tokens": 100000, "context_window": 200000, "pricing": {"input": 15, "output": 60, "cached": 7.5}},
     "openai-o3-mini": {"max_tokens": 100000, "context_window": 200000, "pricing": {"input": 1.1, "output": 4.40, "cached": 0.55}},
@@ -47,8 +47,8 @@
     "groq-moonshotai/kimi-k2-instruct-0905": {"max_tokens": 16384, "context_window": 262144, "pricing": {"input": 1, "output": 3, "cached": 0.5}},
     "groq-openai/gpt-oss-20b": {"max_tokens": 32768, "context_window": 131072, "pricing": {"input": 0.1, "output": 0.5}},
     "groq-openai/gpt-oss-120b": {"max_tokens": 32768, "context_window": 131072, "pricing": {"input": 0.15, "output": 0.75}},
-    "deepseek-deepseek-reasoner": {"max_tokens": 65536, "context_window":  131072, "pricing": {"input": 0.55, "output": 2.10, "cached": 0.14, "happy_hour": {"start": "16:30", "finish": "00:30", "pricing": {"input": 0.135, "output": 0.55, "cached": 0.035}}}},
-    "deepseek-deepseek-chat": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.27, "output": 1.10, "cached": 0.07, "happy_hour": {"start": "16:30", "finish": "00:30", "pricing": {"input": 0.135, "output": 0.55, "cached": 0.035}}}},
+    "deepseek-deepseek-reasoner": {"max_tokens": 65536, "context_window":  131072, "pricing": {"input": 0.56, "output": 1.68, "cached": 0.07}},
+    "deepseek-deepseek-chat": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.56, "output": 1.68, "cached": 0.07}},
     "grok-3-beta": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 3, "output": 15}},
     "grok-3-mini-beta": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.20, "output": 0.50}}
 }
