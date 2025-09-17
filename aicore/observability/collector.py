@@ -546,76 +546,86 @@ class LlmOperationCollector(RootModel):
 
         serialized = record.serialize_model()
         
-        # Use async context manager for session handling
-        async with self._async_session_factory() as session:
-            try:
-                from sqlalchemy.future import select
-                from aicore.observability.models import Session, Message, Metric
-                # Check if session exists, create if it doesn't
-                if serialized['session_id'] not in self._is_sessions_initialized:
-                    # Check if any row exists
-                    db_session = await session.scalar(
-                        select(1).where(Session.session_id == serialized['session_id'])
-                    )
-                    reuslt = db_session is not None
-
-                    if not reuslt:
-                        db_session = Session(
-                            session_id=serialized['session_id'],
-                            workspace=serialized['workspace'],
-                            agent_id=serialized['agent_id']
-                        )
-                        session.add(db_session)
-                        await session.commit()
-
-                        self._is_sessions_initialized.add(serialized['session_id'])                        
-
-
-                # Create message record
-                message = Message(
-                    operation_id=serialized['operation_id'],
-                    session_id=serialized['session_id'],
-                    action_id=serialized['action_id'],
-                    timestamp=serialized['timestamp'],
-                    system_prompt=serialized['system_prompt'],
-                    user_prompt=serialized['user_prompt'],
-                    response=serialized['response'],
-                    assistant_message=serialized['assistant_message'],
-                    history_messages=serialized['history_messages'],
-                    completion_args=serialized['completion_args'],
-                    error_message=serialized['error_message']
-                )
-                session.add(message)
-                await session.commit()
-
-                # Create metrics record
-                metric = Metric(
-                    operation_id=serialized['operation_id'],
-                    operation_type=serialized['operation_type'],
-                    provider=serialized['provider'],
-                    model=serialized['model'],
-                    success=serialized['success'],
-                    temperature=serialized['temperature'],
-                    max_tokens=serialized['max_tokens'],
-                    input_tokens=serialized['input_tokens'],
-                    output_tokens=serialized['output_tokens'],
-                    cached_tokens=serialized['cached_tokens'],
-                    total_tokens=serialized['total_tokens'],
-                    cost=serialized['cost'],
-                    latency_ms=serialized['latency_ms'],
-                    extras=serialized['extras']
-                )
-                session.add(metric)
-
-                # Commit all changes
-                await session.commit()
-                self._last_inserted_record = serialized['operation_id']
-            except Exception as e:
-                await session.rollback()
-                raise e
+        try:
+            from sqlalchemy.future import select
+            from aicore.observability.models import Session, Message, Metric
             
-            finally:
-                await self._async_engine.dispose()
+            # First with block: Handle session creation
+            async with self._async_session_factory() as session:
+                try:
+                    # Check if session exists, create if it doesn't
+                    if serialized['session_id'] not in self._is_sessions_initialized:
+                        # Check if any row exists
+                        db_session = await session.scalar(
+                            select(1).where(Session.session_id == serialized['session_id'])
+                        )
+                        result = db_session is not None
+
+                        if not result:
+                            db_session = Session(
+                                session_id=serialized['session_id'],
+                                workspace=serialized['workspace'],
+                                agent_id=serialized['agent_id']
+                            )
+                            session.add(db_session)
+                            await session.commit()
+                            self._is_sessions_initialized.add(serialized['session_id'])
+                except Exception as e:
+                    await session.rollback()
+                    raise e
+
+            # Second with block: Handle message insertion
+            async with self._async_session_factory() as session:
+                try:
+                    message = Message(
+                        operation_id=serialized['operation_id'],
+                        session_id=serialized['session_id'],
+                        action_id=serialized['action_id'],
+                        timestamp=serialized['timestamp'],
+                        system_prompt=serialized['system_prompt'],
+                        user_prompt=serialized['user_prompt'],
+                        response=serialized['response'],
+                        assistant_message=serialized['assistant_message'],
+                        history_messages=serialized['history_messages'],
+                        completion_args=serialized['completion_args'],
+                        error_message=serialized['error_message']
+                    )
+                    session.add(message)
+                    await session.commit()
+                except Exception as e:
+                    await session.rollback()
+                    raise e
+
+            # Third with block: Handle metrics insertion
+            async with self._async_session_factory() as session:
+                try:
+                    metric = Metric(
+                        operation_id=serialized['operation_id'],
+                        operation_type=serialized['operation_type'],
+                        provider=serialized['provider'],
+                        model=serialized['model'],
+                        success=serialized['success'],
+                        temperature=serialized['temperature'],
+                        max_tokens=serialized['max_tokens'],
+                        input_tokens=serialized['input_tokens'],
+                        output_tokens=serialized['output_tokens'],
+                        cached_tokens=serialized['cached_tokens'],
+                        total_tokens=serialized['total_tokens'],
+                        cost=serialized['cost'],
+                        latency_ms=serialized['latency_ms'],
+                        extras=serialized['extras']
+                    )
+                    session.add(metric)
+                    await session.commit()
+                except Exception as e:
+                    await session.rollback()
+                    raise e
+            
+            # Set the last inserted record after all operations succeed
+            self._last_inserted_record = serialized['operation_id']
+            
+        finally:
+            await self._async_engine.dispose()
 
     @classmethod
     def polars_from_db(cls,
