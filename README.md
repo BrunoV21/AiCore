@@ -289,14 +289,21 @@ llm:
 A Hugging Face Space showcasing reasoning-augmented models  
 [![Hugging Face Space](https://huggingface.co/datasets/huggingface/badges/raw/main/open-in-hf-spaces-xl.svg)](https://huggingface.co/spaces/McLoviniTtt/Reasoner4All)
 
-### GitRecap
+### ⏮ GitRecap
 Instant summaries of Git activity  
 🌐 [Live App](https://brunov21.github.io/GitRecap/)  
 📦 [GitHub Repository](https://github.com/BrunoV21/GitRecap)
 
-### CodeGraph (Coming Soon)
-Graph representation of codebases for enhanced retrieval
+### 🌀 CodeTide & AgentTide Integration
+📦 [GitHub Repository](https://github.com/BrunoV21/CodeTide)
 
+**CodeTide** is a fully local, privacy-first tool for parsing and understanding Python codebases using symbolic, structural analysis—no LLMs, no embeddings, just fast and deterministic code intelligence. It enables developers and AI agents to retrieve precise code context, visualize project structure, and generate atomic code changes with confidence.
+
+**AgentTide** is a next-generation, precision-driven software engineering agent built on top of CodeTide. AgentTide leverages CodeTide’s symbolic code understanding to plan, generate, and apply high-quality code patches—always with full context and requirements fidelity. You can interact with AgentTide via a conversational CLI or a beautiful web UI.
+
+> **Live Demo:** Try AgentTide on Hugging Face Spaces: [https://mclovinittt-agenttidedemo.hf.space/](https://mclovinittt-agenttidedemo.hf.space/)
+
+**AiCore** was used to make LLM calls within AgentTide, enabling seamless integration between local code analysis and advanced language models. This combination empowers AgentTide to deliver context-aware, production-ready code changes—always under your control.
 
 ## Future Plans
 - **Extended Provider Support**: Additional LLM and embedding providers
