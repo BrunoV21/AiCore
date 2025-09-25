@@ -5,3 +5,4 @@ plotly==5.18.0
 polars==1.24.0
 pyarrow==19.0.1
 aiofiles>=24.1.0
+orjson>=3.11.1
