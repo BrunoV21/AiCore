@@ -464,7 +464,7 @@ class LlmOperationCollector(RootModel):
         extras: Optional[Dict[str, Any]] = None
     ) -> LlmOperationRecord:
         # Clean request args
-        cleaned_args = await asyncio.to_thread(self._clean_completion_args(completion_args))
+        cleaned_args = self._clean_completion_args(completion_args)
 
         if not isinstance(response, (str, dict, list)) and response is not None:
             return None
