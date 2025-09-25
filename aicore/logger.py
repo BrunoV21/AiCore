@@ -37,9 +37,11 @@ SPECIAL_END_TOKENS = [
 def default_stream_handler(message :str)->str:
     if message in SPECIAL_TOKENS:
         if message in SPECIAL_END_TOKENS:
-            print("\n")
+            sys.stdout.write("\n")
+            sys.stdout.flush()
         return
-    print(message, end="")
+    sys.stdout.write(message)
+    sys.stdout.flush()
     return message
 
 class LogEntry(BaseModel):
@@ -61,22 +63,22 @@ class Logger:
         Initialize the logger object.
         :param logs_dir: Directory where log files will be stored.
         """
-        self.logs_dir = os.path.join(os.getcwd(), logs_dir)
-        os.makedirs(self.logs_dir, exist_ok=True)
+        # self.logs_dir = os.path.join(os.getcwd(), logs_dir)
+        # os.makedirs(self.logs_dir, exist_ok=True)
 
         # Loguru setup
-        log_file_path = os.path.join(self.logs_dir, "{time:YYYY-MM-DD}.log")
+        # log_file_path = os.path.join(self.logs_dir, "{time:YYYY-MM-DD}.log")
         self.logger = logger
         self.logger.remove()  # Remove default logging to stderr
-        self.logger.add(
-            log_file_path,
-            format="{time} {level} {message}",
-            colorize=True,
-            rotation="00:00",
-            retention="7 days",
-            enqueue=True,
-            serialize=False,
-        )
+        # self.logger.add(
+        #     log_file_path,
+        #     format="{time} {level} {message}",
+        #     colorize=True,
+        #     rotation="00:00",
+        #     retention="7 days",
+        #     enqueue=True,
+        #     serialize=False,
+        # )
 
         # Add stdout sink with colorization
         self.logger.add(
