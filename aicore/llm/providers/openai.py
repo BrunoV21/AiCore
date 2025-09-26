@@ -4,7 +4,8 @@ from aicore.const import OPENAI_RESPONSE_API_MODELS, OPENAI_RESPONSE_ONLY_MODELS
 from pydantic import model_validator
 from openai import OpenAI, AsyncOpenAI, AuthenticationError
 from openai.types.chat import ChatCompletion
-from typing import Any, Dict, Optional
+from openai.types.responses import Response, ResponseReasoningItem, ResponseOutputText
+from typing import Any, Dict, List, Optional, Union
 from typing_extensions import Self
 import tiktoken
 
@@ -49,6 +50,9 @@ class OpenAiLlm(LlmBaseProvider):
         return self
     
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
+        if self._needs_responses_api():
+            return self.normalize_responses(response=chunk, completion_id=completion_id)
+
         usage = chunk.usage
         if usage is not None:
             cached_tokens = usage.prompt_tokens_details.cached_tokens \
@@ -61,11 +65,45 @@ class OpenAiLlm(LlmBaseProvider):
                 cached_tokens=cached_tokens,
                 completion_id=completion_id or chunk.id
             )
+        ### choices is not available either, mght as well make a normalize responses fn at this point
         return chunk.choices
     
+    #TODO revisit this with streaming enabled as text_output should contain a delta
+    def normalize_responses(self, response :Response, completion_id :Optional[str]=None)->List[Union[ResponseReasoningItem, ResponseOutputText]]:
+        usage = response.usage
+        if usage is not None:
+            cached_tokens = usage.input_tokens_details.cached_tokens \
+            if usage.input_tokens_details is not None \
+            else 0
+
+            # TODO consider if we wnat to store reasoning tokens
+            self.usage.record_completion(
+                prompt_tokens=usage.input_tokens-cached_tokens,
+                response_tokens=usage.output_tokens,
+                cached_tokens=cached_tokens,
+                completion_id=completion_id or response.id
+            )
+        # print(f"{response.output}")
+        # print(f"\n\n{response.output_text=}")
+        return response.output_text
+    
+    def _no_stream(self, response) -> Union[str, ToolCalls]:
+        if self._needs_responses_api():
+            message = self.normalize_fn(response)
+            return message
+            # # TODO add support to handle tool calls
+            # _chunk = self.normalize_fn(response)
+            # message = self._chunk_from_provider(_chunk).message
+            # if hasattr(message, "tool_calls") and message.tool_calls:
+            #     return ToolCalls(root=[
+            #         self._fill_tool_schema(tool_call) for tool_call in message.tool_calls
+            #     ])
+            # else:
+            #     return message.content
+
+        return super()._no_stream(response=response)
     def _handle_reasoning_models(self):
-        ### o series models
-        if self.config.model.startswith("o") or self.config.model in OPENAI_RESPONSE_API_MODELS:
+        if self._needs_responses_api():
             self.completion_args["temperature"] = None
             self.completion_args["max_tokens"] = None
             self.completion_args["max_completion_tokens"] = self.config.max_tokens
@@ -74,10 +112,25 @@ class OpenAiLlm(LlmBaseProvider):
                 self.completion_args["reasoning_efftort"] = reasoning_efftort
 
     def _handle_openai_response_only_models(self, args :Dict):
-        if self.config.model in OPENAI_RESPONSE_ONLY_MODELS:
+        if self.config.model in OPENAI_RESPONSE_API_MODELS:
             args["input"] = args.pop("messages")
-            args.pop("stream_options")
-            args.pop("max_completion_tokens")
+            args.pop("stream_options", None)
+            # args.pop("max_tokens")
+            # print("here")
+            args.pop("max_tokens", None)
+            args.pop("max_completion_tokens", None)
+            
+            # GPT 5 does not support temperature
+            # args.pop("temperature")
+        if self.config.model in OPENAI_NO_TEMPERATURE_MODELS:
+            args.pop("temperature", None)
+            # max_completion_tokens should be mapped to  max_output_tokens
+            # https://platform.openai.com/docs/guides/migrate-to-responses
+            # Output verbosity
+            # Reasoning depth:
+            
+        # print(json.dumps(args, indent=4))
+
 
     @staticmethod
     def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:

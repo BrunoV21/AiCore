@@ -17,15 +17,20 @@ CUSTOM_MODELS = [
     # "gemini-2.5-pro-preview-03-25"
 ]
 
-OPENAI_RESPONSE_ONLY_MODELS = [
-    "o3-pro"
+OPENAI_NO_TEMPERATURE_MODELS = [
+    "gpt-5-codex",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano"
 ]
 
 OPENAI_RESPONSE_API_MODELS = [
+    "gpt-5", "gpt-5-mini", "gpt-5-nano", 
+    "gpt-5-chat-latest", "gpt-5-codex",
+    "codex-mini-latest",
     "o1",
     "o3-mini", "o3", "o3-pro",
     "o4-mini",
-    "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat-latest"
 ]
 
 try:
