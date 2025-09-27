@@ -492,12 +492,11 @@ class LlmBaseProvider(BaseModel):
         """Placeholder to be overwritten by the openai provider"""
         pass
 
-    @classmethod
-    def _handle_tools(cls, tools  :List[ToolSchema])->Dict:
+    def _handle_tools(self, tools  :List[ToolSchema])->Dict:
         if not tools:
             return None
         return [
-            cls._to_provider_tool_schema(tool)
+            self._to_provider_tool_schema(tool)
             for tool in tools
         ]
 
