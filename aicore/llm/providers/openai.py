@@ -12,6 +12,8 @@ from openai.types.responses import (
 )
 
 from openai.types.responses.response_function_call_arguments_delta_event import ResponseFunctionCallArgumentsDeltaEvent
+# from openai.types.responses.response_function_web_search_param
+# ChatCompletionMessageToolCall
 from typing import Any, Dict, List, Optional, Union
 from typing_extensions import Self
 import tiktoken
@@ -324,33 +326,41 @@ class OpenAiLlm(LlmBaseProvider):
         }
 
     def _to_provider_tool_call_schema(self, toolCallSchema :ToolCallSchema)->ToolCallSchema:
-        # if self.use_responses_api:
-        #     toolCallSchema._raw = {
-        #         "role": "assistant",
-        #         "tool_calls": [
-        #             {
-        #                 "id": toolCallSchema.id,
-        #                 "name": toolCallSchema.name,
-        #                 "arguments": toolCallSchema.arguments,
-        #                 "type": "function"
-        #             }
-        #         ]
-        #     }
-
-        # else:
-        toolCallSchema._raw = {
-            "role": "assistant",
-            "tool_calls": [
-                {
-                    "id": toolCallSchema.id,
-                    "function": {
+        if self.use_responses_api:
+            toolCallSchema._raw = {
+                "role": "assistant",
+                # "tool_calls": [
+                #     {
+                #         "id": toolCallSchema.id,
+                #         "name": toolCallSchema.name,
+                #         "arguments": toolCallSchema.arguments,
+                #         # "type": "function"
+                #     }
+                # ],
+                "content": [
+                    {
+                        "id": toolCallSchema.id,
                         "name": toolCallSchema.name,
-                        "arguments": toolCallSchema.arguments
-                    },
-                    "type": "function"
-                }
-            ]
-        }
+                        "arguments": toolCallSchema.arguments,
+                        "type": "function"
+                    }
+                ]
+            }
+
+        else:
+            toolCallSchema._raw = {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": toolCallSchema.id,
+                        "function": {
+                            "name": toolCallSchema.name,
+                            "arguments": toolCallSchema.arguments
+                        },
+                        "type": "function"
+                    }
+                ]
+            }
         
         # ChatCompletionMessage(
         #     role="assistant",
@@ -400,9 +410,37 @@ class OpenAiLlm(LlmBaseProvider):
 
     
     def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+        if self.use_responses_api:
+            return {
+                "type": "function_call_output",
+                # "role": "tool",
+                "call_id": toolCallSchema.id,
+                "output": str(content),
+                # "content": str(content)
+            }
         return {
             "type": "function_call_output",
             "role": "tool",
             "tool_call_id": toolCallSchema.id,
             "content": str(content)
         }
+
+    def _validte_message_dict(self, message_dict: Dict[str, str]) -> bool:
+        """Validate message dictionary structure.
+        
+        Args:
+            message_dict: Message dictionary to validate
+            
+        Returns:
+            bool: True if valid
+            
+        Raises:
+            AssertionError: If message structure is invalid
+        """
+        if self.use_responses_api:
+            ### TODO add protection here later
+            return True
+
+        assert message_dict.get("role") in ["user", "system", "assistant", "tool", "developer"], f"{message_dict} 'role' attribute must be one of ['user', 'system', 'assistant', 'tool]"
+        assert message_dict.get("content") is not None or message_dict.get("tool_calls") is not None, f"{message_dict} 'content' or 'tool_calls' attribute is missing"
+        return True
