@@ -328,23 +328,10 @@ class OpenAiLlm(LlmBaseProvider):
     def _to_provider_tool_call_schema(self, toolCallSchema :ToolCallSchema)->ToolCallSchema:
         if self.use_responses_api:
             toolCallSchema._raw = {
-                "role": "assistant",
-                # "tool_calls": [
-                #     {
-                #         "id": toolCallSchema.id,
-                #         "name": toolCallSchema.name,
-                #         "arguments": toolCallSchema.arguments,
-                #         # "type": "function"
-                #     }
-                # ],
-                "content": [
-                    {
-                        "id": toolCallSchema.id,
-                        "name": toolCallSchema.name,
-                        "arguments": toolCallSchema.arguments,
-                        "type": "function"
-                    }
-                ]
+                "type": "function_call",
+                "name": toolCallSchema.name,
+                "arguments": toolCallSchema.arguments,
+                "call_id": toolCallSchema.id
             }
 
         else:
@@ -413,10 +400,8 @@ class OpenAiLlm(LlmBaseProvider):
         if self.use_responses_api:
             return {
                 "type": "function_call_output",
-                # "role": "tool",
                 "call_id": toolCallSchema.id,
                 "output": str(content),
-                # "content": str(content)
             }
         return {
             "type": "function_call_output",
