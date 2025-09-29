@@ -492,12 +492,11 @@ class LlmBaseProvider(BaseModel):
         """Placeholder to be overwritten by the openai provider"""
         pass
 
-    @classmethod
-    def _handle_tools(cls, tools  :List[ToolSchema])->Dict:
+    def _handle_tools(self, tools  :List[ToolSchema])->Dict:
         if not tools:
             return None
         return [
-            cls._to_provider_tool_schema(tool)
+            self._to_provider_tool_schema(tool)
             for tool in tools
         ]
 
@@ -1049,7 +1048,7 @@ class LlmBaseProvider(BaseModel):
                 if stream:
                     await stream_handler(TOOL_CALL_END_TOKEN)
                 
-                messages = completion_args.get("messages")
+                messages = completion_args.get("messages") or completion_args.get("input") # OpenAi responses api fallback
                 messages = [_ for _ in messages]
                 messages.extend(tools_messages)
                 self._n_sucessive_tool_calls += 1
@@ -1079,8 +1078,8 @@ class LlmBaseProvider(BaseModel):
 
                 return await self.acomplete(
                     prompt=messages,
-                    system_prompt=system_prompt,
-                    prefix_prompt=prefix_prompt,
+                    # system_prompt=system_prompt,
+                    # prefix_prompt=prefix_prompt,
                     img_path=img_path,
                     json_output=json_output,
                     stream=stream,
