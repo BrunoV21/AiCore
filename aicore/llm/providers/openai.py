@@ -57,9 +57,7 @@ class OpenAiLlm(LlmBaseProvider):
         self._handle_reasoning_models()
 
         return self
-    
-    # TODO will need to adapt this as well to ensure compatibility with responses format
-    # can do already without streaming but need organizational validation
+
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         if self.use_responses_api:
             return self.normalize_responses(response=chunk, completion_id=completion_id)
@@ -78,16 +76,14 @@ class OpenAiLlm(LlmBaseProvider):
             )
         ### choices is not available either, mght as well make a normalize responses fn at this point
         return chunk.choices
-    
-    #TODO revisit this with streaming enabled as text_output should contain a delta
+
     def normalize_responses(self, response :Union[
         Response, ResponseCreatedEvent, ResponseOutputItemAddedEvent, 
         ResponseInProgressEvent, ResponseOutputItemDoneEvent, ResponseTextDeltaEvent
         ],
         completion_id :Optional[str]=None
     )->List[Union[ResponseReasoningItem, ResponseOutputText]]:
-        
-        # print(f"\n\n{response=}")
+
         if isinstance(response, (Response, ResponseCompletedEvent)):
             if isinstance(response, ResponseCompletedEvent):
                 response = response.response
@@ -106,33 +102,8 @@ class OpenAiLlm(LlmBaseProvider):
                     cached_tokens=cached_tokens,
                     completion_id=completion_id or response.id
                 )
-            # print(f"{response.output}")
-            # print(f"\n\n{response.output_text=}")
             return response.output_text
 
-        # ## start reasoning
-        # elif isinstance(response, ResponseCreatedEvent):
-        #     print(f"{response.response.output_text=}")
-        #     return response.response.output_text
-        
-        # elif isinstance(response, ResponseOutputItemAddedEvent):
-        #     print(f"{response.item.content=}")
-        #     return response.item.content
-        
-        # elif isinstance(response, ResponseInProgressEvent):
-        #     print(f"{response.response.output_text=}")
-        #     return response.response.output_text
-        
-        # ## end reasoning
-        # elif isinstance(response, ResponseOutputItemDoneEvent):
-        #     print(f"{response.item.content=}")
-        #     return response.item.content
-        
-        # elif isinstance(response, ResponseContentPartAddedEvent):
-        #     print(f"{response.part.text=}")
-        #     return response.part.text
-        
-        ### TODO only this one is important
         if isinstance(response, ResponseTextDeltaEvent):
             return response
         
@@ -143,12 +114,6 @@ class OpenAiLlm(LlmBaseProvider):
             return response.item
         
         return response
-
-
-        # print("\n")
-        # print(response)
-        
-        # return response#.response.output_text
     
     def _no_stream(self, response) -> Union[str, ToolCalls]:
         if self.use_responses_api:
@@ -254,6 +219,9 @@ class OpenAiLlm(LlmBaseProvider):
             reasoning_efftort = getattr(self.config, "reasoning_efftort", None)
             if reasoning_efftort is not None:
                 self.completion_args["reasoning_efftort"] = reasoning_efftort
+            verbosity = getattr(self.config, "verbosity", None)
+            if verbosity is not None:
+                self.completion_args["verbosity"] = verbosity
 
     def _chunk_from_provider(self, _chunk):
         if self.use_responses_api:
