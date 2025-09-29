@@ -214,8 +214,6 @@ class OpenAiLlm(LlmBaseProvider):
     def _handle_reasoning_models(self):
         if self.use_responses_api:
             self.completion_args["temperature"] = None
-            self.completion_args["max_tokens"] = None
-            self.completion_args["max_completion_tokens"] = self.config.max_tokens
             reasoning_efftort = getattr(self.config, "reasoning_efftort", None)
             if reasoning_efftort is not None:
                 self.completion_args["reasoning_efftort"] = reasoning_efftort
@@ -246,7 +244,7 @@ class OpenAiLlm(LlmBaseProvider):
             # args.pop("max_tokens")
             # print("here")
             args.pop("max_tokens", None)
-            args.pop("max_completion_tokens", None)
+            # args.pop("max_completion_tokens", None)
             
             # GPT 5 does not support temperature
             # args.pop("temperature")
