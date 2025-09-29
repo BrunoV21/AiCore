@@ -8,12 +8,11 @@ from openai.types.chat import ChatCompletion
 from openai.types.responses import (
     Response, ResponseReasoningItem, ResponseOutputText, ResponseCreatedEvent,
     ResponseOutputItemAddedEvent, ResponseInProgressEvent, ResponseOutputItemDoneEvent,
-    ResponseTextDeltaEvent, ResponseFunctionToolCall, ResponseFunctionCallArgumentsDoneEvent
+    ResponseTextDeltaEvent, ResponseFunctionToolCall, ResponseFunctionCallArgumentsDoneEvent,
+    ResponseCompletedEvent
 )
 
 from openai.types.responses.response_function_call_arguments_delta_event import ResponseFunctionCallArgumentsDeltaEvent
-# from openai.types.responses.response_function_web_search_param
-# ChatCompletionMessageToolCall
 from typing import Any, Dict, List, Optional, Union
 from typing_extensions import Self
 import tiktoken
@@ -89,7 +88,10 @@ class OpenAiLlm(LlmBaseProvider):
     )->List[Union[ResponseReasoningItem, ResponseOutputText]]:
         
         # print(f"\n\n{response=}")
-        if isinstance(response, Response):
+        if isinstance(response, (Response, ResponseCompletedEvent)):
+            if isinstance(response, ResponseCompletedEvent):
+                response = response.response
+                response.output = "" ### we already build the output from the chunks
             # No stream scenario
             usage = response.usage
             if usage is not None:
@@ -185,6 +187,7 @@ class OpenAiLlm(LlmBaseProvider):
             else:
                 chunk_message = ""
 
+            default_stream_handler(chunk_message)
             return self._handle_reasoning_steps(chunk_message, message, _skip)
 
         return super()._handle_stream_messages(_chunk=_chunk, message=message, _skip=_skip)
