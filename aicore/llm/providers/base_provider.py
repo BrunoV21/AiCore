@@ -773,6 +773,29 @@ class LlmBaseProvider(BaseModel):
     def _has_not_exceeded_tool_calls(self)->bool:
         return self.config.max_tool_calls_per_response is None  or self._n_sucessive_tool_calls < self.config.max_tool_calls_per_response
     
+    def _expand_multiple_args_in_tool_call(self, tool_calls :ToolCalls)->List[ToolCallSchema]:
+        expanded_tools = []
+        final_tools = []
+        for tool_call in tool_calls.root:
+            arguments = json.loads(repair_json(tool_call.arguments) or "{}")
+            if isinstance(arguments, list):
+                for call_arguments in arguments:
+                    new_call = ToolCallSchema(
+                        id=tool_call.id,
+                        type=tool_call.type,
+                        arguments=call_arguments,
+                        name=tool_call.name
+                    )
+                    new_call = self._to_provider_tool_call_schema(new_call)
+                    expanded_tools.append(new_call)
+            
+            elif isinstance(arguments, dict):
+                tool_call.arguments = arguments
+                final_tools.append(tool_call)
+        
+        final_tools.extend(expanded_tools)
+        return final_tools
+
     async def _execute_tool_calls(self, output :list)->Tuple[list, bool]:
         """
         Execute multiple tool calls in parallel using asyncio.gather.
@@ -790,7 +813,7 @@ class LlmBaseProvider(BaseModel):
         for _output in output:
             if isinstance(_output, ToolCalls) and self._has_not_exceeded_tool_calls:
                 call_tool = True
-                tool_calls = _output.root
+                tool_calls = self._expand_multiple_args_in_tool_call(_output)
                 
                 # If there are multiple tool calls, execute them in parallel
                 if len(tool_calls) > 1 and self.config.concurrent_tool_calls:
@@ -803,8 +826,8 @@ class LlmBaseProvider(BaseModel):
                     tool_coroutines = [
                         self.mcp.servers.call_tool(
                             tool_name=tool_call.name,
-                            arguments=json.loads(repair_json(tool_call.arguments) or "{}"),
-                            silent=True
+                            arguments=tool_call.arguments,
+                            silent=False
                         )
                         for tool_call in tool_calls
                     ]
@@ -826,7 +849,7 @@ class LlmBaseProvider(BaseModel):
                     for tool_call in tool_calls:
                         tool_call_response = await self.mcp.servers.call_tool(
                             tool_name=tool_call.name,
-                            arguments=json.loads(repair_json(tool_call.arguments) or "{}"),
+                            arguments=tool_call.arguments,
                         )
                         tools_messages.extend([
                             self._to_provider_tool_call_schema(tool_call),
@@ -1010,6 +1033,7 @@ class LlmBaseProvider(BaseModel):
         call_tool = False
         error_message = None
         try:
+            # print("\n\n", json.dumps(completion_args, indent=4))
             output = await self.acompletion_fn(**completion_args)
             
             if stream:
