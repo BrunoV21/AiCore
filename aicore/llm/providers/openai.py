@@ -235,7 +235,7 @@ class OpenAiLlm(LlmBaseProvider):
                 return _chunk.delta
             return _chunk
         
-        return super()._tool_chunk_from_provider(_chunk)    
+        return super()._tool_chunk_from_provider(_chunk)
 
     def _handle_openai_response_only_models(self, args :Dict):
         if self.config.model in OPENAI_RESPONSE_API_MODELS:

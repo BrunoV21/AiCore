@@ -610,14 +610,12 @@ class LlmBaseProvider(BaseModel):
             _skip = False
         return _skip
     
-    @classmethod
-    def _is_tool_call(cls, _chunk)->bool:
-        if _chunk and hasattr(cls._chunk_from_provider(_chunk).delta, "tool_calls") and cls._chunk_from_provider(_chunk).delta.tool_calls:
+    def _is_tool_call(self, _chunk)->bool:
+        if _chunk and hasattr(self._chunk_from_provider(_chunk).delta, "tool_calls") and self._chunk_from_provider(_chunk).delta.tool_calls:
             return True
         return False
 
-    @classmethod
-    def _handle_stream_messages(cls, _chunk, message, _skip=False)->bool:
+    def _handle_stream_messages(self, _chunk, message, _skip=False)->bool:
         """Handle streamed messages from synchronous completions.
         
         Args:
@@ -630,10 +628,9 @@ class LlmBaseProvider(BaseModel):
         """
         chunk_message = _chunk[0].delta.content or ""
         default_stream_handler(chunk_message)
-        return cls._handle_reasoning_steps(chunk_message, message, _skip)
-    
-    @classmethod
-    async def _handle_astream_messages(cls, _chunk, logger_fn, message, _skip=False)->bool:
+        return self._handle_reasoning_steps(chunk_message, message, _skip)
+
+    async def _handle_astream_messages(self, _chunk, logger_fn, message, _skip=False)->bool:
         """Handle streamed messages from asynchronous completions.
         
         Args:
@@ -647,18 +644,15 @@ class LlmBaseProvider(BaseModel):
         """
         chunk_message = _chunk[0].delta.content or  ""
         await logger_fn(chunk_message)
-        return cls._handle_reasoning_steps(chunk_message, message, _skip)
+        return self._handle_reasoning_steps(chunk_message, message, _skip)
     
-    @staticmethod
-    def _chunk_from_provider(_chunk):
+    def _chunk_from_provider(self, _chunk):
         return _chunk[0]
     
-    @classmethod
-    def _tool_chunk_from_provider(cls, _chunk):
-        return cls._chunk_from_provider(_chunk).delta.tool_calls[0]
+    def _tool_chunk_from_provider(self, _chunk):
+        return self._chunk_from_provider(_chunk).delta.tool_calls[0]
     
-    @staticmethod
-    def _fill_tool_schema(tool_chunk)->ToolCallSchema:
+    def _fill_tool_schema(self, tool_chunk)->ToolCallSchema:
         tool_call = ToolCallSchema(
             id=tool_chunk.id,
             name=tool_chunk.function.name,
@@ -666,13 +660,11 @@ class LlmBaseProvider(BaseModel):
         )
         tool_call._raw = tool_chunk.function
         return tool_call
-    
-    @staticmethod
-    def _tool_call_change_condition(tool_chunk)->bool:
+
+    def _tool_call_change_condition(self, tool_chunk)->bool:
         return tool_chunk.id is not None
-    
-    @staticmethod
-    def _handle_tool_call_stream(tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
+
+    def _handle_tool_call_stream(self, tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
         tool_call._raw.arguments += tool_chunk.function.arguments
         tool_call.arguments += tool_chunk.function.arguments
         return tool_call
