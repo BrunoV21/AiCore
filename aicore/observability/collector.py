@@ -1,16 +1,17 @@
-import os
-import json
-import asyncio
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Union, Literal
-from typing_extensions import Self
-
-import ulid
-from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
-
-from aicore.logger import _logger
 from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
+from aicore.logger import _logger
+
+from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
+from typing import Dict, Any, Optional, List, Union, Literal
+from datetime import datetime, timedelta
+from typing_extensions import Self
+from pathlib import Path
+import aiofiles
+import asyncio
+import orjson
+import json
+import ulid
+import os
 
 class LlmOperationRecord(BaseModel):
     """Data model for storing information about a single LLM operation."""
@@ -293,6 +294,55 @@ class LlmOperationCollector(RootModel):
             f.write(json.dumps(new_record.model_dump(), indent=4))
             f.write('\n]')
 
+    async def _a_store_to_file(self, new_record: LlmOperationRecord) -> None:
+        """Async version of _store_to_file using aiofiles and orjson."""
+        # Create directory if it doesn't exist
+        dir_path = os.path.dirname(self.storage_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+
+        # Prepare the record as orjson bytes (pretty)
+        record_bytes = orjson.dumps(new_record.model_dump(), option=orjson.OPT_INDENT_2)
+
+        # Case 1: File doesn't exist or is empty
+        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
+            async with aiofiles.open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
+                await f.write('[\n')
+                await f.write(record_bytes.decode(DEFAULT_ENCODING))
+                await f.write('\n]')
+            return
+
+        # Case 2: File exists with content - need to append
+        # We need to find the position of the last ']' and truncate before it
+        # aiofiles does not support random access, so we must do this synchronously
+        # (This is a limitation of aiofiles and file APIs)
+        # So, we do the seek/truncate synchronously, then append asynchronously
+        pos = None
+        with open(self.storage_path, 'rb+') as f:
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            # Go backwards to find the last ']'
+            for i in range(file_size - 1, -1, -1):
+                f.seek(i)
+                char = f.read(1)
+                if char == b']':
+                    pos = i
+                    break
+            if pos is None or pos <= 0:
+                # File might be corrupted, overwrite with new file
+                async with aiofiles.open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f_new:
+                    await f_new.write('[\n')
+                    await f_new.write(record_bytes.decode(DEFAULT_ENCODING))
+                    await f_new.write('\n]')
+                return
+            f.seek(pos)
+            f.truncate()
+        # Now append the new record and closing bracket asynchronously
+        async with aiofiles.open(self.storage_path, 'a', encoding=DEFAULT_ENCODING) as f:
+            await f.write(',\n')
+            await f.write(record_bytes.decode(DEFAULT_ENCODING))
+            await f.write('\n]')
+
     def read_all_records(self) -> "LlmOperationCollector":
         """Read all records from the file.
         The file is always maintained in valid JSON format.
@@ -395,6 +445,54 @@ class LlmOperationCollector(RootModel):
 
         return record
 
+    async def _a_handle_record(
+        self,
+        completion_args: Dict[str, Any],
+        operation_type: Literal["completion", "acompletion"],
+        provider: str,
+        response: Optional[Union[str, Dict[str, str]]] = None,
+        session_id: Optional[str] = None,
+        workspace: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        action_id: Optional[str] = None,
+        input_tokens: Optional[int] = 0,
+        output_tokens: Optional[int] = 0,
+        cached_tokens: Optional[int] = 0,
+        cost: Optional[float] = 0,
+        latency_ms: Optional[float] = None,
+        error_message: Optional[str] = None,
+        extras: Optional[Dict[str, Any]] = None
+    ) -> LlmOperationRecord:
+        # Clean request args
+        cleaned_args = self._clean_completion_args(completion_args)
+
+        if not isinstance(response, (str, dict, list)) and response is not None:
+            return None
+
+        # Build a record
+        record = LlmOperationRecord(
+            session_id=session_id,
+            agent_id=agent_id,
+            action_id=action_id,
+            workspace=workspace,
+            provider=provider,
+            operation_type=operation_type,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens if not cached_tokens else output_tokens + cached_tokens,
+            cached_tokens=cached_tokens,
+            cost=cost,
+            latency_ms=latency_ms or 0,
+            error_message=error_message,
+            completion_args=cleaned_args,
+            response=response,
+            extras=extras or {}
+        )
+        if self.storage_path:
+            await self._a_store_to_file(record)
+
+        self.root.append(record)
+        return record
+
     def record_completion(
         self,
         completion_args: Dict[str, Any],
@@ -446,13 +544,13 @@ class LlmOperationCollector(RootModel):
         error_message: Optional[str] = None,
         extras: Optional[str] = None
     ) -> LlmOperationRecord:
-        # Create record
-        record = self._handle_record(
-            completion_args, operation_type, provider, response, 
-            session_id, workspace, agent_id, action_id, 
+        # Create record asynchronously
+        record = await self._a_handle_record(
+            completion_args, operation_type, provider, response,
+            session_id, workspace, agent_id, action_id,
             input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
-        
+
         if self._async_engine and self._async_session_factory and record:
             if not self._table_initialized:
                 await self.create_tables()
@@ -460,7 +558,7 @@ class LlmOperationCollector(RootModel):
                 await self._a_insert_record_to_db(record)
             except Exception as e:
                 _logger.logger.error(f"Error inserting record to DB: {str(e)}")
-        
+
         return record
     
     def _insert_record_to_db(self, record: LlmOperationRecord) -> None:
