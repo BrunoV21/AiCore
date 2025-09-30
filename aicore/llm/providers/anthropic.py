@@ -114,20 +114,16 @@ class AnthropicLlm(LlmBaseProvider):
                 completion_id=completion_id
             )
 
-    @staticmethod
-    def _chunk_from_provider(_chunk :RawContentBlockStartEvent):
+    def _chunk_from_provider(self, _chunk :RawContentBlockStartEvent):
         return _chunk
     
-    
-    @classmethod
-    def _tool_chunk_from_provider(cls, _chunk):
+    def _tool_chunk_from_provider(self, _chunk):
         if isinstance(_chunk, RawContentBlockStartEvent) and isinstance(_chunk.content_block, ToolUseBlock):
             return _chunk.content_block
         elif isinstance(_chunk, RawContentBlockDeltaEvent) and isinstance(_chunk.delta, InputJSONDelta):
             return _chunk.delta
-        
-    @staticmethod
-    def _fill_tool_schema(tool_chunk)->ToolCallSchema:
+
+    def _fill_tool_schema(self, tool_chunk)->ToolCallSchema:
         tool_call = ToolCallSchema(
             id=tool_chunk.id,
             name=tool_chunk.name,
@@ -136,18 +132,15 @@ class AnthropicLlm(LlmBaseProvider):
         #tool_call._raw = tool_chunk.function
         return tool_call
     
-    @staticmethod
-    def _tool_call_change_condition(tool_chunk)->bool:
+    def _tool_call_change_condition(self, tool_chunk)->bool:
         return isinstance(tool_chunk, ToolUseBlock)
-    
-    @staticmethod
-    def _handle_tool_call_stream(tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
+
+    def _handle_tool_call_stream(self, tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
         tool_call.arguments += tool_chunk.partial_json
         return tool_call
     
     def _no_stream(self, response: Message) -> Union[str, ToolCalls]:
         """Process a non-streaming response, handling tool calls appropriately."""
-        print(f"{response=}")
         response = self.normalize_fn(response)
         # Extract and process content blocks
         messages = [
@@ -179,8 +172,7 @@ class AnthropicLlm(LlmBaseProvider):
         
         return result
 
-    @classmethod
-    def _is_tool_call(cls, _chunk)->bool:
+    def _is_tool_call(self, _chunk)->bool:
         if isinstance(_chunk, RawContentBlockStartEvent) and isinstance(_chunk.content_block, ToolUseBlock):
             return True
         elif isinstance(_chunk, RawContentBlockDeltaEvent) and isinstance(_chunk.delta, InputJSONDelta):
@@ -189,8 +181,7 @@ class AnthropicLlm(LlmBaseProvider):
             # return True
         return False
 
-    @classmethod
-    def _handle_stream_messages(cls, event, message, _skip=False)->bool:
+    def _handle_stream_messages(self, event, message, _skip=False)->bool:
         if hasattr(event, "delta"):
             delta = event.delta
             chunk_message = getattr(delta, "text", "")
@@ -202,9 +193,8 @@ class AnthropicLlm(LlmBaseProvider):
                 if chunk_message:
                     message.append(chunk_message)
         return False
-    
-    @classmethod
-    async def _handle_astream_messages(cls, event, logger_fn, message, _skip=False)->bool:
+
+    async def _handle_astream_messages(self, event, logger_fn, message, _skip=False)->bool:
         if hasattr(event, "delta"):
             delta = event.delta
             chunk_message = getattr(delta, "text", "")
