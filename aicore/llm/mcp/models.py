@@ -6,6 +6,7 @@ from mcp.types import Tool
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 from enum import Enum
+import json
 
 class WSParameters(BaseModel):
     url: str
@@ -66,7 +67,16 @@ class ToolCallSchema(BaseModel):
     name :str
     arguments :Union[str, Dict]
     _raw :Optional[Any]=None
-    
+
+    def arguments_as_string(self)->str:
+        if isinstance(self.arguments, dict):
+            return json.dumps(self.arguments, indent=4)
+        return self.arguments
+
+    def arguments_as_json(self)->str:
+        if isinstance(self.arguments, str):
+            return json.loads(self.arguments)
+        return self.arguments
 
     """
     [

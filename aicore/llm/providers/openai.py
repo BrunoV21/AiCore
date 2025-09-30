@@ -302,7 +302,7 @@ class OpenAiLlm(LlmBaseProvider):
             toolCallSchema._raw = {
                 "type": "function_call",
                 "name": toolCallSchema.name,
-                "arguments": toolCallSchema.arguments,
+                "arguments": toolCallSchema.arguments_as_string(),
                 "call_id": toolCallSchema.id
             }
 
@@ -314,7 +314,7 @@ class OpenAiLlm(LlmBaseProvider):
                         "id": toolCallSchema.id,
                         "function": {
                             "name": toolCallSchema.name,
-                            "arguments": toolCallSchema.arguments
+                            "arguments": toolCallSchema.arguments_as_string()
                         },
                         "type": "function"
                     }

@@ -170,7 +170,7 @@ class MistralLlm(LlmBaseProvider):
                     "id": toolCallSchema.id,
                     "function": {
                         "name": toolCallSchema.name,
-                        "arguments": toolCallSchema.arguments
+                        "arguments": toolCallSchema.arguments_as_string()
                     },
                     "type": "function"
                 }

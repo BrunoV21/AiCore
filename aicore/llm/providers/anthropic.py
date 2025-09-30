@@ -283,7 +283,7 @@ class AnthropicLlm(LlmBaseProvider):
                     "type": "tool_use",
                     "id": toolCallSchema.id,
                     "name": toolCallSchema.name,
-                    "input": json.loads(toolCallSchema.arguments),
+                    "input": toolCallSchema.arguments_as_json(),
                 }
             ]
         }        
