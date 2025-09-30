@@ -110,6 +110,9 @@ class OpenAiLlm(LlmBaseProvider):
         elif isinstance(response, ResponseFunctionCallArgumentsDeltaEvent):
             return response
         
+        elif isinstance(response, ResponseFunctionToolCall):
+            return response
+        
         elif isinstance(response, ResponseOutputItemAddedEvent) and isinstance(response.item, ResponseFunctionToolCall):
             return response.item
         
@@ -341,10 +344,13 @@ class OpenAiLlm(LlmBaseProvider):
             return False
         return super()._tool_call_change_condition(tool_chunk)
     
-    def _handle_tool_call_stream(self, tool_call :ToolCallSchema, tool_chunk)->ToolCallSchema:
+    def _handle_tool_call_stream(self, tool_call :ToolCallSchema, tool_chunk :Union[str, ResponseFunctionToolCall])->ToolCallSchema:
         if self.use_responses_api:
             # tool_call._raw.arguments += tool_call
-            tool_call.arguments += tool_chunk
+            if isinstance(tool_chunk, ResponseFunctionToolCall):
+                tool_chunk = ""
+
+            tool_call.arguments += tool_chunk 
             return tool_call
 
         tool_call._raw.arguments += tool_chunk.function.arguments
