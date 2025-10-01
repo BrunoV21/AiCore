@@ -2,7 +2,7 @@ from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, 
 from aicore.logger import _logger
 
 from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
-from typing import Dict, Any, Optional, List, Union, Literal
+from typing import Dict, Any, Optional, List, Set, Union, Literal
 from datetime import datetime, timedelta
 from typing_extensions import Self
 from pathlib import Path
@@ -75,7 +75,7 @@ class LlmOperationRecord(BaseModel):
 
     @property
     def messages(self) -> List[Dict[str, str]]:
-        return self.completion_args.get("messages", [])
+        return self.completion_args.get("messages", []) or self.completion_args.get("input", [])
 
     @computed_field
     def model(self) -> str:
@@ -91,14 +91,13 @@ class LlmOperationRecord(BaseModel):
 
     @computed_field
     def system_prompt(self) -> Optional[str]:
-        for msg in self.messages:
-            if msg.get("role") == "system":
-                return msg.get("content", "")
         # anthropic system messages
         if self.completion_args.get("system"):
             return self.completion_args.get("system")
                 
-        return ""
+        return "\n".join([
+            msg.get("content", "") for msg in self.messages if msg.get("role") == "system"
+        ])
 
     @computed_field
     def assistant_message(self) -> Optional[str]:
@@ -182,6 +181,7 @@ class LlmOperationCollector(RootModel):
     _session_factory: Optional[Any] = None
     _async_session_factory: Optional[Any] = None
     _is_sessions_initialized :set = set()
+    _background_tasks: Set[asyncio.Task] = set()
 
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
@@ -384,6 +384,7 @@ class LlmOperationCollector(RootModel):
 
     @classmethod
     def polars_from_file(cls, storage_path: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+        # TODO UPDATE THIS FOR ORJSON
         obj = cls.fom_observable_storage_path(storage_path)
         if os.path.exists(obj.storage_path):
             with open(obj.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
@@ -526,6 +527,14 @@ class LlmOperationCollector(RootModel):
         
         return record
     
+    async def arecord_completion_into_db(self, record :LlmOperationRecord):
+        if not self._table_initialized:
+                await self.create_tables()
+        try:
+            await self._a_insert_record_to_db(record)
+        except Exception as e:
+            _logger.logger.error(f"Error inserting record to DB: {str(e)}")
+    
     async def arecord_completion(
         self,
         completion_args: Dict[str, Any],
@@ -550,14 +559,12 @@ class LlmOperationCollector(RootModel):
             session_id, workspace, agent_id, action_id,
             input_tokens, output_tokens, cached_tokens, cost, latency_ms, error_message, extras
         )
-
+        
         if self._async_engine and self._async_session_factory and record:
-            if not self._table_initialized:
-                await self.create_tables()
-            try:
-                await self._a_insert_record_to_db(record)
-            except Exception as e:
-                _logger.logger.error(f"Error inserting record to DB: {str(e)}")
+            # Fire and forget - create task without awaiting
+            task = asyncio.create_task(self.arecord_completion_into_db(record))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         return record
     
