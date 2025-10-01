@@ -1,6 +1,5 @@
 from aicore.observability.collector import LlmOperationCollector
 
-import json
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
@@ -65,7 +64,8 @@ class ObservabilityDashboard:
         """
         self.storage_path = storage_path
         self.from_local_records_only = from_local_records_only
-        self.fetch_df()
+        self.default_days = 5  # Default to 5 day of data for initial load
+        self.fetch_df(days=self.default_days)
         self.title = title
         self.app = dash.Dash(
             __name__, 
@@ -76,12 +76,17 @@ class ObservabilityDashboard:
         self._setup_layout()
         self._register_callbacks()
 
-    def fetch_df(self):
+    def fetch_df(self, days=None):
+        """Fetch data with optional day limit for lazy loading"""
         self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_db()
         if self.df is None:
             self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path)
         if not self.df.is_empty():
             self.add_day_col()
+            if days is not None:
+                # Filter to only include the last 'days' days
+                cutoff_date = datetime.now() - timedelta(days=days)
+                self.df = self.df.filter(pl.col("date") >= cutoff_date)
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     def add_day_col(self):
@@ -96,13 +101,43 @@ class ObservabilityDashboard:
     def _setup_layout(self):
         """Set up the dashboard layout with tabs."""
         self.app.layout = html.Div([
+            # Store components for state management
+            dcc.Store(id='session-state', data={'selected_rows': [], 'selected_row_ids': [], 'active_cell': None}),
+            dcc.Store(id='filter-state', data={}),
+            
             # Header
             html.Div([
                 html.Div([
                     html.H1(self.title, className="dashboard-title"),
                     html.Div([
-                        html.Span(id="last-updated-text", className="updated-text", style={"color": "#6c757d"}),
-                        html.Button("↻", id="refresh-button", n_clicks=0, className="refresh-btn", style={"backgroundColor": "#1E1E2F", "color": "white"}),
+                        html.Div([
+                            html.Span(id="last-updated-text", className="updated-text", style={"color": "#6c757d"}),
+                            html.Div(id="loading-indicator", children=[
+                                dcc.Loading(
+                                    id="loading-icon",
+                                    children=[html.Div(id="loading-output")],
+                                    type="circle",
+                                    color="#373888"
+                                )
+                            ], style={"display": "inline-block", "marginLeft": "10px"}),
+                        ], style={"display": "flex", "alignItems": "center"}),
+                        html.Div([
+                            html.Button("↻", id="refresh-button", n_clicks=0, className="refresh-btn", style={"backgroundColor": "#1E1E2F", "color": "white"}),
+                            html.Div([
+                                dbc.DropdownMenu(
+                                    [
+                                        dbc.DropdownMenuItem("Last Hour", id="last-hour-option"),
+                                        dbc.DropdownMenuItem("Last 6 Hours", id="last-6h-option"),
+                                        dbc.DropdownMenuItem("Last 24 Hours", id="last-24h-option"),
+                                        dbc.DropdownMenuItem("Last 7 Days", id="last-7d-option"),
+                                        dbc.DropdownMenuItem("Custom Range", id="custom-range-option"),
+                                    ],
+                                    label="Time Range",
+                                    color="#1E1E2F",
+                                    className="time-range-dropdown"
+                                ),
+                            ], style={"marginLeft": "10px", "display": "inline-block"}),
+                        ], style={"display": "flex", "alignItems": "center"}),
                     ], style={"display": "flex", "alignItems": "center", "gap": "10px"}),
                     dcc.Interval(
                         id="interval-component",
@@ -192,7 +227,6 @@ class ObservabilityDashboard:
                                         ], style={"width": "100%"})
                                     ],
                                     title="Additional Filters", style={
-
                                         "background-color": "#333",
                                         "color": "white",
                                         "fontSize": "0.85rem",
@@ -408,7 +442,7 @@ class ObservabilityDashboard:
                                         },
                                         style_data_conditional=[
                                             {'if': {'row_index': 'odd'}, 'backgroundColor': '#2a2a2a'},
-                                            {'if': {'filter_query': '{insuccess} = false', 'column_id': 'insuccess'},
+                                            {'if': {'filter_query': '{success} = false', 'column_id': 'success'},
                                             'backgroundColor': '#5c1e1e', 'color': 'white'}
                                         ],
                                         filter_action="native",
@@ -417,7 +451,7 @@ class ObservabilityDashboard:
                                     )
                             ], className="table-container"),
                             html.Pre(),
-                            html.Button("Clear Selection", id="clear-button", n_clicks=0, style={"backgroundColor": "#d84616", "color": "white"}),
+                            html.Button("Clear Selection", id="clear-button", n_clicks=0, className="clear-button"),
                             html.Pre(),
                             html.Pre(id='tbl_out', style={"whiteSpace": "pre-wrap", "fontFamily": "monospace", "marginLeft": "20px"})
                         ], className="tab-content")
@@ -431,78 +465,149 @@ class ObservabilityDashboard:
 
         @self.app.callback(
             Output("last-updated-text", "children"),
+            Output("loading-output", "children"),
             Input("refresh-button", "n_clicks"),
             Input("interval-component", "n_intervals"),
+            Input("last-hour-option", "n_clicks"),
+            Input("last-6h-option", "n_clicks"),
+            Input("last-24h-option", "n_clicks"),
+            Input("last-7d-option", "n_clicks"),
+            State('session-state', 'data'),
+            prevent_initial_call=True
         )
-        def update_time(n_clicks, n_intervals):
-            last_updated = self.fetch_df()
-            return f"Last updated: {last_updated}"
+        def update_time(n_clicks, n_intervals, last_hour, last_6h, last_24h, last_7d, session_state):
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ""
+            
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            # Determine time range based on trigger
+            days = None
+            if trigger_id == "last-hour-option":
+                days = 1/24  # 1 hour
+            elif trigger_id == "last-6h-option":
+                days = 6/24  # 6 hours
+            elif trigger_id == "last-24h-option":
+                days = 1  # 1 day
+            elif trigger_id == "last-7d-option":
+                days = 7  # 7 days
+            
+            # Show loading indicator
+            loading_text = "Loading data..."
+            
+            # Fetch data with the specified time range
+            last_updated = self.fetch_df(days=days)
+            
+            # Hide loading indicator
+            return f"Last updated: {last_updated}", ""
+        
+        @self.app.callback(
+            Output('session-state', 'data'),
+            Input('operations-table', 'active_cell'),
+            Input('operations-table', 'page_current'),
+            Input("clear-button", "n_clicks"),
+            Input("refresh-button", "n_clicks"),
+            Input("interval-component", "n_intervals"),
+            State('session-state', 'data'),
+            State('operations-table', 'selected_rows'),
+            State('operations-table', 'selected_row_ids'),
+            State('operations-table', 'data'),
+            prevent_initial_call=True
+        )
+        def update_session_state(active_cell, page_current, n_clicks,
+                                 refresh_clicks, last_update, session_state,
+                                 selected_rows, selected_row_ids, table_data):
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return session_state
+            
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            # Initialize session state if it doesn't exist
+            if session_state is None:
+                session_state = {'selected_rows': [], 'selected_row_ids': [], 'active_cell': None}
+            
+            # Handle clear button
+            if trigger_id == "clear-button":
+                session_state['selected_rows'] = []
+                session_state['selected_row_ids'] = []
+                session_state['active_cell'] = None
+                return session_state
+            
+            # Handle refresh - preserve current selection
+            if trigger_id in ["refresh-button", "interval-component"]:
+                # We don't need to do anything here, just return the current state
+                return session_state
+            
+            # Handle table selection
+            if trigger_id == "operations-table" and active_cell is not None and page_current is not None:
+                # Get the row index in the full dataset
+                row_index = active_cell.get('row') + page_current * PAGE_SIZE
+                
+                # Get the operation_id for this row
+                if row_index < len(table_data):
+                    row_id = table_data[row_index].get('operation_id')
+                    
+                    # Check if this row is already selected
+                    if row_id in session_state['selected_row_ids']:
+                        # Deselect it
+                        idx = session_state['selected_row_ids'].index(row_id)
+                        session_state['selected_row_ids'].pop(idx)
+                        session_state['selected_rows'].pop(idx)
+                    else:
+                        # Select it
+                        session_state['selected_rows'].append(row_index)
+                        session_state['selected_row_ids'].append(row_id)
+                    
+                    # Update active cell
+                    session_state['active_cell'] = active_cell
+            
+            return session_state
         
         @self.app.callback(
             Output('operations-table', 'selected_rows'),
             Output('operations-table', 'selected_row_ids'),
             Output('tbl_out', 'children'),
             Output('operations-table', 'active_cell'),
-            # The current list of selected rows is needed to update the selection state
-            # when a new cell is clicked.
-            Input('operations-table', 'active_cell'),
-            Input('operations-table', 'page_current'),
-            Input("clear-button", "n_clicks"),
-            Input("refresh-button", "n_clicks"),
-            Input("interval-component", "n_intervals"),
-            Input('date-picker-range', 'start_date'),
-            Input('date-picker-range', 'end_date'),
-            Input('session-dropdown', 'value'),
-            Input('workspace-dropdown', 'value'),
-            Input('provider-dropdown', 'value'),
-            Input('model-dropdown', 'value'),
-            Input('agent-dropdown', 'value'),
-            Input('action-dropdown', 'value'),
-            State('operations-table', 'selected_rows'),
-            State('operations-table', 'selected_row_ids')
+            Input('session-state', 'data'),
+            State('operations-table', 'data'),
+            State('operations-table', 'page_current'),
+            prevent_initial_call=True
         )
-        def update_selection(active_cell, page_current, n_clicks,
-                             refresh_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions,
-                             selected_rows, selected_row_ids):
-            # If the clear button is clicked, reset selection
-            df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
-            if active_cell is not None and page_current is not None:
-                row_index = active_cell.get('row') + page_current * PAGE_SIZE
-                row_id = df_filtered["operation_id"][row_index]
-                if row_id not in selected_row_ids:
-                    selected_rows.append(row_index)
-                    selected_row_ids.append(row_id)
-                else:
-                    idx = selected_row_ids.index(row_id)
-                    selected_row_ids.pop(idx)
-                    selected_rows.pop(idx)
-                    active_cell = {"row": selected_rows[-1] - page_current * PAGE_SIZE} if selected_rows else None
-    
-            if selected_rows:
+        def update_table_selection(session_state, table_data, page_current):
+            if session_state is None or not table_data:
+                return [], [], "No data available", None
+            
+            selected_rows = session_state.get('selected_rows', [])
+            selected_row_ids = session_state.get('selected_row_ids', [])
+            active_cell = session_state.get('active_cell', None)
+            
+            # Generate output for selected rows
+            if selected_row_ids:
                 contents = []
                 for row_id in selected_row_ids[::-1]:
-                    row = df_filtered["operation_id"].index_of(row_id)
-                    if row is None:
-                        continue
-                    
-                    contents.append(
-                        MESSAGES_TEMPLATE.format(
-                            SEP=SEP,
-                            row=row,
-                            timestamp=df_filtered[row]["timestamp"][0],
-                            agent=df_filtered[row]["agent_id"][0],
-                            action=f" @ {df_filtered[row]['action_id'][0]}" if df_filtered[row]['action_id'][0] else "",
-                            history=json.dumps(df_filtered[row]["history_messages"][0], indent=4),
-                            system=df_filtered[row]["system_prompt"][0],
-                            assistant=df_filtered[row]["assistant_message"][0],
-                            prompt=df_filtered[row]["user_prompt"][0],
-                            response=df_filtered[row]["response"][0]
+                    # Find the row in the table data
+                    row_data = next((row for row in table_data if row.get('operation_id') == row_id), None)
+                    if row_data:
+                        contents.append(
+                            MESSAGES_TEMPLATE.format(
+                                SEP=SEP,
+                                row=row_data.get('index', ''),
+                                timestamp=row_data.get('timestamp', ''),
+                                agent=row_data.get('agent_id', ''),
+                                action=f" @ {row_data.get('action_id', '')}" if row_data.get('action_id') else "",
+                                history=row_data.get('history_messages', ''),
+                                system=row_data.get('system_prompt', ''),
+                                assistant=row_data.get('assistant_message', ''),
+                                prompt=row_data.get('user_prompt', ''),
+                                response=row_data.get('response', '')
+                            )
                         )
-                    )
 
                 contents = f"\n\n{MULTISEP}".join(contents)
                 return selected_rows, selected_row_ids, contents, active_cell
-
+            
             return selected_rows, selected_row_ids, "Click a cell to select its row.", active_cell
         
         @self.app.callback(
@@ -1296,6 +1401,11 @@ class ObservabilityDashboard:
             # Operations Data Tab
             display_columns = [col for col in filtered_df.columns if col not in ["date", "day", "hour", "minute"]]
             table_data = filtered_df.select(display_columns).to_dicts()
+            
+            # Add index to table data for easier selection handling
+            for i, row in enumerate(table_data):
+                row['index'] = i
+            
             table_columns = [{"name": i, "id": i} for i in display_columns]
             
             return (
@@ -1368,7 +1478,9 @@ class ObservabilityDashboard:
             "flex": "1",
             "minWidth": "250px",
             "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
-            "textAlign": "center"
+            "textAlign": "center",
+            "transition": "all 0.3s ease",
+            "transform": "translateY(0)"
         }
 
         return html.Div([
@@ -1441,7 +1553,9 @@ class ObservabilityDashboard:
             "flex": "1",
             "minWidth": "250px",
             "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
-            "textAlign": "center"
+            "textAlign": "center",
+            "transition": "all 0.3s ease",
+            "transform": "translateY(0)"
         }
 
         return html.Div([
@@ -1490,7 +1604,9 @@ class ObservabilityDashboard:
             "flex": "1",
             "minWidth": "250px",
             "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
-            "textAlign": "center"
+            "textAlign": "center",
+            "transition": "all 0.3s ease",
+            "transform": "translateY(0)"
         }
 
         return html.Div([
@@ -1540,7 +1656,9 @@ class ObservabilityDashboard:
             "flex": "1",
             "minWidth": "250px",
             "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
-            "textAlign": "center"
+            "textAlign": "center",
+            "transition": "all 0.3s ease",
+            "transform": "translateY(0)"
         }
 
         return html.Div([
@@ -1615,7 +1733,9 @@ class ObservabilityDashboard:
             "flex": "1",
             "minWidth": "250px",
             "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
-            "textAlign": "center"
+            "textAlign": "center",
+            "transition": "all 0.3s ease",
+            "transform": "translateY(0)"
         }
 
         return html.Div([
@@ -1696,6 +1816,6 @@ if __name__ == "__main__":
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
-    od = ObservabilityDashboard()#from_local_records_only=True)
+    od = ObservabilityDashboard(from_local_records_only=True)
     print(od.df)
     od.run_server()
