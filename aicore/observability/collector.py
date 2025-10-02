@@ -384,14 +384,12 @@ class LlmOperationCollector(RootModel):
 
     @classmethod
     def polars_from_file(cls, storage_path: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
-        # TODO UPDATE THIS FOR ORJSON
         obj = cls.fom_observable_storage_path(storage_path)
         if os.path.exists(obj.storage_path):
-            with open(obj.storage_path, 'r', encoding=DEFAULT_ENCODING) as f:
-                obj = cls(root=json.loads(f.read()))
+            with open(obj.storage_path, 'rb') as _f:
+                dicts = orjson.loads(_f.read())
         try:
             import polars as pl
-            dicts = obj.model_dump()
             return pl.from_dicts(dicts) if dicts else pl.DataFrame()
         except ModuleNotFoundError:
             _logger.logger.warning("pip install -r requirements-dashboard.txt")
