@@ -1,11 +1,11 @@
-import json
+from aicore.llm.providers.anthropic.consts import CC_DEFAULT_HEADERS, CC_DEFAULT_QUERY, CC_SYSTEM_PROMPT
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
 from pydantic import model_validator
 from typing import Any, Optional, Dict, Union, List
 from typing_extensions import Self
-from anthropic import Anthropic, AsyncAnthropic, AuthenticationError
+from anthropic import Anthropic, AsyncAnthropic
 from anthropic.types import RawContentBlockStartEvent, ToolUseBlock, RawContentBlockDeltaEvent, InputJSONDelta, Message
 from functools import partial
 
@@ -69,17 +69,10 @@ class AnthropicLlm(LlmBaseProvider):
             self._access_token = self.config.access_token
 
             if not hasattr(self.config, "extra_query"):
-                self.config.extra_query = {
-                    "beta": "true"
-                }
+                self.config.extra_query = CC_DEFAULT_QUERY
             
             if not hasattr(self.config, "extra_headers"):
-                self.config.extra_headers = {
-                    "anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
-                    "anthropic-dangerous-direct-browser-access": "true",
-                    "user-agent": "claude-cli/1.0.84 (external, cli)",
-                    "x-app": "cli"
-                }
+                self.config.extra_headers = CC_DEFAULT_HEADERS
 
         return self._access_token
 
@@ -242,7 +235,7 @@ class AnthropicLlm(LlmBaseProvider):
         if self._access_token is not None:
             if isinstance(system_prompt, str):
                 system_prompt = [system_prompt]
-            system_prompt.insert(0, "You are Claude Code, Anthropic's official CLI for Claude.")
+            system_prompt.insert(0, CC_SYSTEM_PROMPT)
         
         if system_prompt:
             if getattr(self.config, "cache_control", None):
