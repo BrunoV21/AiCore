@@ -12,7 +12,8 @@ from functools import partial
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 
 class AnthropicLlm(LlmBaseProvider):
-
+    _access_token :Optional[str] = None
+    
     @staticmethod
     def anthropic_count_tokens(contents :str, client :AsyncAnthropic, model :str):
         """
@@ -31,15 +32,21 @@ class AnthropicLlm(LlmBaseProvider):
 
     @model_validator(mode="after")
     def set_anthropic(self)->Self:
-        _client :Anthropic = Anthropic(
+        self.set_access_token()
+
+        _client :Anthropic = Anthropic(            
+            auth_token=self._access_token,
             api_key=self.config.api_key,
             timeout=self.config.timeout
         )
         self.client :Anthropic = _client
         self._auth_exception = AuthenticationError
-        self.validate_config()
+        if self._access_token is None:
+            self.validate_config()
+
         _aclient :AsyncAnthropic = AsyncAnthropic(
             api_key=self.config.api_key,
+            auth_token=self._access_token,
             timeout=self.config.timeout
         )
         self._aclient = _aclient
@@ -56,6 +63,25 @@ class AnthropicLlm(LlmBaseProvider):
         self._handle_thinking_models()
 
         return self
+    
+    def set_access_token(self):
+        if self._access_token is None and hasattr(self.config, "access_token"):
+            self._access_token = self.config.access_token
+
+            if not hasattr(self.config, "extra_query"):
+                self.config.extra_query = {
+                    "beta": "true"
+                }
+            
+            if not hasattr(self.config, "extra_headers"):
+                self.config.extra_headers = {
+                    "anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+                    "anthropic-dangerous-direct-browser-access": "true",
+                    "user-agent": "claude-cli/1.0.84 (external, cli)",
+                    "x-app": "cli"
+                }
+
+        return self._access_token
 
     def normalize(self, event, completion_id :Optional[str]=None):
         """  async for event in stream:
@@ -213,6 +239,11 @@ class AnthropicLlm(LlmBaseProvider):
         pass
 
     def _handle_special_sys_prompt_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
+        if self._access_token is not None:
+            if isinstance(system_prompt, str):
+                system_prompt = [system_prompt]
+            system_prompt.insert(0, "You are Claude Code, Anthropic's official CLI for Claude.")
+        
         if system_prompt:
             if getattr(self.config, "cache_control", None):
                 cached_system_prompts_index :list = getattr(self.config, "cache_control")
@@ -229,7 +260,26 @@ class AnthropicLlm(LlmBaseProvider):
                     processed_system_prompts.append(prompt)
                 args["system"] = processed_system_prompts
             else:
-                args["system"] = "\n".join(system_prompt) if isinstance(system_prompt, list) else system_prompt
+                if isinstance(system_prompt, str):
+                    system_prompt = [system_prompt]
+                    processed_system_prompts = {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {
+                            "type": "ephemeral"
+                        }
+                    }
+                elif isinstance(system_prompt, list):
+                    processed_system_prompts = [
+                        {
+                            "type": "text",
+                            "text": prompt,
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        } for prompt in system_prompt
+                    ]
+                args["system"] = processed_system_prompts
 
     def _handle_thinking_models(self):
         thinking = getattr(self.config, "thinking", None)
@@ -244,6 +294,12 @@ class AnthropicLlm(LlmBaseProvider):
                     "type": "enabled",
                     "budget_tokens": thinking.get("budget_tokens") or self.config.max_tokens
                 }
+
+        if extra_query := getattr(self.config, "extra_query", None):
+            self.completion_args["extra_query"] = extra_query
+
+        if extra_headers := getattr(self.config, "extra_headers", None):
+            self.completion_args["extra_headers"] = extra_headers
 
     @staticmethod
     def _to_provider_tool_schema(tool: ToolSchema) -> Dict[str, Any]:
