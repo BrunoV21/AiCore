@@ -7,7 +7,7 @@ from aicore.models_metadata import METADATA, PricingConfig
 
 class LlmConfig(BaseModel):
     provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok"]
-    api_key :str
+    api_key :Optional[str]
     model :str
     base_url :Optional[str]=None
     temperature :float=0
