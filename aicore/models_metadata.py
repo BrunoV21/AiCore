@@ -1,6 +1,6 @@
 from pydantic import BaseModel, model_validator
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Literal, Optional, Dict
 import pytz
 import json
 
@@ -57,6 +57,7 @@ class HappyHour(BaseModel):
 class DynamicPricing(BaseModel):
     threshold: int
     pricing: "PricingConfig"
+    strategy :Literal["full", "partial"]="partial"
 
     @model_validator(mode="after")
     def validate_threshold(self) -> "DynamicPricing":
