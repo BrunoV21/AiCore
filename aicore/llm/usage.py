@@ -64,11 +64,18 @@ class CompletionUsage(BaseModel):
             output_cost = pricing.output * response_tokens
             cached_cost = pricing.cached * cached_tokens
             cache_write_cost = cache_write_tokens * pricing.cache_write
-
-            # Apply dynamic pricing only if threshold is exceeded
+            # Apply dynamic pricing based on strategy
             if pricing.dynamic is not None:
                 total_tokens = total_input_tokens + response_tokens
-                if total_tokens > pricing.dynamic.threshold:
+                
+                if pricing.dynamic.strategy == "full":
+                    # https://docs.claude.com/en/docs/about-claude/pricing#long-context-pricing
+                    # Full strategy: All tokens priced at dynamic pricing rates
+                    input_cost = pricing.dynamic.pricing.input * prompt_tokens
+                    output_cost = pricing.dynamic.pricing.output * response_tokens
+                
+                elif pricing.dynamic.strategy == "partial" and total_tokens > pricing.dynamic.threshold:
+                    # Partial strategy: Only tokens over threshold use dynamic pricing
                     # Calculate how many tokens are over the threshold
                     tokens_over_threshold = total_tokens - pricing.dynamic.threshold
                     
