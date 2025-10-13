@@ -56,13 +56,13 @@ class LlmConfig(BaseModel):
 
     @model_validator(mode="after")
     def initialize_pricing_from_defaults(self)->Self:
-        model_metadata =  METADATA.get(self.provider_model)
+        model_metadata = METADATA.get(self.provider_model)
         if model_metadata is not None:
             if self.pricing is None and model_metadata.pricing is not None:
                 if getattr(self, "use_anthropics_beta_expanded_ctx", None):
                     ...
                 elif model_metadata.pricing.avoid_dynamic and model_metadata.pricing.dynamic is not None:
-                    model_metadata.context_window = model_metadata.pricing.dynamic.threshold
+                    self.context_window = model_metadata.pricing.dynamic.threshold
                 self.pricing = model_metadata.pricing
             if self.max_tokens > model_metadata.max_tokens:
                 self.max_tokens = model_metadata.max_tokens
@@ -81,6 +81,6 @@ class LlmConfig(BaseModel):
         return kwargs
     
     def set_anthropics_beta_context(self):        
-        model_metadata =  METADATA.get(self.provider_model)
+        model_metadata = METADATA.get(self.provider_model)
         self.use_anthropics_beta_expanded_ctx = True
         self.context_window = model_metadata.context_window
