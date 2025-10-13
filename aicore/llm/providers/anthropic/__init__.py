@@ -1,4 +1,4 @@
-from aicore.llm.providers.anthropic.consts import CC_DEFAULT_HEADERS, CC_DEFAULT_QUERY, CC_SYSTEM_PROMPT
+from aicore.llm.providers.anthropic.consts import BETA_1M_CONTEXT_HEADERS, CC_DEFAULT_HEADERS, CC_DEFAULT_QUERY, CC_SYSTEM_PROMPT
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
@@ -33,6 +33,7 @@ class AnthropicLlm(LlmBaseProvider):
     @model_validator(mode="after")
     def set_anthropic(self)->Self:
         self.set_access_token()
+        self.set_beta_context_window()
 
         _client :Anthropic = Anthropic(            
             auth_token=self._access_token,
@@ -70,11 +71,25 @@ class AnthropicLlm(LlmBaseProvider):
 
             if not hasattr(self.config, "extra_query"):
                 self.config.extra_query = CC_DEFAULT_QUERY
+            else:
+                self.config.extra_headers.update(CC_DEFAULT_QUERY)
             
             if not hasattr(self.config, "extra_headers"):
                 self.config.extra_headers = CC_DEFAULT_HEADERS
+            else:
+                self.config.extra_headers.update(CC_DEFAULT_HEADERS)
 
         return self._access_token
+    
+    def set_beta_context_window(self):
+        if self.config.pricing is not None \
+            and self.config.pricing.dynamic is not None and \
+            getattr(self.config, "use_anthropics_beta_expanded_ctx", None):
+
+            if not hasattr(self.config, "extra_headers"):
+                self.config.extra_headers = BETA_1M_CONTEXT_HEADERS
+            else:
+                self.config.extra_headers.update(BETA_1M_CONTEXT_HEADERS)
 
     def normalize(self, event, completion_id :Optional[str]=None):
         """  async for event in stream:
@@ -254,14 +269,13 @@ class AnthropicLlm(LlmBaseProvider):
                 args["system"] = processed_system_prompts
             else:
                 if isinstance(system_prompt, str):
-                    system_prompt = [system_prompt]
-                    processed_system_prompts = {
+                    processed_system_prompts = [{
                         "type": "text",
                         "text": system_prompt,
                         "cache_control": {
                             "type": "ephemeral"
                         }
-                    }
+                    }]
                 elif isinstance(system_prompt, list):
                     processed_system_prompts = [
                         {

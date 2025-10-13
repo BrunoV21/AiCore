@@ -12,3 +12,7 @@ CC_DEFAULT_HEADERS = {
 }
 
 CC_SYSTEM_PROMPT = "You are Claude Code, Anthropic's official CLI for Claude."
+
+BETA_1M_CONTEXT_HEADERS = {
+    "anthropic-beta": "context-1m-2025-08-07"
+}
