@@ -74,6 +74,7 @@ class PricingConfig(BaseModel):
     cached: float = 0
     cache_write: float = 0
     happy_hour: Optional[HappyHour] = None
+    avoid_dynamic :bool=False
     dynamic: Optional[DynamicPricing] = None
     
     def calculate_cost(self, 

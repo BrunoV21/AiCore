@@ -59,6 +59,8 @@ class LlmConfig(BaseModel):
         model_metadata =  METADATA.get(self.provider_model)
         if model_metadata is not None:
             if self.pricing is None and model_metadata.pricing is not None:
+                if model_metadata.pricing.avoid_dynamic and model_metadata.pricing.dynamic is not None and not getattr(self, "use_anthropics_beta_expanded_ctx", None):
+                    model_metadata.context_window = model_metadata.pricing.dynamic.threshold
                 self.pricing = model_metadata.pricing
             if self.max_tokens > model_metadata.max_tokens:
                 self.max_tokens = model_metadata.max_tokens
