@@ -166,7 +166,8 @@ class MCPClient(BaseModel):
         
         if "mcpServers" in config and isinstance(config["mcpServers"], dict):
             for server_name, server_config in config["mcpServers"].items():
-                transport_type = server_config.get("transport_type", "stdio")
+                type_key = "type" if "type" in server_config else "transport_type"
+                transport_type = server_config.get(type_key, "stdio")
                 client.server_configs[server_name] = MCPServerConfig(
                     name=server_name,
                     parameters=getattr(MCPParameters, transport_type).value(**server_config),
