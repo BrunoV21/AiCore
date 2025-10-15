@@ -93,6 +93,11 @@ class LlmOperationRecord(BaseModel):
     def system_prompt(self) -> Optional[str]:
         # anthropic system messages
         if self.completion_args.get("system"):
+            if isinstance(self.completion_args.get("system"), list):
+                return "\n".join(
+                    msg.get("text") if isinstance(msg, dict) else msg 
+                    for msg in self.completion_args.get("system")
+                )
             return self.completion_args.get("system")
                 
         return "\n".join([
