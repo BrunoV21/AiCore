@@ -1,4 +1,4 @@
-from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
+from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_ENCODING
 from aicore.logger import _logger
 
 from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
@@ -193,6 +193,18 @@ class LlmOperationCollector(RootModel):
     _session_latest_chunk: Dict[str, int] = {}
     _session_chunk_locks: Dict[str, asyncio.Lock] = {}
 
+    # Connection pool configuration
+    _pool_size: int = int(os.environ.get("DB_POOL_SIZE", "10"))
+    _max_overflow: int = int(os.environ.get("DB_MAX_OVERFLOW", "20"))
+    _pool_timeout: int = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
+    _pool_recycle: int = int(os.environ.get("DB_POOL_RECYCLE", "3600"))
+    _pool_pre_ping: bool = os.environ.get("DB_POOL_PRE_PING", "true").lower() == "true"
+
+    # Write buffer configuration for JSON operations
+    _write_buffer_size: int = int(os.environ.get("OBSERVABILITY_WRITE_BUFFER_SIZE", "5"))
+    _write_buffers: Dict[str, List[Dict[str, Any]]] = {}
+    _write_buffer_locks: Dict[str, asyncio.Lock] = {}
+
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
         try:
@@ -208,16 +220,30 @@ class LlmOperationCollector(RootModel):
             
             try:
                 if conn_str:
-                    self._engine = create_engine(conn_str)
+                    self._engine = create_engine(
+                        conn_str,
+                        pool_size=self._pool_size,
+                        max_overflow=self._max_overflow,
+                        pool_timeout=self._pool_timeout,
+                        pool_recycle=self._pool_recycle,
+                        pool_pre_ping=self._pool_pre_ping
+                    )
                     self._session_factory = sessionmaker(bind=self._engine)
                     Base.metadata.create_all(self._engine)
-                    self._table_initialized = True 
-                
+                    self._table_initialized = True
+
                 # Async Engine
                 if async_conn_str:
-                    self._async_engine = create_async_engine(async_conn_str)
+                    self._async_engine = create_async_engine(
+                        async_conn_str,
+                        pool_size=self._pool_size,
+                        max_overflow=self._max_overflow,
+                        pool_timeout=self._pool_timeout,
+                        pool_recycle=self._pool_recycle,
+                        pool_pre_ping=self._pool_pre_ping
+                    )
                     self._async_session_factory = async_sessionmaker(
-                        bind=self._async_engine, 
+                        bind=self._async_engine,
                         expire_on_commit=False
                     )
                 
@@ -229,22 +255,20 @@ class LlmOperationCollector(RootModel):
         
         return self
     
-    async def create_tables(self):        
-        from aicore.observability.models import Base
+    async def create_tables(self):
         if not self._async_engine:
             return
-        
-        try:            
+
+        try:
             from aicore.observability.models import Base
-            
+
         except ModuleNotFoundError:
              _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
-        try:
-            async with self._async_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                self._table_initialized = True
-        finally:
-            await self._async_engine.dispose()
+             return 
+
+        async with self._async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            self._table_initialized = True
 
     @property
     def storage_path(self) -> Optional[Union[str, Path]]:
@@ -785,19 +809,19 @@ class LlmOperationCollector(RootModel):
                 raise e
 
     async def _a_insert_record_to_db(self, record: LlmOperationRecord) -> None:
-        """Insert a single LLM operation record into the database asynchronously."""
+        """Insert a single LLM operation record into the database asynchronously using a single transaction."""
         if not self._async_session_factory:
             if self._session_factory:
                 _logger.logger.warning("You have configured a sync connection to a db but are trying to establish an async one. Pass ASYNC_CONNECTION_STRING env var.")
             return
 
         serialized = record.serialize_model()
-        
+
         try:
             from sqlalchemy.future import select
             from aicore.observability.models import Session, Message, Metric
-            
-            # First with block: Handle session creation
+
+            # Single transaction for all database operations
             async with self._async_session_factory() as session:
                 try:
                     # Check if session exists, create if it doesn't
@@ -815,15 +839,11 @@ class LlmOperationCollector(RootModel):
                                 agent_id=serialized['agent_id']
                             )
                             session.add(db_session)
-                            await session.commit()
+                            # Don't commit yet - let it be part of the single transaction
+                            await session.flush()
                             self._is_sessions_initialized.add(serialized['session_id'])
-                except Exception as e:
-                    await session.rollback()
-                    raise e
 
-            # Second with block: Handle message insertion
-            async with self._async_session_factory() as session:
-                try:
+                    # Create message record
                     message = Message(
                         operation_id=serialized['operation_id'],
                         session_id=serialized['session_id'],
@@ -838,14 +858,8 @@ class LlmOperationCollector(RootModel):
                         error_message=serialized['error_message']
                     )
                     session.add(message)
-                    await session.commit()
-                except Exception as e:
-                    await session.rollback()
-                    raise e
 
-            # Third with block: Handle metrics insertion
-            async with self._async_session_factory() as session:
-                try:
+                    # Create metrics record
                     metric = Metric(
                         operation_id=serialized['operation_id'],
                         operation_type=serialized['operation_type'],
@@ -863,16 +877,115 @@ class LlmOperationCollector(RootModel):
                         extras=serialized['extras']
                     )
                     session.add(metric)
+
+                    # Commit all changes in a single transaction
                     await session.commit()
+
+                    # Set the last inserted record after successful commit
+                    self._last_inserted_record = serialized['operation_id']
+
                 except Exception as e:
                     await session.rollback()
                     raise e
-            
-            # Set the last inserted record after all operations succeed
-            self._last_inserted_record = serialized['operation_id']
-            
-        finally:
-            await self._async_engine.dispose()
+
+        except Exception as e:
+            _logger.logger.error(f"Error inserting record to DB: {str(e)}")
+            raise
+
+    async def a_bulk_insert_to_db(self, records: List[LlmOperationRecord]) -> int:
+        """
+        Bulk insert multiple LLM operation records into the database asynchronously.
+
+        Args:
+            records: List of LlmOperationRecord objects to insert
+
+        Returns:
+            Number of records successfully inserted
+        """
+        if not self._async_session_factory:
+            if self._session_factory:
+                _logger.logger.warning("You have configured a sync connection to a db but are trying to establish an async one. Pass ASYNC_CONNECTION_STRING env var.")
+            return 0
+
+        if not records:
+            return 0
+
+        try:
+            from sqlalchemy.future import select
+            from aicore.observability.models import Session, Message, Metric
+
+            # Single transaction for all inserts
+            async with self._async_session_factory() as session:
+                try:
+                    # Group records by session_id for efficient session checks
+                    session_ids = set(record.session_id for record in records)
+
+                    # Check and create missing sessions
+                    for session_id in session_ids:
+                        if session_id not in self._is_sessions_initialized:
+                            existing = await session.scalar(
+                                select(1).where(Session.session_id == session_id)
+                            )
+                            if not existing:
+                                db_session = Session(
+                                    session_id=session_id,
+                                    workspace=records[0].workspace,  # Use first record's workspace
+                                    agent_id=records[0].agent_id
+                                )
+                                session.add(db_session)
+                                await session.flush()
+                            self._is_sessions_initialized.add(session_id)
+
+                    # Bulk insert all messages and metrics
+                    for record in records:
+                        serialized = record.serialize_model()
+
+                        message = Message(
+                            operation_id=serialized['operation_id'],
+                            session_id=serialized['session_id'],
+                            action_id=serialized['action_id'],
+                            timestamp=serialized['timestamp'],
+                            system_prompt=serialized['system_prompt'],
+                            user_prompt=serialized['user_prompt'],
+                            response=serialized['response'],
+                            assistant_message=serialized['assistant_message'],
+                            history_messages=serialized['history_messages'],
+                            completion_args=serialized['completion_args'],
+                            error_message=serialized['error_message']
+                        )
+                        session.add(message)
+
+                        metric = Metric(
+                            operation_id=serialized['operation_id'],
+                            operation_type=serialized['operation_type'],
+                            provider=serialized['provider'],
+                            model=serialized['model'],
+                            success=serialized['success'],
+                            temperature=serialized['temperature'],
+                            max_tokens=serialized['max_tokens'],
+                            input_tokens=serialized['input_tokens'],
+                            output_tokens=serialized['output_tokens'],
+                            cached_tokens=serialized['cached_tokens'],
+                            total_tokens=serialized['total_tokens'],
+                            cost=serialized['cost'],
+                            latency_ms=serialized['latency_ms'],
+                            extras=serialized['extras']
+                        )
+                        session.add(metric)
+
+                    # Commit all inserts in one transaction
+                    await session.commit()
+
+                    return len(records)
+
+                except Exception as e:
+                    await session.rollback()
+                    _logger.logger.error(f"Error bulk inserting records to DB: {str(e)}")
+                    raise e
+
+        except Exception as e:
+            _logger.logger.error(f"Error bulk inserting records to DB: {str(e)}")
+            raise
 
     @classmethod
     def polars_from_db(cls,
@@ -910,7 +1023,7 @@ class LlmOperationCollector(RootModel):
             coro = instance._apolars_from_db(agent_id, action_id, session_id, workspace, start_date, end_date)
 
             try:
-                loop = asyncio.get_running_loop()
+                _ = asyncio.get_running_loop()
             except RuntimeError:
                 # No running loop: safe to use asyncio.run
                 return asyncio.run(coro)
@@ -1072,17 +1185,14 @@ class LlmOperationCollector(RootModel):
 
                 if not rows:
                     return pl.DataFrame()
-                
+
                 # Convert to dictionary
                 records = [dict(row._asdict()) for row in rows]
                 return pl.from_dicts(records)
             except Exception as e:
                 _logger.logger.error(f"Error executing database query: {str(e)}")
                 await session.rollback()  # Explicitly rollback on error
-                return pl.DataFrame()            
-            
-            finally:
-                await self._async_engine.dispose()
+                return pl.DataFrame()
 
 if __name__ == "__main__":
     LlmOperationCollector()
