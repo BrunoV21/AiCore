@@ -356,6 +356,109 @@ async def get_db_stats(
             await engine.dispose()
 
 
+def delete_session_data(session_id: Optional[str] = None, storage_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Delete session data from JSON chunk files.
+
+    WARNING: This operation is irreversible. All deleted data cannot be recovered.
+
+    Args:
+        session_id: Optional session ID to delete. If None, deletes ALL sessions.
+        storage_path: Optional path to observability data root directory.
+                     If None, uses OBSERVABILITY_DATA_ROOT env var or default.
+
+    Returns:
+        Dictionary containing deletion results:
+        {
+            "deleted_sessions": List[str],    # List of deleted session IDs
+            "deleted_files": int,             # Total number of files deleted
+            "deleted_bytes": int,             # Total bytes deleted
+            "errors": List[str]               # Any errors encountered during deletion
+        }
+
+    Examples:
+        >>> # Delete specific session
+        >>> result = delete_session_data(session_id="my-session-123")
+        >>> print(f"Deleted {result['deleted_files']} files from session")
+
+        >>> # Delete ALL sessions (dangerous!)
+        >>> result = delete_session_data()
+        >>> print(f"Deleted {len(result['deleted_sessions'])} sessions")
+    """
+    import shutil
+
+    # Determine storage path
+    if storage_path is None:
+        storage_path = os.environ.get("OBSERVABILITY_DATA_ROOT") or \
+                      os.environ.get("OBSERVABILITY_DATA_DEFAULT_FILE") or \
+                      DEFAULT_OBSERVABILITY_DIR
+
+    root_dir = Path(storage_path)
+
+    if not root_dir.exists():
+        return {
+            "deleted_sessions": [],
+            "deleted_files": 0,
+            "deleted_bytes": 0,
+            "errors": [f"Storage path does not exist: {root_dir}"]
+        }
+
+    # Sanitize session_id for filesystem safety
+    def _sanitize_session_id(sid: str) -> str:
+        return sid.replace("/", "_").replace("\\", "_").replace(":", "_") or "default"
+
+    # Determine which session directories to delete
+    if session_id:
+        safe_session_id = _sanitize_session_id(session_id)
+        session_dirs = [root_dir / safe_session_id]
+        session_ids_to_delete = [session_id]
+    else:
+        # Delete ALL sessions
+        session_dirs = [d for d in root_dir.iterdir() if d.is_dir()]
+        session_ids_to_delete = [d.name for d in session_dirs]
+
+    # Track deletion results
+    deleted_sessions = []
+    deleted_files = 0
+    deleted_bytes = 0
+    errors = []
+
+    for session_dir, original_session_id in zip(session_dirs, session_ids_to_delete):
+        if not session_dir.exists():
+            errors.append(f"Session directory does not exist: {original_session_id}")
+            continue
+
+        try:
+            # Count files and bytes before deletion
+            dir_files = 0
+            dir_bytes = 0
+
+            for chunk_file in session_dir.glob("*.json"):
+                if chunk_file.is_file():
+                    dir_files += 1
+                    dir_bytes += chunk_file.stat().st_size
+
+            # Delete the entire session directory
+            shutil.rmtree(session_dir)
+
+            # Update counters
+            deleted_sessions.append(original_session_id)
+            deleted_files += dir_files
+            deleted_bytes += dir_bytes
+
+        except PermissionError as e:
+            errors.append(f"Permission denied deleting session '{original_session_id}': {str(e)}")
+        except Exception as e:
+            errors.append(f"Error deleting session '{original_session_id}': {str(e)}")
+
+    return {
+        "deleted_sessions": deleted_sessions,
+        "deleted_files": deleted_files,
+        "deleted_bytes": deleted_bytes,
+        "errors": errors
+    }
+
+
 def _empty_stats() -> Dict[str, Any]:
     """Return an empty stats dictionary with all fields set to zero."""
     return {
