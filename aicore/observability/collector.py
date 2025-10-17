@@ -1,4 +1,4 @@
-from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_OBSERVABILITY_FILE, DEFAULT_ENCODING
+from aicore.const import DEFAULT_OBSERVABILITY_DIR, DEFAULT_ENCODING
 from aicore.logger import _logger
 
 from pydantic import BaseModel, ConfigDict, RootModel, Field, field_validator, computed_field, model_validator, model_serializer, field_serializer
@@ -188,6 +188,23 @@ class LlmOperationCollector(RootModel):
     _is_sessions_initialized :set = set()
     _background_tasks: Set[asyncio.Task] = set()
 
+    # Chunked storage configuration
+    _chunk_size_limit: int = int(os.environ.get("OBSERVABILITY_CHUNK_SIZE", "50"))
+    _session_latest_chunk: Dict[str, int] = {}
+    _session_chunk_locks: Dict[str, asyncio.Lock] = {}
+
+    # Connection pool configuration
+    _pool_size: int = int(os.environ.get("DB_POOL_SIZE", "10"))
+    _max_overflow: int = int(os.environ.get("DB_MAX_OVERFLOW", "20"))
+    _pool_timeout: int = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
+    _pool_recycle: int = int(os.environ.get("DB_POOL_RECYCLE", "3600"))
+    _pool_pre_ping: bool = os.environ.get("DB_POOL_PRE_PING", "true").lower() == "true"
+
+    # Write buffer configuration for JSON operations
+    _write_buffer_size: int = int(os.environ.get("OBSERVABILITY_WRITE_BUFFER_SIZE", "5"))
+    _write_buffers: Dict[str, List[Dict[str, Any]]] = {}
+    _write_buffer_locks: Dict[str, asyncio.Lock] = {}
+
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
         try:
@@ -203,17 +220,52 @@ class LlmOperationCollector(RootModel):
             
             try:
                 if conn_str:
-                    self._engine = create_engine(conn_str)
-                    self._session_factory = sessionmaker(bind=self._engine)
+                    # SQL Server specific: Ensure MARS_Connection=yes is in the connection string
+                    # for handling multiple active result sets
+                    engine_kwargs = {
+                        "pool_size": self._pool_size,
+                        "max_overflow": self._max_overflow,
+                        "pool_timeout": self._pool_timeout,
+                        "pool_recycle": self._pool_recycle,
+                        "pool_pre_ping": self._pool_pre_ping,
+                    }
+
+                    # Add SQL Server specific settings if using pyodbc
+                    if "mssql" in conn_str.lower() or "pyodbc" in conn_str.lower():
+                        engine_kwargs["connect_args"] = {
+                            "MARS_Connection": "yes",
+                            "timeout": 30
+                        }
+
+                    self._engine = create_engine(conn_str, **engine_kwargs)
+                    self._session_factory = sessionmaker(bind=self._engine, autocommit=False, autoflush=False)
                     Base.metadata.create_all(self._engine)
-                    self._table_initialized = True 
-                
+                    self._table_initialized = True
+
                 # Async Engine
                 if async_conn_str:
-                    self._async_engine = create_async_engine(async_conn_str)
+                    # SQL Server async specific settings
+                    async_engine_kwargs = {
+                        "pool_size": self._pool_size,
+                        "max_overflow": self._max_overflow,
+                        "pool_timeout": self._pool_timeout,
+                        "pool_recycle": self._pool_recycle,
+                        "pool_pre_ping": self._pool_pre_ping,
+                    }
+
+                    # Add SQL Server specific settings if using aioodbc
+                    if "mssql" in async_conn_str.lower() or "aioodbc" in async_conn_str.lower():
+                        async_engine_kwargs["connect_args"] = {
+                            "MARS_Connection": "yes",
+                            "timeout": 30
+                        }
+
+                    self._async_engine = create_async_engine(async_conn_str, **async_engine_kwargs)
                     self._async_session_factory = async_sessionmaker(
-                        bind=self._async_engine, 
-                        expire_on_commit=False
+                        bind=self._async_engine,
+                        expire_on_commit=False,
+                        autocommit=False,
+                        autoflush=False
                     )
                 
             except Exception as e:
@@ -224,22 +276,20 @@ class LlmOperationCollector(RootModel):
         
         return self
     
-    async def create_tables(self):        
-        from aicore.observability.models import Base
+    async def create_tables(self):
         if not self._async_engine:
             return
-        
-        try:            
+
+        try:
             from aicore.observability.models import Base
-            
+
         except ModuleNotFoundError:
              _logger.logger.warning("pip install core-for-ai[sql] for sql integration and setup ASYNC_CONNECTION_STRING env var")
-        try:
-            async with self._async_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                self._table_initialized = True
-        finally:
-            await self._async_engine.dispose()
+             return 
+
+        async with self._async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            self._table_initialized = True
 
     @property
     def storage_path(self) -> Optional[Union[str, Path]]:
@@ -249,104 +299,180 @@ class LlmOperationCollector(RootModel):
     def storage_path(self, value: Union[str, Path]):
         self._storage_path = value
 
+    def _sanitize_session_id(self, session_id: Optional[str]) -> str:
+        """Sanitize session_id for safe filesystem usage."""
+        if not session_id:
+            return "default"
+        # Replace filesystem-unsafe characters
+        safe_id = session_id.replace("/", "_").replace("\\", "_").replace(":", "_")
+        return safe_id or "default"
+
+    def _get_session_dir(self, session_id: Optional[str]) -> Path:
+        """Get the directory path for a given session."""
+        safe_session_id = self._sanitize_session_id(session_id)
+        return Path(self.storage_path) / safe_session_id
+
+    def _get_latest_chunk_number(self, session_id: Optional[str]) -> int:
+        """Get the latest chunk number for a session (synchronous)."""
+        safe_session_id = self._sanitize_session_id(session_id)
+
+        # Check cache first
+        if safe_session_id in self._session_latest_chunk:
+            return self._session_latest_chunk[safe_session_id]
+
+        # List files and find max number
+        session_dir = self._get_session_dir(session_id)
+        if not session_dir.exists():
+            self._session_latest_chunk[safe_session_id] = 0
+            return 0
+
+        chunk_files = list(session_dir.glob("*.json"))
+        if not chunk_files:
+            self._session_latest_chunk[safe_session_id] = 0
+            return 0
+
+        max_chunk = max(int(f.stem) for f in chunk_files)
+        self._session_latest_chunk[safe_session_id] = max_chunk
+        return max_chunk
+
+    async def _a_get_latest_chunk_number(self, session_id: Optional[str]) -> int:
+        """Get the latest chunk number for a session (asynchronous)."""
+        safe_session_id = self._sanitize_session_id(session_id)
+
+        # Check cache first
+        if safe_session_id in self._session_latest_chunk:
+            return self._session_latest_chunk[safe_session_id]
+
+        # List files and find max number
+        session_dir = self._get_session_dir(session_id)
+        if not session_dir.exists():
+            self._session_latest_chunk[safe_session_id] = 0
+            return 0
+
+        chunk_files = list(session_dir.glob("*.json"))
+        if not chunk_files:
+            self._session_latest_chunk[safe_session_id] = 0
+            return 0
+
+        max_chunk = max(int(f.stem) for f in chunk_files)
+        self._session_latest_chunk[safe_session_id] = max_chunk
+        return max_chunk
+
+    def _get_chunk_path(self, session_id: Optional[str], chunk_number: int) -> Path:
+        """Get the file path for a specific chunk."""
+        session_dir = self._get_session_dir(session_id)
+        return session_dir / f"{chunk_number}.json"
+
+    def _load_chunk(self, chunk_path: Path) -> List[Dict[str, Any]]:
+        """Load a chunk file and return records as list of dicts."""
+        if not chunk_path.exists() or chunk_path.stat().st_size == 0:
+            return []
+
+        try:
+            with open(chunk_path, 'rb') as f:
+                return orjson.loads(f.read())
+        except (orjson.JSONDecodeError, FileNotFoundError):
+            _logger.logger.warning(f"Corrupted or missing chunk file: {chunk_path}")
+            return []
+
+    async def _a_load_chunk(self, chunk_path: Path) -> List[Dict[str, Any]]:
+        """Load a chunk file asynchronously and return records as list of dicts."""
+        if not chunk_path.exists() or chunk_path.stat().st_size == 0:
+            return []
+
+        try:
+            async with aiofiles.open(chunk_path, 'rb') as f:
+                content = await f.read()
+                return orjson.loads(content)
+        except (orjson.JSONDecodeError, FileNotFoundError):
+            _logger.logger.warning(f"Corrupted or missing chunk file: {chunk_path}")
+            return []
+
     def _store_to_file(self, new_record: LlmOperationRecord) -> None:
-        """Store a new record by appending it to the JSON file.
-        Always maintains a valid JSON array format with proper closing bracket.
+        """Store a new record using chunked, session-based storage.
+        Records are organized in directories by session_id with chunked JSON files.
         """
-        # Create directory if it doesn't exist
-        if not os.path.exists(os.path.dirname(self.storage_path)):
-            os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-        
-        # Case 1: File doesn't exist or is empty
-        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
-            # Create a new file with just this record
-            with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
-                f.write('[\n')
-                f.write(json.dumps(new_record.model_dump(), indent=4))
-                f.write('\n]')
-            return
-        
-        # Case 2: File exists with content - need to append
-        with open(self.storage_path, 'r+', encoding=DEFAULT_ENCODING) as f:
-            # Seek to the position right before the closing bracket
-            f.seek(0, os.SEEK_END)  # Go to end of file
-            pos = f.tell()          # Get current position
-            
-            # Go backwards until we find the closing bracket
-            while pos > 0:
-                pos -= 1
-                f.seek(pos)
-                char = f.read(1)
-                if char == ']':
-                    # Found the closing bracket
-                    break
-            
-            if pos <= 0:  # Sanity check - this shouldn't happen with valid JSON
-                # File might be corrupted, handle accordingly
-                # For simplicity, we'll overwrite with a new file
-                with open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f_new:
-                    f_new.write('[\n')
-                    f_new.write(json.dumps(new_record.model_dump(), indent=4))
-                    f_new.write('\n]')
-                return
-            
-            # Truncate the file at this position to remove the closing bracket
-            f.seek(pos)
-            f.truncate()
-            
-            # Now append the new record and closing bracket
-            f.write(',\n')
-            f.write(json.dumps(new_record.model_dump(), indent=4))
-            f.write('\n]')
+        # Get session directory and ensure it exists
+        session_dir = self._get_session_dir(new_record.session_id)
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get the latest chunk number
+        chunk_number = self._get_latest_chunk_number(new_record.session_id)
+        chunk_path = self._get_chunk_path(new_record.session_id, chunk_number)
+
+        # Load current chunk
+        current_chunk = self._load_chunk(chunk_path)
+
+        # Check if chunk is full
+        if len(current_chunk) >= self._chunk_size_limit:
+            # Create new chunk
+            chunk_number += 1
+            safe_session_id = self._sanitize_session_id(new_record.session_id)
+            self._session_latest_chunk[safe_session_id] = chunk_number
+            chunk_path = self._get_chunk_path(new_record.session_id, chunk_number)
+            current_chunk = []
+
+        # Append new record
+        current_chunk.append(new_record.model_dump())
+
+        # Write chunk atomically using temp file
+        temp_path = chunk_path.with_suffix('.tmp')
+        try:
+            with open(temp_path, 'wb') as f:
+                f.write(orjson.dumps(current_chunk, option=orjson.OPT_INDENT_2))
+            # Atomic rename
+            temp_path.replace(chunk_path)
+        except Exception as e:
+            _logger.logger.error(f"Error writing chunk file {chunk_path}: {str(e)}")
+            if temp_path.exists():
+                temp_path.unlink()
+            raise
 
     async def _a_store_to_file(self, new_record: LlmOperationRecord) -> None:
-        """Async version of _store_to_file using aiofiles and orjson."""
-        # Create directory if it doesn't exist
-        dir_path = os.path.dirname(self.storage_path)
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path, exist_ok=True)
+        """Async version of chunked, session-based storage.
+        Records are organized in directories by session_id with chunked JSON files.
+        """
+        # Get session directory and ensure it exists
+        session_dir = self._get_session_dir(new_record.session_id)
+        session_dir.mkdir(parents=True, exist_ok=True)
 
-        # Prepare the record as orjson bytes (pretty)
-        record_bytes = orjson.dumps(new_record.model_dump(), option=orjson.OPT_INDENT_2)
+        # Get or create lock for this session
+        safe_session_id = self._sanitize_session_id(new_record.session_id)
+        if safe_session_id not in self._session_chunk_locks:
+            self._session_chunk_locks[safe_session_id] = asyncio.Lock()
 
-        # Case 1: File doesn't exist or is empty
-        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
-            async with aiofiles.open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f:
-                await f.write('[\n')
-                await f.write(record_bytes.decode(DEFAULT_ENCODING))
-                await f.write('\n]')
-            return
+        # Use lock to prevent concurrent writes to the same session
+        async with self._session_chunk_locks[safe_session_id]:
+            # Get the latest chunk number
+            chunk_number = await self._a_get_latest_chunk_number(new_record.session_id)
+            chunk_path = self._get_chunk_path(new_record.session_id, chunk_number)
 
-        # Case 2: File exists with content - need to append
-        # We need to find the position of the last ']' and truncate before it
-        # aiofiles does not support random access, so we must do this synchronously
-        # (This is a limitation of aiofiles and file APIs)
-        # So, we do the seek/truncate synchronously, then append asynchronously
-        pos = None
-        with open(self.storage_path, 'rb+') as f:
-            f.seek(0, os.SEEK_END)
-            file_size = f.tell()
-            # Go backwards to find the last ']'
-            for i in range(file_size - 1, -1, -1):
-                f.seek(i)
-                char = f.read(1)
-                if char == b']':
-                    pos = i
-                    break
-            if pos is None or pos <= 0:
-                # File might be corrupted, overwrite with new file
-                async with aiofiles.open(self.storage_path, 'w', encoding=DEFAULT_ENCODING) as f_new:
-                    await f_new.write('[\n')
-                    await f_new.write(record_bytes.decode(DEFAULT_ENCODING))
-                    await f_new.write('\n]')
-                return
-            f.seek(pos)
-            f.truncate()
-        # Now append the new record and closing bracket asynchronously
-        async with aiofiles.open(self.storage_path, 'a', encoding=DEFAULT_ENCODING) as f:
-            await f.write(',\n')
-            await f.write(record_bytes.decode(DEFAULT_ENCODING))
-            await f.write('\n]')
+            # Load current chunk
+            current_chunk = await self._a_load_chunk(chunk_path)
+
+            # Check if chunk is full
+            if len(current_chunk) >= self._chunk_size_limit:
+                # Create new chunk
+                chunk_number += 1
+                self._session_latest_chunk[safe_session_id] = chunk_number
+                chunk_path = self._get_chunk_path(new_record.session_id, chunk_number)
+                current_chunk = []
+
+            # Append new record
+            current_chunk.append(new_record.model_dump())
+
+            # Write chunk atomically using temp file
+            temp_path = chunk_path.with_suffix('.tmp')
+            try:
+                async with aiofiles.open(temp_path, 'wb') as f:
+                    await f.write(orjson.dumps(current_chunk, option=orjson.OPT_INDENT_2))
+                # Atomic rename (sync operation, but fast)
+                temp_path.replace(chunk_path)
+            except Exception as e:
+                _logger.logger.error(f"Error writing chunk file {chunk_path}: {str(e)}")
+                if temp_path.exists():
+                    temp_path.unlink()
+                raise
 
     def read_all_records(self) -> "LlmOperationCollector":
         """Read all records from the file.
@@ -377,28 +503,86 @@ class LlmOperationCollector(RootModel):
 
     @classmethod
     def fom_observable_storage_path(cls, storage_path: Optional[str] = None) -> "LlmOperationCollector":
+        """
+        Create a collector instance with specified storage path.
+
+        Args:
+            storage_path: Root directory for chunked observability data.
+                         If not provided, uses OBSERVABILITY_DATA_ROOT env var or DEFAULT_OBSERVABILITY_DIR.
+
+        Returns:
+            LlmOperationCollector instance configured with the storage path.
+        """
         obj = cls()
-        env_path = os.environ.get("OBSERVABILITY_DATA_DEFAULT_FILE")
+        env_path = os.environ.get("OBSERVABILITY_DATA_ROOT") or os.environ.get("OBSERVABILITY_DATA_DEFAULT_FILE")
+
         if storage_path:
             obj.storage_path = storage_path
         elif env_path:
             obj.storage_path = env_path
         else:
-            obj.storage_path = Path(DEFAULT_OBSERVABILITY_DIR) / DEFAULT_OBSERVABILITY_FILE
+            # Default to the directory (not including the filename)
+            # This supports the new chunked storage structure
+            obj.storage_path = Path(DEFAULT_OBSERVABILITY_DIR)
+
         return obj
 
     @classmethod
-    def polars_from_file(cls, storage_path: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
-        obj = cls.fom_observable_storage_path(storage_path)
-        if os.path.exists(obj.storage_path):
-            with open(obj.storage_path, 'rb') as _f:
-                dicts = orjson.loads(_f.read())
+    def polars_from_file(cls, storage_path: Optional[str] = None, session_id: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+        """
+        Load all records from chunked JSON files and return as a Polars DataFrame.
+
+        Args:
+            storage_path: Root observability directory (default: from env or DEFAULT_OBSERVABILITY_DIR)
+            session_id: Optional session_id to filter records (default: load all sessions)
+
+        Returns:
+            Polars DataFrame containing all records from the specified session(s)
+        """
         try:
             import polars as pl
-            return pl.from_dicts(dicts) if dicts else pl.DataFrame()
         except ModuleNotFoundError:
             _logger.logger.warning("pip install -r requirements-dashboard.txt")
             return None
+
+        obj = cls.fom_observable_storage_path(storage_path)
+        root_dir = Path(obj.storage_path)
+
+        if not root_dir.exists():
+            _logger.logger.warning(f"Storage path does not exist: {root_dir}")
+            return pl.DataFrame()
+
+        # Determine which session directories to process
+        if session_id:
+            # Load specific session only
+            safe_session_id = obj._sanitize_session_id(session_id)
+            session_dirs = [root_dir / safe_session_id]
+        else:
+            # Load all sessions
+            session_dirs = [d for d in root_dir.iterdir() if d.is_dir()]
+
+        # Collect all records from all chunks
+        all_dicts = []
+        for session_dir in session_dirs:
+            if not session_dir.exists():
+                continue
+
+            # Get all chunk files sorted by number
+            chunk_files = sorted(session_dir.glob("*.json"), key=lambda p: int(p.stem))
+
+            for chunk_file in chunk_files:
+                try:
+                    with open(chunk_file, 'rb') as f:
+                        chunk_data = orjson.loads(f.read())
+                        if isinstance(chunk_data, list):
+                            all_dicts.extend(chunk_data)
+                        else:
+                            _logger.logger.warning(f"Unexpected data format in {chunk_file}")
+                except (orjson.JSONDecodeError, FileNotFoundError) as e:
+                    _logger.logger.warning(f"Error loading chunk file {chunk_file}: {e}")
+                    continue
+
+        return pl.from_dicts(all_dicts) if all_dicts else pl.DataFrame()
     
     def _handle_record(
         self,
@@ -646,45 +830,42 @@ class LlmOperationCollector(RootModel):
                 raise e
 
     async def _a_insert_record_to_db(self, record: LlmOperationRecord) -> None:
-        """Insert a single LLM operation record into the database asynchronously."""
+        """Insert a single LLM operation record into the database asynchronously using a single transaction."""
         if not self._async_session_factory:
             if self._session_factory:
                 _logger.logger.warning("You have configured a sync connection to a db but are trying to establish an async one. Pass ASYNC_CONNECTION_STRING env var.")
             return
 
         serialized = record.serialize_model()
-        
+
         try:
             from sqlalchemy.future import select
             from aicore.observability.models import Session, Message, Metric
-            
-            # First with block: Handle session creation
-            async with self._async_session_factory() as session:
+
+            # Single transaction for all database operations
+            async with self._async_session_factory() as db_session:
                 try:
                     # Check if session exists, create if it doesn't
                     if serialized['session_id'] not in self._is_sessions_initialized:
-                        # Check if any row exists
-                        db_session = await session.scalar(
-                            select(1).where(Session.session_id == serialized['session_id'])
+                        # Check if any row exists - use scalar to get a single value
+                        result = await db_session.scalar(
+                            select(Session.session_id).where(Session.session_id == serialized['session_id'])
                         )
-                        result = db_session is not None
 
                         if not result:
-                            db_session = Session(
+                            new_session = Session(
                                 session_id=serialized['session_id'],
                                 workspace=serialized['workspace'],
                                 agent_id=serialized['agent_id']
                             )
-                            session.add(db_session)
-                            await session.commit()
-                            self._is_sessions_initialized.add(serialized['session_id'])
-                except Exception as e:
-                    await session.rollback()
-                    raise e
+                            db_session.add(new_session)
+                            # Flush to ensure session exists before adding messages
+                            await db_session.flush()
 
-            # Second with block: Handle message insertion
-            async with self._async_session_factory() as session:
-                try:
+                        # Mark as initialized after checking/creating
+                        self._is_sessions_initialized.add(serialized['session_id'])
+
+                    # Create message record
                     message = Message(
                         operation_id=serialized['operation_id'],
                         session_id=serialized['session_id'],
@@ -698,15 +879,9 @@ class LlmOperationCollector(RootModel):
                         completion_args=serialized['completion_args'],
                         error_message=serialized['error_message']
                     )
-                    session.add(message)
-                    await session.commit()
-                except Exception as e:
-                    await session.rollback()
-                    raise e
+                    db_session.add(message)
 
-            # Third with block: Handle metrics insertion
-            async with self._async_session_factory() as session:
-                try:
+                    # Create metrics record
                     metric = Metric(
                         operation_id=serialized['operation_id'],
                         operation_type=serialized['operation_type'],
@@ -723,17 +898,116 @@ class LlmOperationCollector(RootModel):
                         latency_ms=serialized['latency_ms'],
                         extras=serialized['extras']
                     )
-                    session.add(metric)
+                    db_session.add(metric)
+
+                    # Commit all changes in a single transaction
+                    await db_session.commit()
+
+                    # Set the last inserted record after successful commit
+                    self._last_inserted_record = serialized['operation_id']
+
+                except Exception as e:
+                    await db_session.rollback()
+                    raise e
+
+        except Exception as e:
+            _logger.logger.error(f"Error inserting record to DB: {str(e)}")
+            raise
+
+    async def a_bulk_insert_to_db(self, records: List[LlmOperationRecord]) -> int:
+        """
+        Bulk insert multiple LLM operation records into the database asynchronously.
+
+        Args:
+            records: List of LlmOperationRecord objects to insert
+
+        Returns:
+            Number of records successfully inserted
+        """
+        if not self._async_session_factory:
+            if self._session_factory:
+                _logger.logger.warning("You have configured a sync connection to a db but are trying to establish an async one. Pass ASYNC_CONNECTION_STRING env var.")
+            return 0
+
+        if not records:
+            return 0
+
+        try:
+            from sqlalchemy.future import select
+            from aicore.observability.models import Session, Message, Metric
+
+            # Single transaction for all inserts
+            async with self._async_session_factory() as session:
+                try:
+                    # Group records by session_id for efficient session checks
+                    session_ids = set(record.session_id for record in records)
+
+                    # Check and create missing sessions
+                    for session_id in session_ids:
+                        if session_id not in self._is_sessions_initialized:
+                            existing = await session.scalar(
+                                select(1).where(Session.session_id == session_id)
+                            )
+                            if not existing:
+                                db_session = Session(
+                                    session_id=session_id,
+                                    workspace=records[0].workspace,  # Use first record's workspace
+                                    agent_id=records[0].agent_id
+                                )
+                                session.add(db_session)
+                                await session.flush()
+                            self._is_sessions_initialized.add(session_id)
+
+                    # Bulk insert all messages and metrics
+                    for record in records:
+                        serialized = record.serialize_model()
+
+                        message = Message(
+                            operation_id=serialized['operation_id'],
+                            session_id=serialized['session_id'],
+                            action_id=serialized['action_id'],
+                            timestamp=serialized['timestamp'],
+                            system_prompt=serialized['system_prompt'],
+                            user_prompt=serialized['user_prompt'],
+                            response=serialized['response'],
+                            assistant_message=serialized['assistant_message'],
+                            history_messages=serialized['history_messages'],
+                            completion_args=serialized['completion_args'],
+                            error_message=serialized['error_message']
+                        )
+                        session.add(message)
+
+                        metric = Metric(
+                            operation_id=serialized['operation_id'],
+                            operation_type=serialized['operation_type'],
+                            provider=serialized['provider'],
+                            model=serialized['model'],
+                            success=serialized['success'],
+                            temperature=serialized['temperature'],
+                            max_tokens=serialized['max_tokens'],
+                            input_tokens=serialized['input_tokens'],
+                            output_tokens=serialized['output_tokens'],
+                            cached_tokens=serialized['cached_tokens'],
+                            total_tokens=serialized['total_tokens'],
+                            cost=serialized['cost'],
+                            latency_ms=serialized['latency_ms'],
+                            extras=serialized['extras']
+                        )
+                        session.add(metric)
+
+                    # Commit all inserts in one transaction
                     await session.commit()
+
+                    return len(records)
+
                 except Exception as e:
                     await session.rollback()
+                    _logger.logger.error(f"Error bulk inserting records to DB: {str(e)}")
                     raise e
-            
-            # Set the last inserted record after all operations succeed
-            self._last_inserted_record = serialized['operation_id']
-            
-        finally:
-            await self._async_engine.dispose()
+
+        except Exception as e:
+            _logger.logger.error(f"Error bulk inserting records to DB: {str(e)}")
+            raise
 
     @classmethod
     def polars_from_db(cls,
@@ -771,7 +1045,7 @@ class LlmOperationCollector(RootModel):
             coro = instance._apolars_from_db(agent_id, action_id, session_id, workspace, start_date, end_date)
 
             try:
-                loop = asyncio.get_running_loop()
+                _ = asyncio.get_running_loop()
             except RuntimeError:
                 # No running loop: safe to use asyncio.run
                 return asyncio.run(coro)
@@ -891,7 +1165,6 @@ class LlmOperationCollector(RootModel):
         
         async with self._async_session_factory() as session:
             try:
-                session = self._async_session_factory()
                 query = (
                     select(
                         Session.session_id, Session.workspace, Session.agent_id,
@@ -933,17 +1206,14 @@ class LlmOperationCollector(RootModel):
 
                 if not rows:
                     return pl.DataFrame()
-                
+
                 # Convert to dictionary
                 records = [dict(row._asdict()) for row in rows]
                 return pl.from_dicts(records)
             except Exception as e:
                 _logger.logger.error(f"Error executing database query: {str(e)}")
                 await session.rollback()  # Explicitly rollback on error
-                return pl.DataFrame()            
-            
-            finally:
-                await self._async_engine.dispose()
+                return pl.DataFrame()
 
 if __name__ == "__main__":
     LlmOperationCollector()
