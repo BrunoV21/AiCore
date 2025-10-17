@@ -220,31 +220,52 @@ class LlmOperationCollector(RootModel):
             
             try:
                 if conn_str:
-                    self._engine = create_engine(
-                        conn_str,
-                        pool_size=self._pool_size,
-                        max_overflow=self._max_overflow,
-                        pool_timeout=self._pool_timeout,
-                        pool_recycle=self._pool_recycle,
-                        pool_pre_ping=self._pool_pre_ping
-                    )
-                    self._session_factory = sessionmaker(bind=self._engine)
+                    # SQL Server specific: Ensure MARS_Connection=yes is in the connection string
+                    # for handling multiple active result sets
+                    engine_kwargs = {
+                        "pool_size": self._pool_size,
+                        "max_overflow": self._max_overflow,
+                        "pool_timeout": self._pool_timeout,
+                        "pool_recycle": self._pool_recycle,
+                        "pool_pre_ping": self._pool_pre_ping,
+                    }
+
+                    # Add SQL Server specific settings if using pyodbc
+                    if "mssql" in conn_str.lower() or "pyodbc" in conn_str.lower():
+                        engine_kwargs["connect_args"] = {
+                            "MARS_Connection": "yes",
+                            "timeout": 30
+                        }
+
+                    self._engine = create_engine(conn_str, **engine_kwargs)
+                    self._session_factory = sessionmaker(bind=self._engine, autocommit=False, autoflush=False)
                     Base.metadata.create_all(self._engine)
                     self._table_initialized = True
 
                 # Async Engine
                 if async_conn_str:
-                    self._async_engine = create_async_engine(
-                        async_conn_str,
-                        pool_size=self._pool_size,
-                        max_overflow=self._max_overflow,
-                        pool_timeout=self._pool_timeout,
-                        pool_recycle=self._pool_recycle,
-                        pool_pre_ping=self._pool_pre_ping
-                    )
+                    # SQL Server async specific settings
+                    async_engine_kwargs = {
+                        "pool_size": self._pool_size,
+                        "max_overflow": self._max_overflow,
+                        "pool_timeout": self._pool_timeout,
+                        "pool_recycle": self._pool_recycle,
+                        "pool_pre_ping": self._pool_pre_ping,
+                    }
+
+                    # Add SQL Server specific settings if using aioodbc
+                    if "mssql" in async_conn_str.lower() or "aioodbc" in async_conn_str.lower():
+                        async_engine_kwargs["connect_args"] = {
+                            "MARS_Connection": "yes",
+                            "timeout": 30
+                        }
+
+                    self._async_engine = create_async_engine(async_conn_str, **async_engine_kwargs)
                     self._async_session_factory = async_sessionmaker(
                         bind=self._async_engine,
-                        expire_on_commit=False
+                        expire_on_commit=False,
+                        autocommit=False,
+                        autoflush=False
                     )
                 
             except Exception as e:
@@ -822,26 +843,27 @@ class LlmOperationCollector(RootModel):
             from aicore.observability.models import Session, Message, Metric
 
             # Single transaction for all database operations
-            async with self._async_session_factory() as session:
+            async with self._async_session_factory() as db_session:
                 try:
                     # Check if session exists, create if it doesn't
                     if serialized['session_id'] not in self._is_sessions_initialized:
-                        # Check if any row exists
-                        db_session = await session.scalar(
-                            select(1).where(Session.session_id == serialized['session_id'])
+                        # Check if any row exists - use scalar to get a single value
+                        result = await db_session.scalar(
+                            select(Session.session_id).where(Session.session_id == serialized['session_id'])
                         )
-                        result = db_session is not None
 
                         if not result:
-                            db_session = Session(
+                            new_session = Session(
                                 session_id=serialized['session_id'],
                                 workspace=serialized['workspace'],
                                 agent_id=serialized['agent_id']
                             )
-                            session.add(db_session)
-                            # Don't commit yet - let it be part of the single transaction
-                            await session.flush()
-                            self._is_sessions_initialized.add(serialized['session_id'])
+                            db_session.add(new_session)
+                            # Flush to ensure session exists before adding messages
+                            await db_session.flush()
+
+                        # Mark as initialized after checking/creating
+                        self._is_sessions_initialized.add(serialized['session_id'])
 
                     # Create message record
                     message = Message(
@@ -857,7 +879,7 @@ class LlmOperationCollector(RootModel):
                         completion_args=serialized['completion_args'],
                         error_message=serialized['error_message']
                     )
-                    session.add(message)
+                    db_session.add(message)
 
                     # Create metrics record
                     metric = Metric(
@@ -876,16 +898,16 @@ class LlmOperationCollector(RootModel):
                         latency_ms=serialized['latency_ms'],
                         extras=serialized['extras']
                     )
-                    session.add(metric)
+                    db_session.add(metric)
 
                     # Commit all changes in a single transaction
-                    await session.commit()
+                    await db_session.commit()
 
                     # Set the last inserted record after successful commit
                     self._last_inserted_record = serialized['operation_id']
 
                 except Exception as e:
-                    await session.rollback()
+                    await db_session.rollback()
                     raise e
 
         except Exception as e:
@@ -1143,7 +1165,6 @@ class LlmOperationCollector(RootModel):
         
         async with self._async_session_factory() as session:
             try:
-                session = self._async_session_factory()
                 query = (
                     select(
                         Session.session_id, Session.workspace, Session.agent_id,
