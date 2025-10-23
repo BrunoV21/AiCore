@@ -1,4 +1,5 @@
 from aicore.observability.collector import LlmOperationCollector
+from aicore.logger import _logger
 
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
@@ -8,6 +9,7 @@ import plotly.graph_objects as go
 import polars as pl
 from typing import Optional, Any
 from datetime import datetime, timedelta
+from pathlib import Path
 
 EXTERNAL_STYLESHEETS = [
     dbc.themes.BOOTSTRAP,
@@ -54,21 +56,34 @@ class ObservabilityDashboard:
     def __init__(self,
             storage_path: Optional[Any] = None,
             from_local_records_only :bool=False,
-            title: str = "AiCore Observability Dashboard"):
+            title: str = "AiCore Observability Dashboard",
+            lazy: bool = False):
         """
         Initialize the dashboard.
-        
+
         Args:
-            storage: OperationStorage instance for accessing operation data
+            storage_path: Path to observability data storage
+            from_local_records_only: If True, only load data from local files
             title: Dashboard title
+            lazy: If True, only pre-load session_ids and load full data on demand
         """
         self.storage_path = storage_path
         self.from_local_records_only = from_local_records_only
         self.default_days = 5  # Default to 5 day of data for initial load
-        self.fetch_df(days=self.default_days)
+        self.lazy = lazy
+        self.available_sessions = []  # Store available session_ids for lazy loading
+
+        if self.lazy:
+            # In lazy mode, only fetch the list of available session_ids
+            self.available_sessions = self.fetch_session_list()
+            self.df = pl.DataFrame()  # Empty dataframe initially
+        else:
+            # In normal mode, fetch all data
+            self.fetch_df(days=self.default_days)
+
         self.title = title
         self.app = dash.Dash(
-            __name__, 
+            __name__,
             suppress_callback_exceptions=True,
             external_stylesheets=EXTERNAL_STYLESHEETS
         )
@@ -76,17 +91,127 @@ class ObservabilityDashboard:
         self._setup_layout()
         self._register_callbacks()
 
-    def fetch_df(self, days=None):
-        """Fetch data with optional day limit for lazy loading"""
-        self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path) if self.from_local_records_only else LlmOperationCollector.polars_from_db()
-        if self.df is None:
-            self.df :pl.DataFrame = LlmOperationCollector.polars_from_file(self.storage_path)
+    def fetch_session_list(self) -> list:
+        """
+        Fetch the list of available session_ids from storage and/or database.
+        This is used in lazy mode to pre-load only session identifiers.
+
+        Returns:
+            List of available session_id strings
+        """
+        session_ids = set()
+
+        # Scan local files for session directories
+        if self.storage_path or self.from_local_records_only:
+            try:
+                collector = LlmOperationCollector.fom_observable_storage_path(self.storage_path)
+                root_dir = Path(collector.storage_path)
+                print(f"[fetch_session_list] Scanning directory: {root_dir}")
+
+                if root_dir.exists():
+                    # Each subdirectory represents a session_id
+                    session_dirs = [d.name for d in root_dir.iterdir() if d.is_dir()]
+                    print(f"[fetch_session_list] Found {len(session_dirs)} session directories: {session_dirs}")
+                    session_ids.update(session_dirs)
+                else:
+                    print(f"[fetch_session_list] Directory does not exist: {root_dir}")
+            except Exception as e:
+                print(f"[fetch_session_list] ERROR scanning local session directories: {e}")
+                _logger.logger.warning(f"Error scanning local session directories: {e}")
+
+        # Query database for session_ids if not restricted to local records only
+        if not self.from_local_records_only:
+            try:
+                # Query distinct session_ids from database
+                collector = LlmOperationCollector()
+                if collector._session_factory and collector._engine:
+                    from aicore.observability.models import Session
+                    with collector._session_factory() as session:
+                        results = session.query(Session.session_id).distinct().all()
+                        db_sessions = [r[0] for r in results]
+                        print(f"[fetch_session_list] Found {len(db_sessions)} sessions in DB")
+                        session_ids.update(db_sessions)
+            except Exception as e:
+                print(f"[fetch_session_list] ERROR querying database for session_ids: {e}")
+                _logger.logger.warning(f"Error querying database for session_ids: {e}")
+
+        result = sorted(list(session_ids))
+        print(f"[fetch_session_list] Total available sessions: {len(result)}")
+        return result
+
+    def fetch_df(self, days=None, session_ids=None):
+        """
+        Fetch data with optional day limit and session filtering.
+
+        Args:
+            days: Number of days to look back (optional)
+            session_ids: List of session_ids to load (optional, for lazy loading)
+        """
+        if session_ids:
+            # Load specific sessions only (lazy mode)
+            print(f"[fetch_df] Fetching sessions: {session_ids}")
+            print(f"[fetch_df] Storage path: {self.storage_path}")
+            print(f"[fetch_df] from_local_records_only: {self.from_local_records_only}")
+            session_dfs = []
+            for session_id in session_ids:
+                # Try loading from local files first
+                try:
+                    print(f"[fetch_df] Attempting to load {session_id} from files...")
+                    df = LlmOperationCollector.polars_from_file(
+                        self.storage_path,
+                        session_id=session_id
+                    )
+                    if df is not None and not df.is_empty():
+                        print(f"[fetch_df] Loaded {len(df)} rows for {session_id} from files")
+                        session_dfs.append(df)
+                    else:
+                        print(f"[fetch_df] No data found in files for {session_id}")
+                        # If not found in files and DB is available, try DB
+                        if not self.from_local_records_only:
+                            print(f"[fetch_df] Attempting to load {session_id} from DB...")
+                            df = LlmOperationCollector.polars_from_db(session_id=session_id)
+                            if df is not None and not df.is_empty():
+                                print(f"[fetch_df] Loaded {len(df)} rows for {session_id} from DB")
+                                session_dfs.append(df)
+                            else:
+                                print(f"[fetch_df] No data found in DB for {session_id}")
+                except Exception as e:
+                    print(f"[fetch_df] ERROR loading session {session_id}: {e}")
+                    _logger.logger.warning(f"Error loading session {session_id}: {e}")
+
+            # Combine new session dataframes
+            print(f"[fetch_df] Total session_dfs collected: {len(session_dfs)}")
+            if session_dfs:
+                new_df = pl.concat(session_dfs)
+                print(f"[fetch_df] Concatenated new_df has {len(new_df)} rows")
+                # Append to existing dataframe if not empty
+                if not self.df.is_empty():
+                    print(f"[fetch_df] Appending to existing df with {len(self.df)} rows")
+                    self.df = pl.concat([self.df, new_df])
+                else:
+                    print("[fetch_df] Setting df to new_df (was empty)")
+                    self.df = new_df
+                print(f"[fetch_df] Final df has {len(self.df)} rows")
+                print(self.df)
+        else:
+            # Load all data (normal mode)
+            self.df = (
+                LlmOperationCollector.polars_from_file(self.storage_path)
+                if self.from_local_records_only
+                else LlmOperationCollector.polars_from_db()
+            )
+            if self.df is None:
+                self.df = LlmOperationCollector.polars_from_file(self.storage_path)
+
         if not self.df.is_empty():
-            self.add_day_col()
+            # Add date column if not present
+            if "date" not in self.df.columns:
+                self.add_day_col()
             if days is not None:
                 # Filter to only include the last 'days' days
                 cutoff_date = datetime.now() - timedelta(days=days)
                 self.df = self.df.filter(pl.col("date") >= cutoff_date)
+
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     def add_day_col(self):
@@ -616,7 +741,9 @@ class ObservabilityDashboard:
             Output('agent-dropdown', 'options'),
             Output('action-dropdown', 'options'),
             Output('session-dropdown', 'options'),
-            Output('workspace-dropdown', 'options')],
+            Output('workspace-dropdown', 'options'),
+            Output('date-picker-range', 'start_date'),
+            Output('date-picker-range', 'end_date')],
             [Input("refresh-button", "n_clicks"),
             Input("interval-component", "n_intervals"),
             Input('date-picker-range', 'start_date'),
@@ -630,8 +757,61 @@ class ObservabilityDashboard:
         )
         def update_dropdowns(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions):
             """Update dropdown options based on available data, filtering by workspace if provided."""
+            # In lazy mode, handle session selection
+            if self.lazy and session_id:
+                session_ids_to_load = session_id if isinstance(session_id, list) else [session_id]
+                # Get currently loaded sessions
+                loaded_sessions = set(self.df["session_id"].unique().to_list()) if not self.df.is_empty() else set()
+                # Find sessions that need to be loaded
+                sessions_to_fetch = [s for s in session_ids_to_load if s not in loaded_sessions]
+
+                if sessions_to_fetch:
+                    # Load new sessions
+                    print(f"[LAZY MODE] Loading sessions: {sessions_to_fetch}")
+                    print(f"[LAZY MODE] Currently loaded: {loaded_sessions}")
+                    print(f"[LAZY MODE] DataFrame before load - rows: {len(self.df)}")
+                    self.fetch_df(session_ids=sessions_to_fetch)
+                    print(f"[LAZY MODE] DataFrame after load - rows: {len(self.df)}")
+                    if not self.df.is_empty():
+                        print(f"[LAZY MODE] Loaded sessions now: {self.df['session_id'].unique().to_list()}")
+
+            # In lazy mode, always show all available sessions in dropdown
+            if self.lazy:
+                session_options = [{'label': s, 'value': s} for s in self.available_sessions]
+
+                if self.df.is_empty():
+                    # No data loaded yet, only show session options with default dates
+                    default_start = (datetime.now() - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).date()
+                    default_end = datetime.now().date()
+                    return [], [], [], [], session_options, [], default_start, default_end
+
+                # Data is loaded, compute dates from dataframe and other options from the loaded data
+                min_date = self.df["date"].min().date() if "date" in self.df.columns else start_date
+                max_date = self.df["date"].max().date() if "date" in self.df.columns else end_date
+
+                workspaces = self.df["workspace"].unique().to_list()
+                workspace_options = [{'label': w, 'value': w} for w in workspaces]
+                df_filtered = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
+
+                # Compute other dropdown options from the filtered dataframe
+                providers = df_filtered["provider"].unique().to_list()
+                models = df_filtered["model"].unique().to_list()
+                agents = [a for a in df_filtered["agent_id"].unique().to_list() if a]
+                actions = [a for a in df_filtered["action_id"].unique().to_list() if a]
+
+                provider_options = [{'label': p, 'value': p} for p in providers]
+                model_options = [{'label': m, 'value': m} for m in models]
+                agent_options = [{'label': a, 'value': a} for a in agents]
+                actions_options = [{'label': a, 'value': a} for a in actions]
+
+                return provider_options, model_options, agent_options, actions_options, session_options, workspace_options, min_date, max_date
+
+            # Normal mode (not lazy) - keep existing dates
             if self.df.is_empty():
-                return [], [], [], [], [], []
+                default_start = (datetime.now() - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).date()
+                default_end = datetime.now().date()
+                return [], [], [], [], [], [], default_start, default_end
+
             # Compute workspace options from the full dataframe
             workspaces = self.df["workspace"].unique().to_list()
             workspace_options = [{'label': w, 'value': w} for w in workspaces]
@@ -642,14 +822,14 @@ class ObservabilityDashboard:
             sessions = df_filtered["session_id"].unique().to_list()
             agents = [a for a in df_filtered["agent_id"].unique().to_list() if a]  # Filter empty agent IDs
             actions = [a for a in df_filtered["action_id"].unique().to_list() if a]  # Filter empty agent IDs
-            
+
             provider_options = [{'label': p, 'value': p} for p in providers]
             model_options = [{'label': m, 'value': m} for m in models]
             session_options = [{'label': s, 'value': s} for s in sessions]
             agent_options = [{'label': a, 'value': a} for a in agents]
             actions_options = [{'label': a, 'value': a} for a in actions]
-            
-            return provider_options, model_options, agent_options, actions_options, session_options, workspace_options
+
+            return provider_options, model_options, agent_options, actions_options, session_options, workspace_options, start_date, end_date
 
         @self.app.callback(
             [
@@ -713,6 +893,11 @@ class ObservabilityDashboard:
         )
         def update_dashboard(n_clicks, last_update, start_date, end_date, session_id, workspace, providers, models, agents, actions):
             """Update dashboard visualizations based on filters."""
+            # In lazy mode, ensure data is loaded when sessions are selected
+            if self.lazy and session_id and self.df.is_empty():
+                session_ids_to_load = session_id if isinstance(session_id, list) else [session_id]
+                self.fetch_df(session_ids=session_ids_to_load)
+
             filtered_df = self.filter_data(start_date, end_date, session_id, workspace, providers, models, agents, actions)
             
             if filtered_df.is_empty():
@@ -1816,6 +2001,6 @@ if __name__ == "__main__":
     # TODO consider place date range picker in same row as Global Filters but right alligned bellow refresh button and couple refresh with selected period
     # TODO add most expensive agent and agent with most actions in Agent Analysis
     # TODO add support to execute all operations on db (i.e filters and so on)
-    od = ObservabilityDashboard(from_local_records_only=True)
+    od = ObservabilityDashboard(from_local_records_only=True, lazy=True)
     print(od.df)
     od.run_server()
