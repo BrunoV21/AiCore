@@ -342,15 +342,13 @@ class LlmBaseProvider(BaseModel):
         if isinstance(prompt, str):
             prompt = [prompt]
 
-        if img_b64_str is None:
-            message_content = "\n".join(prompt)
-        else:
-            message_content = [
-                {
-                    "type": "text",
-                    "text": _prompt
-                } for _prompt in prompt
-            ]
+        message_content = [
+            {
+                "type": "text",
+                "text": _prompt.strip()
+            } for _prompt in prompt
+        ]
+        if img_b64_str is not None:
             for img in img_b64_str:
                 message_content.append(
                     {

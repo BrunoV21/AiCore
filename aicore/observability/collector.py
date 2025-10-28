@@ -99,10 +99,22 @@ class LlmOperationRecord(BaseModel):
                     for msg in self.completion_args.get("system")
                 )
             return self.completion_args.get("system")
-                
-        return "\n".join([
-            msg.get("content", "") for msg in self.messages if msg.get("role") == "system"
-        ])
+
+        all_system_msgs = []
+        for msg in self.messages:
+            if msg.get("role") == "system":
+                if content := msg.get("content"):
+                    if isinstance(content, str):
+                        all_system_msgs.append(content)
+                    elif isinstance(content, list):
+                        for content_message in content:
+                            if isinstance(content_message, str):
+                                all_system_msgs.append(content_message)
+                            elif isinstance(content_message, dict):
+                                if context_message_text := content_message.get("text"):
+                                    all_system_msgs.append(context_message_text)
+
+        return all_system_msgs
 
     @computed_field
     def assistant_message(self) -> Optional[str]:
