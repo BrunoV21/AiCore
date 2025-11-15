@@ -11,6 +11,7 @@ DEFAULT_MCP_JSON_PATH = os.getenv("MCP_JSON_PATH") or "./config/mcp_config.json"
 DEFAULT_LOGS_DIR = os.getenv("LOGS_PATH") or "logs"
 
 CUSTOM_MODELS = [
+    "glm-4.5-flash"
     # "gemini-2.0-flash-exp",
     # "gemini-2.0-flash-thinking-exp-01-21",
     # "gemini-2.5-pro-exp-03-25",
