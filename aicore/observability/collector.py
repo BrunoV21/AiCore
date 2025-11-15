@@ -540,13 +540,14 @@ class LlmOperationCollector(RootModel):
         return obj
 
     @classmethod
-    def polars_from_file(cls, storage_path: Optional[str] = None, session_id: Optional[str] = None) -> "pl.DataFrame":  # noqa: F821
+    def polars_from_file(cls, storage_path: Optional[str] = None, session_id: Optional[str] = None, purge_corrupted: bool = False) -> "pl.DataFrame":  # noqa: F821
         """
         Load all records from chunked JSON files and return as a Polars DataFrame.
 
         Args:
             storage_path: Root observability directory (default: from env or DEFAULT_OBSERVABILITY_DIR)
             session_id: Optional session_id to filter records (default: load all sessions)
+            purge_corrupted: If True, delete corrupted JSON files that fail to load (default: False)
 
         Returns:
             Polars DataFrame containing all records from the specified session(s)
@@ -573,8 +574,9 @@ class LlmOperationCollector(RootModel):
             # Load all sessions
             session_dirs = [d for d in root_dir.iterdir() if d.is_dir()]
 
-        # Collect all records from all chunks
-        all_dicts = []
+        # Initialize empty DataFrame to accumulate results
+        df = pl.DataFrame()
+        
         for session_dir in session_dirs:
             if not session_dir.exists():
                 continue
@@ -587,14 +589,27 @@ class LlmOperationCollector(RootModel):
                     with open(chunk_file, 'rb') as f:
                         chunk_data = orjson.loads(f.read())
                         if isinstance(chunk_data, list):
-                            all_dicts.extend(chunk_data)
+                            # Convert chunk to DataFrame and concatenate with existing
+                            chunk_df = pl.from_dicts(chunk_data)
+                            df = df.vstack(chunk_df)
                         else:
                             _logger.logger.warning(f"Unexpected data format in {chunk_file}")
+                            if purge_corrupted:
+                                try:
+                                    chunk_file.unlink()
+                                    _logger.logger.info(f"Deleted corrupted file with unexpected format: {chunk_file}")
+                                except Exception as del_e:
+                                    _logger.logger.error(f"Failed to delete corrupted file {chunk_file}: {del_e}")
                 except (orjson.JSONDecodeError, FileNotFoundError) as e:
                     _logger.logger.warning(f"Error loading chunk file {chunk_file}: {e}")
-                    continue
-
-        return pl.from_dicts(all_dicts) if all_dicts else pl.DataFrame()
+                    if purge_corrupted:
+                        try:
+                            chunk_file.unlink()
+                            _logger.logger.info(f"Deleted corrupted file: {chunk_file}")
+                        except Exception as del_e:
+                            _logger.logger.error(f"Failed to delete corrupted file {chunk_file}: {del_e}")
+        
+        return df
     
     def _handle_record(
         self,
