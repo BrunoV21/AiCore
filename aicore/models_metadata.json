@@ -55,5 +55,8 @@
     "deepseek-deepseek-reasoner": {"max_tokens": 65536, "context_window":  131072, "pricing": {"input": 0.56, "output": 1.68, "cached": 0.07}},
     "deepseek-deepseek-chat": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.56, "output": 1.68, "cached": 0.07}},
     "grok-3-beta": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 3, "output": 15}},
-    "grok-3-mini-beta": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.20, "output": 0.50}}
+    "grok-3-mini-beta": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.20, "output": 0.50}},
+    "zai-glm-4.5-air": {"max_tokens": 96000, "context_window":  131072, "pricing": {"input": 0.2, "output": 1.1, "cached": 0.03}},
+    "zai-glm-4.5": {"max_tokens": 96000, "context_window":  131072, "pricing": {"input": 0.6, "output": 2.2, "cached": 0.11}},
+    "zai-glm-4.6": {"max_tokens": 131072, "context_window":  200000, "pricing": {"input": 0.6, "output": 2.2, "cached": 0.11}}
 }
