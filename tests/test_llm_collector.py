@@ -473,14 +473,14 @@ def test_record_completion_db(monkeypatch, tmp_path):
         assert record in collector.root
 
 
-def test_polars_from_file(file_based_db_collector, tmp_path):
+def test_polars_from_file_with_corrupted_data(file_based_db_collector, tmp_path):
     """
-    Test that polars_from_file returns a non-empty DataFrame when using directory-based storage.
-    We simulate file storage by creating the proper directory structure with session subdirectories and chunks.
+    Test that polars_from_file handles corrupted JSON files correctly.
+    When purge_corrupted=True, corrupted files should be deleted.
     """
-    # Create a dummy record dictionary (mimicking a serialized LlmOperationRecord)
-    dummy_record = {
-        "session_id": "sess1",
+    # Create a valid record
+    valid_record = {
+        "session_id": "sess_valid",
         "workspace": "ws1",
         "agent_id": "agent1",
         "action_id": "act1",
@@ -508,19 +508,39 @@ def test_polars_from_file(file_based_db_collector, tmp_path):
         "extras": "{}"
     }
 
-    # Create the proper directory structure: storage_path/session_id/0.json
+    # Create a corrupted record (invalid JSON)
+    corrupted_record = "this is not valid json"
+
+    # Create the proper directory structure
     storage_root = Path(file_based_db_collector.storage_path)
-    session_dir = storage_root / "sess1"
+    session_dir = storage_root / "sess_valid"
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    chunk_file = session_dir / "0.json"
-    with open(chunk_file, "w", encoding=DEFAULT_ENCODING) as f:
-        f.write(json.dumps([dummy_record]))
+    # Create valid chunk file
+    valid_chunk_file = session_dir / "0.json"
+    with open(valid_chunk_file, "w", encoding=DEFAULT_ENCODING) as f:
+        f.write(json.dumps([valid_record]))
 
+    # Create corrupted chunk file
+    corrupted_chunk_file = session_dir / "1.json"
+    with open(corrupted_chunk_file, "w", encoding=DEFAULT_ENCODING) as f:
+        f.write(corrupted_record)
+
+    # Test without purging - should skip corrupted file but keep valid one
     df = LlmOperationCollector.polars_from_file(file_based_db_collector.storage_path)
     assert isinstance(df, pl.DataFrame)
     assert not df.is_empty()
-    assert "session_id" in df.columns
+    assert len(df) == 1  # Only valid record should be loaded
+    assert valid_chunk_file.exists()  # Valid file should remain
+    assert corrupted_chunk_file.exists()  # Corrupted file should remain
+
+    # Test with purging - corrupted file should be deleted
+    df = LlmOperationCollector.polars_from_file(file_based_db_collector.storage_path, purge_corrupted=True)
+    assert isinstance(df, pl.DataFrame)
+    assert not df.is_empty()
+    assert len(df) == 1  # Only valid record should be loaded
+    assert valid_chunk_file.exists()  # Valid file should remain
+    assert not corrupted_chunk_file.exists()  # Corrupted file should be deleted
 
 
 def test_polars_from_db(monkeypatch, tmp_path):
