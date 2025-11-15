@@ -7,6 +7,7 @@ from aicore.llm.providers.openai import OpenAiLlm
 from aicore.llm.providers.openrouter import OpenRouterLlm
 from aicore.llm.providers.grok import GrokLlm
 from aicore.llm.providers.deepseek import DeepSeekLlm
+from aicore.llm.providers.zai import ZaiLlm
 from aicore.llm.providers.base_provider import LlmBaseProvider
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "MistralLlm",
     "NvidiaLlm",
     "DeepSeekLlm",
+    "ZaiLlm",
     "LlmBaseProvider"
 ]

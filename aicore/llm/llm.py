@@ -22,6 +22,7 @@ from aicore.llm.providers import (
     GroqLlm,
     GeminiLlm,
     DeepSeekLlm,
+    ZaiLlm,
     GrokLlm
 )
 
@@ -35,6 +36,7 @@ class Providers(Enum):
     GROK :GrokLlm=GrokLlm 
     GEMINI :GeminiLlm=GeminiLlm
     DEEPSEEK :DeepSeekLlm=DeepSeekLlm
+    ZAI :ZaiLlm=ZaiLlm
 
     def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
         """
