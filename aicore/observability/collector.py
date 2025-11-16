@@ -589,17 +589,18 @@ class LlmOperationCollector(RootModel):
                     with open(chunk_file, 'rb') as f:
                         chunk_data = orjson.loads(f.read())
                         if isinstance(chunk_data, list):
-                            # Convert chunk to DataFrame and concatenate with existing
-                            chunk_df = pl.from_dicts(chunk_data)
-                            df = df.vstack(chunk_df)
-                        else:
-                            _logger.logger.warning(f"Unexpected data format in {chunk_file}")
-                            if purge_corrupted:
-                                try:
-                                    chunk_file.unlink()
-                                    _logger.logger.info(f"Deleted corrupted file with unexpected format: {chunk_file}")
-                                except Exception as del_e:
-                                    _logger.logger.error(f"Failed to delete corrupted file {chunk_file}: {del_e}")
+                            try:
+                                # Convert chunk to DataFrame and concatenate with existing
+                                chunk_df = pl.from_dicts(chunk_data)
+                                df = df.vstack(chunk_df)
+                            except Exception:
+                                _logger.logger.warning(f"Unexpected data format in {chunk_file}")
+                                if purge_corrupted:
+                                    try:
+                                        chunk_file.unlink()
+                                        _logger.logger.info(f"Deleted corrupted file with unexpected format: {chunk_file}")
+                                    except Exception as del_e:
+                                        _logger.logger.error(f"Failed to delete corrupted file {chunk_file}: {del_e}")
                 except (orjson.JSONDecodeError, FileNotFoundError) as e:
                     _logger.logger.warning(f"Error loading chunk file {chunk_file}: {e}")
                     if purge_corrupted:
