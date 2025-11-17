@@ -624,7 +624,7 @@ class LlmOperationCollector(RootModel):
                 continue
 
             # Get all chunk files sorted by number
-            chunk_files = sorted(session_dir.glob("*.json"), key=lambda p: int(p.stem))
+            chunk_files = sorted(session_dir.rglob("*.json"), key=lambda p: int(p.stem))
 
             for chunk_file in chunk_files:
                 try:
