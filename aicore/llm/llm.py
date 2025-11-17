@@ -12,12 +12,13 @@ from aicore.const import REASONING_STOP_TOKEN
 from aicore.llm.usage import UsageInfo
 from aicore.llm.config import LlmConfig
 from aicore.llm.templates import REASONING_INJECTION_TEMPLATE, DEFAULT_SYSTEM_PROMPT, REASONER_DEFAULT_SYSTEM_PROMPT
+from aicore.llm.mcp.client import ToolExecutionCallback
 from aicore.llm.providers import (
     LlmBaseProvider,
     AnthropicLlm,
     OpenAiLlm,
     OpenRouterLlm,
-    MistralLlm, 
+    MistralLlm,
     NvidiaLlm,
     GroqLlm,
     GeminiLlm,
@@ -52,13 +53,14 @@ class Providers(Enum):
 
 class Llm(BaseModel):
     """Main LLM class that provides synchronous and asynchronous completion interfaces.
-    
+
     Attributes:
         config: Configuration for the LLM provider
         system_prompt: Default system prompt for the LLM
         agent_id: Optional agent identifier
         _provider: Internal provider instance
         _logger_fn: Optional logging function
+        _tool_callback: Optional callback function for tool execution events
         _reasoner: Optional reasoning LLM instance
         _is_reasoner: Flag indicating if this is a reasoning LLM
     """
@@ -66,6 +68,7 @@ class Llm(BaseModel):
     system_prompt: str = Field(default=DEFAULT_SYSTEM_PROMPT, description="Default system prompt for the LLM")
     agent_id: Optional[str] = Field(default=None, description="Optional agent identifier")
     _provider: Optional[LlmBaseProvider] = None
+    _tool_callback: Optional[ToolExecutionCallback] = None
     _logger_fn: Optional[Callable[[str], None]] = None
     _reasoner: Optional["Llm"] = None
     _is_reasoner: bool = False
@@ -153,6 +156,15 @@ class Llm(BaseModel):
             logger_fn: Function that handles log messages
         """
         self._logger_fn = logger_fn
+
+    @property
+    def tool_callback(self)->Optional[ToolExecutionCallback]:
+        return self._tool_callback
+
+    @tool_callback.setter
+    def tool_callback(self, fn :Optional[ToolExecutionCallback]):
+        self._tool_callback = fn
+        self.provider.tool_callback = self._tool_callback
 
     @property
     def reasoner(self)->"Llm":

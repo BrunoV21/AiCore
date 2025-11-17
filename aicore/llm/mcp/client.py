@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any, AsyncContextManager, Union
+from typing import Dict, List, Optional, Any, AsyncContextManager, Union, Callable
 from pydantic import BaseModel, ConfigDict, Field
 from pathlib import Path
 import asyncio
@@ -10,7 +10,7 @@ from fastmcp import Client as FastMCPClient
 from fastmcp import FastMCP as FastMCPServer
 from fastmcp.client.transports import (
     FastMCPTransport,
-    WSTransport, 
+    WSTransport,
     SSETransport,
     StdioTransport,
     StdioServerParameters
@@ -19,6 +19,9 @@ from fastmcp.client.transports import (
 from aicore.llm.mcp.models import MCPParameters, MCPServerConfig, SSSEParameters, ToolSchema, WSParameters
 from aicore.llm.mcp.utils import raise_fast_mcp_error
 from aicore.logger import _logger
+
+# Type definition for the tool execution callback
+ToolExecutionCallback = Callable[[Dict[str, Any]], None]
 
 class ServerConnection(AsyncContextManager):
     """
@@ -42,10 +45,11 @@ class ServerManager:
     """
     Manages server connections and provides convenient access to server clients.
     """
-    def __init__(self, parent_client: 'MCPClient'):
+    def __init__(self, parent_client: 'MCPClient', tool_callback: Optional[ToolExecutionCallback] = None):
         self._parent = parent_client
         self._tools_cache = {}  # Cache for mapping tool names to server names
         self._servers_cache :Dict[str, ToolSchema]= {}
+        self._tool_callback = tool_callback
         
     def get(self, server_name: str) -> ServerConnection:
         """Get a connection to a specific server by name."""
@@ -96,14 +100,14 @@ class ServerManager:
         """
         Call a tool by name without specifying which server it belongs to.
         The system will automatically determine which server provides the tool.
-        
+
         Args:
             tool_name: The name of the tool to call
             arguments: The arguments to pass to the tool
-            
+
         Returns:
             The result of the tool call
-            
+
         Raises:
             ValueError: If the tool is not found on any server
             ValueError: If the tool is found on multiple servers
@@ -111,13 +115,22 @@ class ServerManager:
         # If the tool cache is empty, populate it
         if not self._tools_cache:
             await self.get_servers()
-            
+
         # If the tool is still not in the cache, it's not available
         if tool_name not in self._servers_cache:
             raise ValueError(f"Tool '{tool_name}' not found on any connected server")
-        
+
         server_name = self._servers_cache[tool_name]
-        
+
+        # Invoke callback for started stage
+        if self._tool_callback:
+            self._tool_callback({
+                "stage": "started",
+                "tool_name": tool_name,
+                "server_name": server_name,
+                "arguments": arguments
+            })
+
         # Call the tool on the appropriate server
         _logger.logger.info(f"MCP | Starting call to tool '{tool_name}' on server '{server_name}' with arguments: {arguments}") if not silent else ...
         st = time.perf_counter()
@@ -125,6 +138,17 @@ class ServerManager:
             result = await client.call_tool(tool_name, arguments)
         duration = time.perf_counter() - st
         _logger.logger.info(f"MCP | Finished call to tool '{tool_name}' on server '{server_name}' in {duration:.2f}s") if not silent else ...
+
+        # Invoke callback for concluded stage
+        if self._tool_callback:
+            self._tool_callback({
+                "stage": "concluded",
+                "tool_name": tool_name,
+                "server_name": server_name,
+                "duration": duration,
+                "output": result
+            })
+
         return result
 
 class MCPClient(BaseModel):
@@ -135,17 +159,19 @@ class MCPClient(BaseModel):
     """
     server_configs: Dict[str, MCPServerConfig] = Field(default_factory=dict)
     transports: Dict[str, FastMCPTransport] = Field(default_factory=dict, exclude=True)
+    tool_callback: Optional[ToolExecutionCallback] = Field(default=None, exclude=True)
     _is_connected: bool=False
     _needs_update: bool=False
-    
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True
     )
-    
-    def __init__(self, **data: Any):
+
+    def __init__(self, tool_callback: Optional[ToolExecutionCallback] = None, **data: Any):
         super().__init__(**data)
-        # Initialize the server manager
-        self._servers = ServerManager(self)
+        self.tool_callback = tool_callback
+        # Initialize the server manager with the callback
+        self._servers = ServerManager(self, tool_callback=tool_callback)
     
     @property
     def servers(self) -> ServerManager:
@@ -153,17 +179,17 @@ class MCPClient(BaseModel):
         return self._servers
     
     @classmethod
-    def from_config(cls, config: Union[str, Path, Dict[str, str]]) -> "MCPClient":
+    def from_config(cls, config: Union[str, Path, Dict[str, str]], tool_callback: Optional[ToolExecutionCallback] = None) -> "MCPClient":
         """Create an MCPClient instance from a config file."""
         if not isinstance(config, dict):
             if not os.path.exists(config):
                 raise FileNotFoundError(f"MCP config file not found: {config}")
-            
+
             with open(config, "r") as f:
                 config = json.load(f)
-        
-        client = cls()
-        
+
+        client = cls(tool_callback=tool_callback)
+
         if "mcpServers" in config and isinstance(config["mcpServers"], dict):
             for server_name, server_config in config["mcpServers"].items():
                 type_key = "type" if "type" in server_config else "transport_type"
@@ -174,7 +200,7 @@ class MCPClient(BaseModel):
                     transport_type=transport_type,
                     additional_params=server_config.get("additional_params", {})
                 )
-        
+
         return client
     
     def add_server(self, name: str, parameters :Union[FastMCPServer, StdioServerParameters, SSSEParameters, WSParameters], **kwargs) -> None:

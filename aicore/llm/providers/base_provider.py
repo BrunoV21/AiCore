@@ -5,7 +5,7 @@ common interfaces and utilities for synchronous and asynchronous operations.
 """
 
 from aicore.llm.config import LlmConfig
-from aicore.llm.mcp.client import MCPClient
+from aicore.llm.mcp.client import MCPClient, ToolExecutionCallback
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 from aicore.logger import _logger, default_stream_handler
 from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS, TOOL_CALL_END_TOKEN, TOOL_CALL_START_TOKEN
@@ -25,9 +25,9 @@ import json
 import time
 import ulid
 
-class LlmBaseProvider(BaseModel):    
+class LlmBaseProvider(BaseModel):
     """Base class for all LLM provider implementations.
-    
+
     Provides common functionality for:
     - Configuration management
     - Session tracking
@@ -35,7 +35,7 @@ class LlmBaseProvider(BaseModel):
     - Streaming support
     - Observability integration
     - Usage tracking
-    
+
     Attributes:
         config: Configuration for the LLM provider
         session_id: Unique session identifier
@@ -45,6 +45,7 @@ class LlmBaseProvider(BaseModel):
         _client: Synchronous client instance
         _aclient: Asynchronous client instance
         _collector: Observability collector instance
+        _tool_callback: Optional callback for tool execution events
     """
     config: LlmConfig
     session_id: str = Field(default_factory=ulid.ulid)
@@ -52,6 +53,7 @@ class LlmBaseProvider(BaseModel):
     agent_id: Optional[str]=None
     extras: Optional[dict]=Field(default_factory=dict)
     tools: Optional[List[ToolSchema]]=None
+    tool_callback: Optional[ToolExecutionCallback]=Field(None, exclude=True)
     _client: Any = None
     _aclient: Any = None
     _completion_args: Dict = {}
@@ -292,11 +294,11 @@ class LlmBaseProvider(BaseModel):
     @property
     def mcp(self)->MCPClient:
         if self.config.mcp_config_path and self._mcp is None:
-            self._mcp = MCPClient.from_config(self.config.mcp_config_path)
-        elif self._mcp is None:            
-            self._mcp = MCPClient()
+            self._mcp = MCPClient.from_config(self.config.mcp_config_path, tool_callback=self.tool_callback)
+        elif self._mcp is None:
+            self._mcp = MCPClient(tool_callback=self.tool_callback)
         return self._mcp
-    
+
     @mcp.setter
     def mcp(self, client :MCPClient):
         self._mcp = client
