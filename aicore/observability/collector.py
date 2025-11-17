@@ -438,7 +438,28 @@ class LlmOperationCollector(RootModel):
             _logger.logger.error(f"Error writing chunk file {chunk_path}: {str(e)}")
             if temp_path.exists():
                 temp_path.unlink()
-            raise
+
+            # Fallback: try to save just the new record to a separate fallback file
+            try:
+                fallback_dir = self._get_session_dir(new_record.session_id) / "fallback"
+                fallback_dir.mkdir(parents=True, exist_ok=True)
+
+                # Create fallback file with timestamp to avoid conflicts
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                fallback_path = fallback_dir / f"record_{timestamp}.json"
+
+                with open(fallback_path, 'wb') as f:
+                    f.write(orjson.dumps(new_record.model_dump(), option=orjson.OPT_INDENT_2))
+
+                _logger.logger.warning(
+                    f"Saved record to fallback file {fallback_path} due to chunk write failure. "
+                    f"Original error: {str(e)}"
+                )
+            except Exception as fallback_error:
+                _logger.logger.error(
+                    f"CRITICAL: Failed to save record even to fallback storage. "
+                    f"Data may be lost. Original error: {str(e)}, Fallback error: {str(fallback_error)}"
+                )
 
     async def _a_store_to_file(self, new_record: LlmOperationRecord) -> None:
         """Async version of chunked, session-based storage.
@@ -484,7 +505,28 @@ class LlmOperationCollector(RootModel):
                 _logger.logger.error(f"Error writing chunk file {chunk_path}: {str(e)}")
                 if temp_path.exists():
                     temp_path.unlink()
-                raise
+
+                # Fallback: try to save just the new record to a separate fallback file
+                try:
+                    fallback_dir = self._get_session_dir(new_record.session_id) / "fallback"
+                    fallback_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Create fallback file with timestamp to avoid conflicts
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                    fallback_path = fallback_dir / f"record_{timestamp}.json"
+
+                    async with aiofiles.open(fallback_path, 'wb') as f:
+                        await f.write(orjson.dumps(new_record.model_dump(), option=orjson.OPT_INDENT_2))
+
+                    _logger.logger.warning(
+                        f"Saved record to fallback file {fallback_path} due to chunk write failure. "
+                        f"Original error: {str(e)}"
+                    )
+                except Exception as fallback_error:
+                    _logger.logger.error(
+                        f"CRITICAL: Failed to save record even to fallback storage. "
+                        f"Data may be lost. Original error: {str(e)}, Fallback error: {str(fallback_error)}"
+                    )
 
     def read_all_records(self) -> "LlmOperationCollector":
         """Read all records from the file.
