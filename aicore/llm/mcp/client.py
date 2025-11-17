@@ -128,7 +128,7 @@ class ServerManager:
                 "stage": "started",
                 "tool_name": tool_name,
                 "server_name": server_name,
-                "arguments": arguments
+                "arguments": arguments.model_dump() if hasattr(arguments, "model_dump") else str(arguments)
             })
 
         # Call the tool on the appropriate server
@@ -146,7 +146,7 @@ class ServerManager:
                 "tool_name": tool_name,
                 "server_name": server_name,
                 "duration": duration,
-                "output": result
+                "output": [r.model_dump() if hasattr(r, "model_dump") else str(r) for r in result]
             })
 
         return result
