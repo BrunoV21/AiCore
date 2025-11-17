@@ -56,6 +56,7 @@ class ObservabilityDashboard:
     def __init__(self,
             storage_path: Optional[Any] = None,
             from_local_records_only :bool=False,
+            purge_corrupted :bool=False,
             title: str = "AiCore Observability Dashboard",
             lazy: bool = False):
         """
@@ -72,6 +73,7 @@ class ObservabilityDashboard:
         self.default_days = 5  # Default to 5 day of data for initial load
         self.lazy = lazy
         self.available_sessions = []  # Store available session_ids for lazy loading
+        self.purge_corrupted = purge_corrupted
 
         if self.lazy:
             # In lazy mode, only fetch the list of available session_ids
@@ -159,7 +161,8 @@ class ObservabilityDashboard:
                     print(f"[fetch_df] Attempting to load {session_id} from files...")
                     df = LlmOperationCollector.polars_from_file(
                         self.storage_path,
-                        session_id=session_id
+                        session_id=session_id,
+                        purge_corrupted=self.purge_corrupted
                     )
                     if df is not None and not df.is_empty():
                         print(f"[fetch_df] Loaded {len(df)} rows for {session_id} from files")
