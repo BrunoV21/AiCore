@@ -1,3 +1,4 @@
+import traceback
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from fastmcp.exceptions import FastMCPError
 from json import JSONDecodeError
@@ -181,7 +182,7 @@ def retry_on_failure(func):
                 
                 # For other errors, log and return None
                 _logger.logger.error(
-                    f"Function {func.__name__} failed with error: {str(e)}"
+                    f"Function {func.__name__} failed with error: {traceback.format_exc()}"
                 )
                 return None
         return async_wrapper
@@ -218,7 +219,7 @@ def retry_on_failure(func):
                 
                 # For other errors, log and return None
                 _logger.logger.error(
-                    f"Function {func.__name__} failed with error: {str(e)}"
+                    f"Function {func.__name__} failed with error: {traceback.format_exc()}"
                 )
                 return None
         return sync_wrapper
