@@ -261,6 +261,24 @@ class OpenAiLlm(LlmBaseProvider):
             
         # print(json.dumps(args, indent=4))
 
+    # 'input_text', 'input_image', 'output_text', 'refusal', 'input_file', 'computer_screenshot', and 'summary_text'      
+    def default_text_template(self, text :str)->Dict[str, str]:
+        # TODO this can be broken in history concept perhaps? Review later as it could be output_text if it is not the latest or if it is not user sent
+        if self.use_responses_api:
+            return {
+                "type": "input_text",
+                "text": text.strip()
+            }
+        return super().default_text_template(text=text)
+
+    def default_image_template(self, img :str)->Dict[str, str]:
+        # TODO this sis most likely bgged as well, fix later
+        if self.use_responses_api:
+            return {
+                "type": "input_image",
+                "input_image": {"input": f"data:image/jpeg;base64,{img}"}
+            }
+        return super().default_image_template(text=img)
 
     def _to_provider_tool_schema(self, tool: ToolSchema) -> Dict[str, Any]:
         """

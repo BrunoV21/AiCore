@@ -19,6 +19,7 @@ CUSTOM_MODELS = [
 ]
 
 OPENAI_NO_TEMPERATURE_MODELS = [
+    "gpt-5,1",
     "gpt-5-codex",
     "gpt-5",
     "gpt-5-mini",
