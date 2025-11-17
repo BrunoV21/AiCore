@@ -329,9 +329,20 @@ class LlmBaseProvider(BaseModel):
             return model_name
         except KeyError:
             return "gpt-4o"
+        
+    def default_text_template(self, text :str)->Dict[str, str]:
+        return {
+            "type": "text",
+            "text": text.strip()
+        }
 
-    @staticmethod
-    def _message_content(prompt: Union[List[str], str], img_b64_str: Optional[List[str]] = None) -> Union[str, List[Dict]]:
+    def default_image_template(self, img :str)->Dict[str, str]:
+        return {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{img}"}
+        }
+
+    def _message_content(self, prompt: Union[List[str], str], img_b64_str: Optional[List[str]] = None) -> Union[str, List[Dict]]:
         """Format message content for API requests.
         
         Args:
@@ -345,19 +356,12 @@ class LlmBaseProvider(BaseModel):
             prompt = [prompt]
 
         message_content = [
-            {
-                "type": "text",
-                "text": _prompt.strip()
-            } for _prompt in prompt
+            self.default_text_template(_prompt) for _prompt in prompt
         ]
         if img_b64_str is not None:
             for img in img_b64_str:
-                message_content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{img}"},
-                    }
-                )
+                message_content.append(self.default_image_template(img))
+
         return message_content
     
     @staticmethod

@@ -9,8 +9,7 @@ class NvidiaLlm(OpenAiLlm):
     
     base_url :str="https://integrate.api.nvidia.com/v1"
 
-    @staticmethod
-    def _message_content(prompt :str, img_b64_str :Optional[List[str]]=None)->List[Dict]:
+    def _message_content(self, prompt :str, img_b64_str :Optional[List[str]]=None)->List[Dict]:
         if img_b64_str is not None:
             raise ValueError("Nvidia hosted models do not support images uplaod via OpenAi compatible requests.")
 
