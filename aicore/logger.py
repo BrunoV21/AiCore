@@ -40,8 +40,11 @@ def default_stream_handler(message :str)->str:
             sys.stdout.write("\n")
             sys.stdout.flush()
         return
-    sys.stdout.write(message)
-    sys.stdout.flush()
+
+    if message:
+        sys.stdout.write(message)
+        sys.stdout.flush()
+
     return message
 
 class LogEntry(BaseModel):

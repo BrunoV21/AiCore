@@ -180,7 +180,8 @@ class OpenAiLlm(LlmBaseProvider):
             else:
                 chunk_message = ""
 
-            await logger_fn(chunk_message)
+            if chunk_message:
+                await logger_fn(chunk_message)
             return self._handle_reasoning_steps(chunk_message, message, _skip)
 
         return await super()._handle_astream_messages(_chunk=_chunk, logger_fn=logger_fn, message=message, _skip=_skip)

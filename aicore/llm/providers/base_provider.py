@@ -641,7 +641,8 @@ class LlmBaseProvider(BaseModel):
             bool: Updated skip state
         """
         chunk_message = _chunk[0].delta.content or  ""
-        await logger_fn(chunk_message)
+        if chunk_message:
+            await logger_fn(chunk_message)
         return self._handle_reasoning_steps(chunk_message, message, _skip)
     
     def _chunk_from_provider(self, _chunk):

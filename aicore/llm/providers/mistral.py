@@ -92,7 +92,7 @@ class MistralLlm(LlmBaseProvider):
             _chunk = self.normalize_fn(chunk)
             if _chunk:
                 chunk_message = _chunk[0].delta.content or ""
-                if prefix_completed and isinstance(chunk_message, str):
+                if prefix_completed and isinstance(chunk_message, str) and chunk_message:
                     await logger_fn(chunk_message)
                     message.append(chunk_message)
                 elif isinstance(chunk_message, list):
