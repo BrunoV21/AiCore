@@ -42,6 +42,7 @@
     "gemini-gemini-2.0-flash-lite": {"max_tokens": 8192, "context_window": 1048576, "pricing": {"input": 0.075, "output": 0.3}},
     "gemini-gemini-2.5-pro-preview-03-25": {"max_tokens": 65536, "context_window": 1048576, "pricing": {"input": 1.25, "output": 10, "dynamic": {"threshold": 200000, "pricing": {"input": 2.5, "output": 15}}}},
     "gemini-gemini-2.5-pro": {"max_tokens": 65536, "context_window": 1048576, "pricing": {"input": 1.25, "output": 10, "dynamic": {"threshold": 200000, "pricing": {"input": 2.5, "output": 15}}}},
+    "gemini-gemini-3-pro-preview": {"max_tokens": 65536, "context_window": 1048576, "pricing": {"input": 1.25, "output": 10, "dynamic": {"threshold": 200000, "pricing": {"input": 2.5, "output": 15}}}},
     "groq-meta-llama/llama-4-scout-17b-16e-instruct": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.11, "output": 0.34}},
     "groq-meta-llama/llama-4-maverick-17b-128e-instruct": {"max_tokens": 8192, "context_window": 131072, "pricing": {"input": 0.5, "output": 0.77}},
     "groq-deepseek-r1-distill-llama-70b": {"max_tokens": 8192, "context_window": 128000, "pricing": {"input": 0.75, "output": 0.99}},
