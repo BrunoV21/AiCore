@@ -1080,7 +1080,7 @@ class LlmOperationCollector(RootModel):
             raise
 
     @classmethod
-    def polars_from_db(cls,
+    async def apolars_from_db(cls,
         agent_id: Optional[str] = None,
         action_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -1089,9 +1089,9 @@ class LlmOperationCollector(RootModel):
         end_date: Optional[str] = None
     ) -> "pl.DataFrame":  # noqa: F821
         """
-        Query the database and return results as a Polars DataFrame.
-        Works with any database supported by SQLAlchemy.
-        
+        Async version: Query the database and return results as a Polars DataFrame.
+        Use this method when you're already in an async context.
+
         Defaults:
             - start_date: Midnight of the previous day
             - end_date: Now (current time)
@@ -1106,7 +1106,54 @@ class LlmOperationCollector(RootModel):
             end_date = datetime.now().isoformat()
 
         instance = cls()
-        
+
+        if instance._async_session_factory and instance._async_engine:
+            return await instance._apolars_from_db(
+                agent_id, action_id, session_id, workspace, start_date, end_date
+            )
+        elif instance._session_factory and instance._engine:
+            # Fall back to sync version in a thread
+            return instance._polars_from_db(
+                agent_id, action_id, session_id, workspace, start_date, end_date
+            )
+        else:
+            try:
+                import polars as pl
+                return pl.DataFrame()
+            except ModuleNotFoundError:
+                _logger.logger.warning("pip install core-for-ai[all] for Polars and sql integration")
+                return None
+
+    @classmethod
+    def polars_from_db(cls,
+        agent_id: Optional[str] = None,
+        action_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        workspace: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> "pl.DataFrame":  # noqa: F821
+        """
+        Query the database and return results as a Polars DataFrame.
+        Works with any database supported by SQLAlchemy.
+
+        For async contexts, use apolars_from_db() instead to avoid event loop issues.
+
+        Defaults:
+            - start_date: Midnight of the previous day
+            - end_date: Now (current time)
+        """
+        # Set default start_date to midnight of the previous day
+        if start_date is None:
+            yesterday = datetime.now() - timedelta(days=1)
+            start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+        # Set default end_date to now (optional)
+        if end_date is None:
+            end_date = datetime.now().isoformat()
+
+        instance = cls()
+
         if instance._session_factory and instance._engine:
             return instance._polars_from_db(
                 agent_id, action_id, session_id, workspace, start_date, end_date
@@ -1115,14 +1162,26 @@ class LlmOperationCollector(RootModel):
             coro = instance._apolars_from_db(agent_id, action_id, session_id, workspace, start_date, end_date)
 
             try:
-                _ = asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()
+                # Already inside a running loop — use nest_asyncio if available or raise error
+                try:
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    return asyncio.run(coro)
+                except ImportError:
+                    _logger.logger.error(
+                        "Cannot run async query inside an existing event loop. "
+                        "Either use 'await polars_from_db()' directly in an async context, "
+                        "or install nest_asyncio: pip install nest_asyncio"
+                    )
+                    try:
+                        import polars as pl
+                        return pl.DataFrame()
+                    except ModuleNotFoundError:
+                        return None
             except RuntimeError:
                 # No running loop: safe to use asyncio.run
                 return asyncio.run(coro)
-            else:
-                # Already inside a running loop — use `ensure_future` or `create_task`
-                future = asyncio.ensure_future(coro)
-                return asyncio.get_event_loop().run_until_complete(future)
         else:
             try:
                 import polars as pl
@@ -1270,15 +1329,15 @@ class LlmOperationCollector(RootModel):
                 # Execute query and immediately consume all results
                 result = await session.execute(query)
                 rows = result.fetchall()  # eager fetch
-                
+
                 # Explicitly commit to ensure connection is cleared
                 await session.commit()
 
                 if not rows:
                     return pl.DataFrame()
 
-                # Convert to dictionary
-                records = [dict(row._asdict()) for row in rows]
+                # Convert to dictionary using _mapping which works with SQLAlchemy Row objects
+                records = [dict(row._mapping) for row in rows]
                 return pl.from_dicts(records)
             except Exception as e:
                 _logger.logger.error(f"Error executing database query: {str(e)}")
