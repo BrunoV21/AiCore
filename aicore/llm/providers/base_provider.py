@@ -791,6 +791,8 @@ class LlmBaseProvider(BaseModel):
                         arguments=call_arguments,
                         name=tool_call.name
                     )
+                    if tool_call.extra_content is not None:
+                        new_call.extra_content = tool_call.extra_content
                     new_call = self._to_provider_tool_call_schema(new_call)
                     expanded_tools.append(new_call)
             
@@ -863,7 +865,11 @@ class LlmBaseProvider(BaseModel):
                     
             elif isinstance(_output, str):
                 tools_messages.append(self._message_body(_output, role="assistant"))
-        
+
+        ### Clear Gemini cached signature for current tool calls
+        if hasattr(self, "_current_signature"):
+            self._current_signature = None
+
         return tools_messages, call_tool
 
     @staticmethod
