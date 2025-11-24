@@ -67,6 +67,15 @@ class ToolCallSchema(BaseModel):
     name :str
     arguments :Union[str, Dict]
     _raw :Optional[Any]=None
+    _extra_content :Optional[Dict[str, str]]=None
+
+    @property
+    def extra_content(self)->Optional[Dict[str, str]]:
+        return self._extra_content
+
+    @extra_content.setter
+    def extra_content(self, signature :Dict[str, str]):
+        self._extra_content = signature
 
     def arguments_as_string(self)->str:
         if isinstance(self.arguments, dict):
