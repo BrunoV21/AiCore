@@ -1080,6 +1080,67 @@ class LlmOperationCollector(RootModel):
             raise
 
     @classmethod
+    async def aget_available_sessions(cls,
+        workspace: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> list[str]:
+        """
+        Efficiently fetch only the list of available session_ids from the database.
+        This is optimized for lazy loading - it only queries session metadata without joining messages/metrics.
+
+        Args:
+            workspace: Optional workspace filter
+            start_date: Optional start date filter (ISO format)
+            end_date: Optional end date filter (ISO format)
+
+        Returns:
+            List of session_id strings
+        """
+        try:
+            from sqlalchemy import select, distinct
+            from aicore.observability.models import Session
+        except ModuleNotFoundError:
+            _logger.logger.warning("pip install core-for-ai[all] for database integration")
+            return []
+
+        instance = cls()
+
+        if not instance._async_session_factory and not instance._async_engine:
+            # Try sync version if async not available
+            if instance._session_factory and instance._engine:
+                try:
+                    with instance._session_factory() as session:
+                        query = session.query(Session.session_id).distinct()
+
+                        if workspace:
+                            query = query.filter(Session.workspace == workspace)
+
+                        results = query.all()
+                        return sorted([r[0] for r in results])
+                except Exception as e:
+                    _logger.logger.warning(f"Error fetching session list from DB: {e}")
+                    return []
+            return []
+
+        async with instance._async_session_factory() as session:
+            try:
+                query = select(distinct(Session.session_id))
+
+                if workspace:
+                    query = query.where(Session.workspace == workspace)
+
+                result = await session.execute(query)
+                session_ids = [row[0] for row in result.fetchall()]
+                await session.commit()
+
+                return sorted(session_ids)
+            except Exception as e:
+                _logger.logger.warning(f"Error fetching session list from DB: {e}")
+                await session.rollback()
+                return []
+
+    @classmethod
     async def apolars_from_db(cls,
         agent_id: Optional[str] = None,
         action_id: Optional[str] = None,
@@ -1092,17 +1153,20 @@ class LlmOperationCollector(RootModel):
         Async version: Query the database and return results as a Polars DataFrame.
         Use this method when you're already in an async context.
 
-        Defaults:
+        Defaults (only when session_id is NOT provided):
             - start_date: Midnight of the previous day
             - end_date: Now (current time)
+
+        When session_id IS provided:
+            - No date filtering (returns all data for that session)
         """
-        # Set default start_date to midnight of the previous day
-        if start_date is None:
+        # Only apply default date filters when querying broadly (no session_id specified)
+        # When session_id is provided, user wants ALL data for that session
+        if start_date is None and session_id is None:
             yesterday = datetime.now() - timedelta(days=1)
             start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
 
-        # Set default end_date to now (optional)
-        if end_date is None:
+        if end_date is None and session_id is None:
             end_date = datetime.now().isoformat()
 
         instance = cls()
@@ -1139,17 +1203,20 @@ class LlmOperationCollector(RootModel):
 
         For async contexts, use apolars_from_db() instead to avoid event loop issues.
 
-        Defaults:
+        Defaults (only when session_id is NOT provided):
             - start_date: Midnight of the previous day
             - end_date: Now (current time)
+
+        When session_id IS provided:
+            - No date filtering (returns all data for that session)
         """
-        # Set default start_date to midnight of the previous day
-        if start_date is None:
+        # Only apply default date filters when querying broadly (no session_id specified)
+        # When session_id is provided, user wants ALL data for that session
+        if start_date is None and session_id is None:
             yesterday = datetime.now() - timedelta(days=1)
             start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
 
-        # Set default end_date to now (optional)
-        if end_date is None:
+        if end_date is None and session_id is None:
             end_date = datetime.now().isoformat()
 
         instance = cls()
@@ -1214,24 +1281,27 @@ class LlmOperationCollector(RootModel):
                 # Build query with filters
                 query = session.query(
                     Session.session_id, Session.workspace, Session.agent_id,
-                    Message.action_id, Message.operation_id, Message.timestamp, 
+                    Message.action_id, Message.operation_id, Message.timestamp,
                     Message.system_prompt, Message.user_prompt, Message.response,
-                    Message.assistant_message, Message.history_messages, 
+                    Message.assistant_message, Message.history_messages,
                     Message.completion_args, Message.error_message,
-                    Metric.operation_type, Metric.provider, Metric.model, 
-                    Metric.success, Metric.temperature, Metric.max_tokens, 
+                    Metric.operation_type, Metric.provider, Metric.model,
+                    Metric.success, Metric.temperature, Metric.max_tokens,
                     Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
                     Metric.cost, Metric.latency_ms, Metric.extras
                 ).join(
                     Message, Session.session_id == Message.session_id
                 ).join(
                     Metric, Message.operation_id == Metric.operation_id
-                ).filter(
-                    Message.timestamp >= start_date,
-                    Message.timestamp <= end_date
                 )
-                
-                # Apply filters
+
+                # Apply date filters only if provided
+                if start_date is not None:
+                    query = query.filter(Message.timestamp >= start_date)
+                if end_date is not None:
+                    query = query.filter(Message.timestamp <= end_date)
+
+                # Apply other filters
                 if agent_id:
                     query = query.filter(Session.agent_id == agent_id)
                 if action_id:
@@ -1240,10 +1310,6 @@ class LlmOperationCollector(RootModel):
                     query = query.filter(Session.session_id == session_id)
                 if workspace:
                     query = query.filter(Session.workspace == workspace)
-                if start_date:
-                    query = query.filter(Message.timestamp >= start_date)
-                if end_date:
-                    query = query.filter(Message.timestamp <= end_date)
                     
                 # Order by operation_id descending
                 query = query.order_by(desc(Message.operation_id))
@@ -1297,24 +1363,26 @@ class LlmOperationCollector(RootModel):
                 query = (
                     select(
                         Session.session_id, Session.workspace, Session.agent_id,
-                        Message.action_id, Message.operation_id, Message.timestamp, 
+                        Message.action_id, Message.operation_id, Message.timestamp,
                         Message.system_prompt, Message.user_prompt, Message.response,
-                        Message.assistant_message, Message.history_messages, 
+                        Message.assistant_message, Message.history_messages,
                         Message.completion_args, Message.error_message,
-                        Metric.operation_type, Metric.provider, Metric.model, 
-                        Metric.success, Metric.temperature, Metric.max_tokens, 
+                        Metric.operation_type, Metric.provider, Metric.model,
+                        Metric.success, Metric.temperature, Metric.max_tokens,
                         Metric.input_tokens, Metric.output_tokens, Metric.cached_tokens, Metric.total_tokens,
                         Metric.cost, Metric.latency_ms, Metric.extras
                     )
                     .join(Message, Session.session_id == Message.session_id)
                     .join(Metric, Message.operation_id == Metric.operation_id)
-                    .filter(
-                        Message.timestamp >= start_date,
-                        Message.timestamp <= end_date
-                    )
                 )
 
-                # Apply filters
+                # Apply date filters only if provided
+                if start_date is not None:
+                    query = query.filter(Message.timestamp >= start_date)
+                if end_date is not None:
+                    query = query.filter(Message.timestamp <= end_date)
+
+                # Apply other filters
                 if agent_id:
                     query = query.where(Session.agent_id == agent_id)
                 if action_id:
