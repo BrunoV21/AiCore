@@ -2,6 +2,7 @@ from aicore.observability.collector import LlmOperationCollector
 from aicore.logger import _logger
 
 import dash
+import asyncio
 from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 import plotly.express as px
@@ -97,6 +98,7 @@ class ObservabilityDashboard:
         """
         Fetch the list of available session_ids from storage and/or database.
         This is used in lazy mode to pre-load only session identifiers.
+        Uses an optimized query that only fetches session metadata without joining messages/metrics.
 
         Returns:
             List of available session_id strings
@@ -124,15 +126,34 @@ class ObservabilityDashboard:
         # Query database for session_ids if not restricted to local records only
         if not self.from_local_records_only:
             try:
-                # Query distinct session_ids from database
-                collector = LlmOperationCollector()
-                if collector._session_factory and collector._engine:
-                    from aicore.observability.models import Session
-                    with collector._session_factory() as session:
-                        results = session.query(Session.session_id).distinct().all()
-                        db_sessions = [r[0] for r in results]
-                        print(f"[fetch_session_list] Found {len(db_sessions)} sessions in DB")
-                        session_ids.update(db_sessions)
+                # Use the optimized async method to fetch only session_ids
+                print(f"[fetch_session_list] Fetching session list from database (optimized query)...")
+
+                # Check if we're in an async context
+                try:
+                    loop = asyncio.get_running_loop()
+                    # We're in async context - need to use nest_asyncio or create task
+                    try:
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                        db_sessions = asyncio.run(LlmOperationCollector.aget_available_sessions())
+                    except ImportError:
+                        # Fall back to sync version
+                        print(f"[fetch_session_list] nest_asyncio not available, using synchronous fallback")
+                        collector = LlmOperationCollector()
+                        if collector._session_factory and collector._engine:
+                            from aicore.observability.models import Session
+                            with collector._session_factory() as session:
+                                results = session.query(Session.session_id).distinct().all()
+                                db_sessions = [r[0] for r in results]
+                        else:
+                            db_sessions = []
+                except RuntimeError:
+                    # No running loop - safe to use asyncio.run
+                    db_sessions = asyncio.run(LlmOperationCollector.aget_available_sessions())
+
+                print(f"[fetch_session_list] Found {len(db_sessions)} sessions in DB")
+                session_ids.update(db_sessions)
             except Exception as e:
                 print(f"[fetch_session_list] ERROR querying database for session_ids: {e}")
                 _logger.logger.warning(f"Error querying database for session_ids: {e}")
@@ -141,20 +162,41 @@ class ObservabilityDashboard:
         print(f"[fetch_session_list] Total available sessions: {len(result)}")
         return result
 
-    def fetch_df(self, days=None, session_ids=None):
+    def fetch_df(self, days=None, session_ids=None, start_date=None, end_date=None):
         """
         Fetch data with optional day limit and session filtering.
+        Uses async database queries for better performance and non-blocking behavior.
 
         Args:
             days: Number of days to look back (optional)
             session_ids: List of session_ids to load (optional, for lazy loading)
+            start_date: Optional start date filter (datetime or ISO string)
+            end_date: Optional end date filter (datetime or ISO string)
         """
+        import asyncio
+
+        # Calculate date range if days is specified
+        if days is not None and start_date is None:
+            start_date = datetime.now() - timedelta(days=days)
+        if end_date is None:
+            end_date = datetime.now()
+
+        # Convert to ISO format if datetime objects
+        if isinstance(start_date, datetime):
+            start_date = start_date.isoformat()
+        if isinstance(end_date, datetime):
+            end_date = end_date.isoformat()
+
         if session_ids:
             # Load specific sessions only (lazy mode)
+            # When loading by session_id, we want ALL data for that session, not date-filtered
             print(f"[fetch_df] Fetching sessions: {session_ids}")
+            print(f"[fetch_df] Loading ALL data for sessions (no date filter)")
             print(f"[fetch_df] Storage path: {self.storage_path}")
             print(f"[fetch_df] from_local_records_only: {self.from_local_records_only}")
             session_dfs = []
+
+            # Process each session
             for session_id in session_ids:
                 # Try loading from local files first
                 try:
@@ -171,8 +213,35 @@ class ObservabilityDashboard:
                         print(f"[fetch_df] No data found in files for {session_id}")
                         # If not found in files and DB is available, try DB
                         if not self.from_local_records_only:
-                            print(f"[fetch_df] Attempting to load {session_id} from DB...")
-                            df = LlmOperationCollector.polars_from_db(session_id=session_id)
+                            print(f"[fetch_df] Attempting to load {session_id} from DB (all dates)...")
+
+                            # Use async method for database queries
+                            # NOTE: We pass session_id but NOT start_date/end_date
+                            # This ensures we get ALL data for the session
+                            try:
+                                loop = asyncio.get_running_loop()
+                                # We're in async context - need to use nest_asyncio
+                                try:
+                                    import nest_asyncio
+                                    nest_asyncio.apply()
+                                    df = asyncio.run(LlmOperationCollector.apolars_from_db(
+                                        session_id=session_id
+                                        # No start_date/end_date = get all data for this session
+                                    ))
+                                except ImportError:
+                                    # Fall back to sync version
+                                    print(f"[fetch_df] nest_asyncio not available, using synchronous query")
+                                    df = LlmOperationCollector.polars_from_db(
+                                        session_id=session_id
+                                        # No start_date/end_date = get all data for this session
+                                    )
+                            except RuntimeError:
+                                # No running loop - safe to use asyncio.run
+                                df = asyncio.run(LlmOperationCollector.apolars_from_db(
+                                    session_id=session_id
+                                    # No start_date/end_date = get all data for this session
+                                ))
+
                             if df is not None and not df.is_empty():
                                 print(f"[fetch_df] Loaded {len(df)} rows for {session_id} from DB")
                                 session_dfs.append(df)
@@ -190,7 +259,12 @@ class ObservabilityDashboard:
                 # Append to existing dataframe if not empty
                 if not self.df.is_empty():
                     print(f"[fetch_df] Appending to existing df with {len(self.df)} rows")
+                    print(f"{self.df.columns=}")
+                    print(f"{new_df.columns=}")
+                    if "date" not in new_df.columns:
+                        new_df = self.add_day_col(new_df)
                     self.df = pl.concat([self.df, new_df])
+                    self.df = self.df.sort("date", descending=True)
                 else:
                     print("[fetch_df] Setting df to new_df (was empty)")
                     self.df = new_df
@@ -198,33 +272,61 @@ class ObservabilityDashboard:
                 print(self.df)
         else:
             # Load all data (normal mode)
-            self.df = (
-                LlmOperationCollector.polars_from_file(self.storage_path)
-                if self.from_local_records_only
-                else LlmOperationCollector.polars_from_db()
-            )
-            if self.df is None:
+            if self.from_local_records_only:
+                self.df = LlmOperationCollector.polars_from_file(self.storage_path)
+            else:
+                # Use async database query for better performance
+                print(f"[fetch_df] Loading all data from DB using async query...")
+                try:
+                    loop = asyncio.get_running_loop()
+                    # We're in async context - need to use nest_asyncio
+                    try:
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                        self.df = asyncio.run(LlmOperationCollector.apolars_from_db(
+                            start_date=start_date,
+                            end_date=end_date
+                        ))
+                    except ImportError:
+                        # Fall back to sync version
+                        print(f"[fetch_df] nest_asyncio not available, using synchronous query")
+                        self.df = LlmOperationCollector.polars_from_db(
+                            start_date=start_date,
+                            end_date=end_date
+                        )
+                except RuntimeError:
+                    # No running loop - safe to use asyncio.run
+                    self.df = asyncio.run(LlmOperationCollector.apolars_from_db(
+                        start_date=start_date,
+                        end_date=end_date
+                    ))
+
+            if self.df is None or self.df.is_empty():
+                # Fallback to file storage
+                print(f"[fetch_df] No data from DB, trying file storage...")
                 self.df = LlmOperationCollector.polars_from_file(self.storage_path)
 
         if not self.df.is_empty():
             # Add date column if not present
             if "date" not in self.df.columns:
-                self.add_day_col()
-            if days is not None:
-                # Filter to only include the last 'days' days
+                self.df = self.add_day_col(self.df)
+            # Note: Date filtering is now done at the query level when possible
+            # This is just a safety filter for file-based data
+            if days is not None and start_date is None:
                 cutoff_date = datetime.now() - timedelta(days=days)
                 self.df = self.df.filter(pl.col("date") >= cutoff_date)
 
         return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    def add_day_col(self):
+    def add_day_col(self, df :pl.DataFrame):
         """Add date columns for time-based analysis"""
-        self.df = self.df.with_columns(date=pl.col("timestamp").str.to_datetime())
-        self.df = self.df.with_columns(
+        df = df.with_columns(date=pl.col("timestamp").str.to_datetime())
+        df = df.with_columns(
             day=pl.col("date").dt.date(),
             hour=pl.col("date").dt.hour(),
             minute=pl.col("date").dt.minute()
         ).sort("date", descending=True)
+        return df
     
     def _setup_layout(self):
         """Set up the dashboard layout with tabs."""
@@ -769,10 +871,13 @@ class ObservabilityDashboard:
                 sessions_to_fetch = [s for s in session_ids_to_load if s not in loaded_sessions]
 
                 if sessions_to_fetch:
-                    # Load new sessions
+                    # Load new sessions - fetch ALL data for selected sessions (no date filter)
                     print(f"[LAZY MODE] Loading sessions: {sessions_to_fetch}")
+                    print(f"[LAZY MODE] Loading ALL data for these sessions (no date restriction)")
                     print(f"[LAZY MODE] Currently loaded: {loaded_sessions}")
                     print(f"[LAZY MODE] DataFrame before load - rows: {len(self.df)}")
+
+                    # Don't pass start_date/end_date - user wants ALL data for selected sessions
                     self.fetch_df(session_ids=sessions_to_fetch)
                     print(f"[LAZY MODE] DataFrame after load - rows: {len(self.df)}")
                     if not self.df.is_empty():
