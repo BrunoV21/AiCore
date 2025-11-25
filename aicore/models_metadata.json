@@ -1,4 +1,5 @@
 {
+    "anthropic-claude-opus-4-5-20251101": {"max_tokens": 64000, "context_window": 200000, "pricing": {"input": 5, "output": 25, "cached": 0.50, "cache_write": 6.25}},
     "anthropic-claude-sonnet-4-5-20250929": {"max_tokens": 64000, "context_window": 1000000, "pricing": {"input": 3, "output": 15, "cached": 0.30, "cache_write": 3.75, "avoid_dynamic": true, "dynamic": {"threshold": 200000, "strategy": "full", "pricing": {"input": 3.75, "output": 22.5, "cached": 0.60, "cache_write": 7.50}}}},
     "anthropic-claude-opus-4-1-20250805": {"max_tokens": 32000, "context_window": 200000, "pricing": {"input": 15, "output": 75, "cached": 1.50, "cache_write": 18.75}},
     "anthropic-claude-opus-4-20250514": {"max_tokens": 32000, "context_window": 200000, "pricing": {"input": 15, "output": 75, "cached": 1.50, "cache_write": 18.75}},
