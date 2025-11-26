@@ -179,10 +179,10 @@ class MistralLlm(LlmBaseProvider):
 
         return toolCallSchema
     
-    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :Union[str, List[Dict[str, str]]]) -> Dict[str, str]:
         return {
             "type": "function_call_output",
             "role": "tool",
             "tool_call_id": toolCallSchema.id,
-            "content": str(content)
+            "content": content
         }

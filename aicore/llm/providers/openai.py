@@ -1,5 +1,6 @@
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
+from aicore.llm.utils import detect_image_type, is_base64
 from aicore.logger import default_stream_handler
 from aicore.const import OPENAI_NO_TEMPERATURE_MODELS, OPENAI_RESPONSE_API_MODELS
 from pydantic import model_validator
@@ -274,11 +275,16 @@ class OpenAiLlm(LlmBaseProvider):
     def default_image_template(self, img :str)->Dict[str, str]:
         # TODO this sis most likely bgged as well, fix later
         if self.use_responses_api:
+            if is_base64(img):
+                return {
+                    "type": "input_image",
+                    "image_url": f"data:image/{detect_image_type(img)};base64,{img}"
+                }
             return {
                 "type": "input_image",
-                "input_image": {"input": f"data:image/jpeg;base64,{img}"}
+                "image_url": img
             }
-        return super().default_image_template(text=img)
+        return super().default_image_template(img=img)
 
     def _to_provider_tool_schema(self, tool: ToolSchema) -> Dict[str, Any]:
         """
@@ -390,18 +396,18 @@ class OpenAiLlm(LlmBaseProvider):
         return super()._fill_tool_schema(tool_chunk)
 
     
-    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :Union[str, List[Dict[str, str]]]) -> Dict[str, str]:
         if self.use_responses_api:
             return {
                 "type": "function_call_output",
                 "call_id": toolCallSchema.id,
-                "output": str(content),
+                "output": content,
             }
         return {
             "type": "function_call_output",
             "role": "tool",
             "tool_call_id": toolCallSchema.id,
-            "content": str(content)
+            "content": content
         }
 
     def _validte_message_dict(self, message_dict: Dict[str, str]) -> bool:

@@ -1,5 +1,6 @@
 from aicore.llm.providers.anthropic.consts import BETA_1M_CONTEXT_HEADERS, CC_DEFAULT_HEADERS, CC_DEFAULT_QUERY, CC_SYSTEM_PROMPT
 from aicore.llm.providers.base_provider import LlmBaseProvider
+from aicore.llm.utils import detect_image_type, is_base64
 from aicore.models import AuthenticationError
 from aicore.logger import default_stream_handler
 from pydantic import model_validator
@@ -352,14 +353,37 @@ class AnthropicLlm(LlmBaseProvider):
         }        
         return toolCallSchema
 
-    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :Union[str, List[Dict[str, str]]]) -> Dict[str, str]:
         return {
             "role": "user",
             "content": [
                 {
                     "type": "tool_result",
                     "tool_use_id": toolCallSchema.id,
-                    "content": str(content)
+                    "content": content
                 }
             ]
         }
+
+    def default_image_template(self, img :str)->Dict[str, str]:
+        # TODO this logic needs to be mapped across other providers including BaseProvider
+        if is_base64(img):
+            print("is_base64")
+            return {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    # "media_type": "image/jpeg",
+                    "media_type": f"image/{detect_image_type(img)}",
+                    "data": img
+                }
+            }
+        else:
+            return {
+                "type": "image",
+                "source": {
+                    "type": "url",
+                    "url": img,
+                }
+            }
+

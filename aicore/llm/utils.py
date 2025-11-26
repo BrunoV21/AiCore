@@ -1,6 +1,8 @@
+import traceback
 from typing import Union
 from pathlib import Path
 import base64
+import httpx
 import re
 
 
@@ -42,34 +44,51 @@ def parse_content(text :str):
 def image_to_base64(image_path: Union[Path, str, bytes]) -> str:
     """
     Encode the image to base64.
-    
+
     Args:
-        image_path: Can be a file path (str or Path) or an already encoded base64 string
-        
+        image_path: Can be a file path (str or Path), a URL, or an already encoded base64 string.
+
     Returns:
-        Base64 encoded string of the image
+        Base64 encoded string of the image.
     """
-    # Check if input is already a base64 string
+
+    # If the string already IS base64, return it
     if isinstance(image_path, str) and is_base64(image_path):
         return image_path
-    
-    # Handle file paths
+
     try:
+        # Handle file paths
         if isinstance(image_path, (str, Path)):
             with open(image_path, "rb") as image_file:
                 return base64.b64encode(image_file.read()).decode('utf-8')
-        # Handle if bytes were directly passed
+
+        # Handle raw bytes
         elif isinstance(image_path, bytes):
             return base64.b64encode(image_path).decode('utf-8')
+
         else:
-            print(f"Error: Unsupported input type {type(image_path)}")
-            return None
-    except FileNotFoundError:
-        print(f"Error: The file {image_path} was not found.")
-        return None
+            raise TypeError(f"Unsupported input type: {type(image_path)}")
+
+    except (FileNotFoundError, OSError):
+        # ----- TODO COMPLETED: check if it's a URL -----
+        if isinstance(image_path, str) and image_path.startswith(("http://", "https://")):
+            try:
+                response = httpx.get(image_path, timeout=10)
+                response.raise_for_status()
+
+                return image_path
+
+            except Exception as e:
+                raise ValueError(f"Input looks like a URL but could not be fetched: {e}")
+
+        # Not a file and not a URL → raise
+        raise FileNotFoundError(
+            f"'{image_path}' is neither a valid file path nor a reachable URL."
+        )
+
     except Exception as e:
-        print(f"Error: {e}")
-        return None
+        print(traceback.format_exc())
+        raise RuntimeError(f"Unexpected error while converting image to base64: {e}")
 
 def is_base64(s: str) -> bool:
     """Check if a string is base64 encoded."""
@@ -83,5 +102,26 @@ def is_base64(s: str) -> bool:
         # Additional check for valid base64 by trying to decode
         base64.b64decode(s)
         return True
-    except:
+    except Exception:
         return False
+
+def detect_image_type(b64 :str)->str:
+    data = base64.b64decode(b64.split(",")[-1])
+
+    # PNG
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+
+    # JPEG
+    elif data.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+
+    # GIF
+    elif data.startswith(b"GIF8"):
+        return "gif"
+
+    # WEBP (RIFFxxxxWEBP)
+    elif data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "webp"
+
+    raise ValueError("Unkown Image Type - supported types are ['png', 'jpeg', 'git', 'webp']")
