@@ -54,13 +54,91 @@ class LlmOperationRecord(BaseModel):
         else:
             raise TypeError("response param must be [str] or [json serializable obj]")
 
+    @staticmethod
+    def _hide_image_content(content: Any) -> Any:
+        """Hide image content in message entries across different providers.
+
+        Handles image types from different providers:
+        - Base provider: type="image_url" with nested image_url object
+        - OpenAI responses API: type="input_image" with image_url field
+        - Anthropic: type="image" with nested source object
+
+        Args:
+            content: A single content entry that may be a dict or string
+
+        Returns:
+            The content with image data hidden or the original content if not an image
+        """
+        if not isinstance(content, dict):
+            return content
+
+        content_type = content.get("type")
+
+        # Check for image types from different providers
+        is_image = content_type in ("image_url", "input_image", "image")
+
+        if is_image:
+            # Create a safe copy with only type and information fields
+            hidden_content = {"type": content_type}
+            hidden_content["information"] = "image b64 content"
+            return hidden_content
+
+        return content
+
+    @classmethod
+    def _mask_images_in_messages(cls, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Mask image content in all messages' content fields.
+
+        Processes messages and checks each message's content field (which can be a list or string).
+        If content is a list, iterates through entries and hides any that are image entries.
+
+        Args:
+            messages: List of message dictionaries
+
+        Returns:
+            Messages with image content hidden
+        """
+        if not isinstance(messages, list):
+            return messages
+
+        masked_messages = []
+        for message in messages:
+            if not isinstance(message, dict):
+                masked_messages.append(message)
+                continue
+
+            message_copy = message.copy()
+            content = message_copy.get("content")
+
+            # Handle content as a list (multimodal messages)
+            if isinstance(content, list):
+                masked_content = [
+                    cls._hide_image_content(entry) for entry in content
+                ]
+                message_copy["content"] = masked_content
+
+            masked_messages.append(message_copy)
+
+        return masked_messages
+
     @field_validator(*["completion_args", "extras"])
     @classmethod
-    def json_laods_response(cls, args: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def json_loads_response(cls, args: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(args, str):
-            return json.loads(args)
-        elif isinstance(args, dict):
-            return args
+            args = json.loads(args)
+
+        if isinstance(args, dict):
+            # Process messages from both "messages" (standard) and "input" (OpenAI responses API)
+            messages = args.get("messages") or args.get("input")
+            if messages:
+                masked_messages = cls._mask_images_in_messages(messages)
+                # Update the appropriate field
+                if "messages" in args:
+                    args["messages"] = masked_messages
+                elif "input" in args:
+                    args["input"] = masked_messages
+
+        return args
 
     @model_validator(mode="after")
     def init_workspace_and_timestamp(self) -> Self:
