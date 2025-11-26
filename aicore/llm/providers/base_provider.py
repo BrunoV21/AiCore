@@ -340,12 +340,12 @@ class LlmBaseProvider(BaseModel):
     def default_image_template(self, img :str)->Dict[str, str]:
         if is_base64(img):
             return {
-                "type": "input_image",
-                "input_image": {"input": f"data:image/{detect_image_type(img)};base64,{img}"}
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{img}"}
             }
         return {
             "type": "image_url",
-            "image_url": img
+            "image_url": {"url": img}
         }
 
     def get_tool_call_content(self, tool_call_output :Union[str, Any, ImageContent])->List[Dict[str, str]]:
