@@ -4,7 +4,7 @@ from aicore.const import GROQ_OPEN_AI_OSS_MODELS
 from pydantic import model_validator
 from groq import Groq, AsyncGroq, AuthenticationError
 from groq.types.chat import ChatCompletionChunk
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 from typing_extensions import Self
 import tiktoken
 
@@ -93,11 +93,11 @@ class GroqLlm(LlmBaseProvider):
 
         return toolCallSchema
     
-    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :str) -> Dict[str, str]:
+    def _tool_call_message(self, toolCallSchema :ToolCallSchema, content :Union[str, List[Dict[str, str]]]) -> Dict[str, str]:
         return {
             "role": "tool",
             "tool_call_id": toolCallSchema.id,
-            "content": str(content)
+            "content": content
         }
     
     def _handle_reasoning_models(self):
