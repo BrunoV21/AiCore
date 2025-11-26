@@ -9,7 +9,7 @@ from aicore.llm.mcp.client import MCPClient, ToolExecutionCallback
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 from aicore.logger import _logger, default_stream_handler
 from aicore.const import REASONING_START_TOKEN, REASONING_STOP_TOKEN, STREAM_START_TOKEN, STREAM_END_TOKEN, CUSTOM_MODELS, TOOL_CALL_END_TOKEN, TOOL_CALL_START_TOKEN
-from aicore.llm.utils import parse_content, image_to_base64
+from aicore.llm.utils import detect_image_type, is_base64, parse_content, image_to_base64
 from aicore.llm.usage import UsageInfo
 from aicore.models import AuthenticationError, ModelError
 from aicore.models_metadata import METADATA
@@ -338,9 +338,14 @@ class LlmBaseProvider(BaseModel):
         }
 
     def default_image_template(self, img :str)->Dict[str, str]:
+        if is_base64(img):
+            return {
+                "type": "input_image",
+                "input_image": {"input": f"data:image/{detect_image_type(img)};base64,{img}"}
+            }
         return {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{img}"}
+            "type": "input_image",
+            "image_url": img
         }
 
     def get_tool_call_content(self, tool_call_output :Union[str, Any, ImageContent])->List[Dict[str, str]]:
@@ -576,10 +581,14 @@ class LlmBaseProvider(BaseModel):
     
     @staticmethod
     def _img_to_base64(img_path :Optional[Union[Union[str, Path, bytes], List[Union[str, Path, bytes]]]] = None):
+        if img_path is None:
+            return None
+        elif not isinstance(img_path, list):
+            img_path = [img_path]
         return [
             image_to_base64(img)
             for img in img_path
-        ] if img_path else None
+        ]
 
     def _prepare_completion_args(self,
         prompt: Union[str, List[str], List[Dict[str, str]]], 
