@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, Literal, List, Tuple, Union, Callable
 from pydantic import BaseModel, RootModel, Field
 from functools import partial, wraps
 from json_repair import repair_json
+from mcp.types import ImageContent
 from pathlib import Path
 import tiktoken
 import asyncio
@@ -341,6 +342,21 @@ class LlmBaseProvider(BaseModel):
             "type": "image_url",
             "image_url": {"url": f"data:image/jpeg;base64,{img}"}
         }
+
+    def get_tool_call_content(self, tool_call_output :Union[str, Any, ImageContent])->List[Dict[str, str]]:
+        """This serves as proxy fucnution to process and map mcp outputs to messagges llms will understand"""
+        content_block = []
+        if not isinstance(tool_call_output, list):
+            tool_call_output = [tool_call_output]
+
+        for tool_call in tool_call_output:
+            ### TODO cover more mcp response types as they are found
+            if isinstance(tool_call, ImageContent):
+                content_block.append(self.default_image_template(tool_call.data))
+            else:
+                self.default_text_template(str(tool_call_output))
+
+        return content_block
 
     def _message_content(self, prompt: Union[List[str], str], img_b64_str: Optional[List[str]] = None) -> Union[str, List[Dict]]:
         """Format message content for API requests.
@@ -844,6 +860,7 @@ class LlmBaseProvider(BaseModel):
                     
                     # Process the responses
                     for tool_call, tool_call_response in zip(tool_calls, tool_responses):
+                        tool_call_response = self.get_tool_call_content(tool_call_response)
                         tools_messages.extend([
                             self._to_provider_tool_call_schema(tool_call),
                             self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response),
@@ -858,6 +875,7 @@ class LlmBaseProvider(BaseModel):
                             tool_name=tool_call.name,
                             arguments=tool_call.arguments,
                         )
+                        tool_call_response = self.get_tool_call_content(tool_call_response)
                         tools_messages.extend([
                             self._to_provider_tool_call_schema(tool_call),
                             self._tool_call_message(toolCallSchema=tool_call, content=tool_call_response)
