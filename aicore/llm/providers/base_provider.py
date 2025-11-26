@@ -344,7 +344,7 @@ class LlmBaseProvider(BaseModel):
                 "input_image": {"input": f"data:image/{detect_image_type(img)};base64,{img}"}
             }
         return {
-            "type": "input_image",
+            "type": "image_url",
             "image_url": img
         }
 
