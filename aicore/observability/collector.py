@@ -660,6 +660,51 @@ class LlmOperationCollector(RootModel):
         return obj
 
     @classmethod
+    def _get_polars_schema(cls) -> Dict[str, Any]:
+        """
+        Generate the correct Polars schema based on LlmOperationRecord model definition.
+        This ensures consistent type inference regardless of which records are loaded first.
+
+        Returns:
+            Dictionary mapping field names to Polars data types
+        """
+        try:
+            import polars as pl
+        except ModuleNotFoundError:
+            return {}
+
+        # Define schema matching LlmOperationRecord's serialized output
+        # Based on the serialize_model method (lines 236-266)
+        return {
+            "session_id": pl.Utf8,
+            "workspace": pl.Utf8,
+            "agent_id": pl.Utf8,
+            "action_id": pl.Utf8,
+            "timestamp": pl.Utf8,
+            "operation_id": pl.Utf8,
+            "operation_type": pl.Utf8,
+            "provider": pl.Utf8,
+            "model": pl.Utf8,
+            "system_prompt": pl.Utf8,
+            "user_prompt": pl.Utf8,
+            "response": pl.Utf8,
+            "success": pl.Boolean,
+            "assistant_message": pl.Utf8,
+            "history_messages": pl.Utf8,
+            "temperature": pl.Float64,
+            "max_tokens": pl.Int64,
+            "input_tokens": pl.Int64,
+            "output_tokens": pl.Int64,
+            "cached_tokens": pl.Int64,
+            "total_tokens": pl.Int64,
+            "cost": pl.Float64,
+            "latency_ms": pl.Float64,
+            "error_message": pl.Utf8,
+            "completion_args": pl.Utf8,
+            "extras": pl.Utf8
+        }
+
+    @classmethod
     def polars_from_file(cls, storage_path: Optional[str] = None, session_id: Optional[str] = None, purge_corrupted: bool = False) -> "pl.DataFrame":  # noqa: F821
         """
         Load all records from chunked JSON files and return as a Polars DataFrame.
@@ -685,6 +730,9 @@ class LlmOperationCollector(RootModel):
             _logger.logger.warning(f"Storage path does not exist: {root_dir}")
             return pl.DataFrame()
 
+        # Get the schema definition to enforce consistent types
+        schema = cls._get_polars_schema()
+
         # Determine which session directories to process
         if session_id:
             # Load specific session only
@@ -694,9 +742,9 @@ class LlmOperationCollector(RootModel):
             # Load all sessions
             session_dirs = [d for d in root_dir.iterdir() if d.is_dir()]
 
-        # Initialize empty DataFrame to accumulate results
-        df = pl.DataFrame()
-        
+        # Initialize empty DataFrame with correct schema
+        df = pl.DataFrame(schema=schema)
+
         for session_dir in session_dirs:
             if not session_dir.exists():
                 continue
@@ -710,8 +758,8 @@ class LlmOperationCollector(RootModel):
                         chunk_data = orjson.loads(f.read())
                         if isinstance(chunk_data, list):
                             try:
-                                # Convert chunk to DataFrame and concatenate with existing
-                                chunk_df = pl.from_dicts(chunk_data)
+                                # Convert chunk to DataFrame with explicit schema to prevent type inference issues
+                                chunk_df = pl.from_dicts(chunk_data, schema=schema)
                                 df = df.vstack(chunk_df)
                             except Exception:
                                 _logger.logger.warning(f"Unexpected data format in {chunk_file}")
