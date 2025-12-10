@@ -199,8 +199,17 @@ class LlmOperationRecord(BaseModel):
         for msg in self.messages[::-1]:
             if msg.get("role") == "assistant":
                 content = msg.get("content", "")
-                if isinstance(content, list):
-                    content = "\n".join([str(entry) for entry in content])
+                if isinstance(content, str):
+                    return content
+                elif isinstance(content, list):
+                    text_parts = []
+                    for entry in content:
+                        if isinstance(entry, str):
+                            text_parts.append(entry)
+                        elif isinstance(entry, dict):
+                            if text := entry.get("text"):
+                                text_parts.append(text)
+                    return "\n".join(text_parts)
                 return content
         return ""
 
@@ -209,8 +218,17 @@ class LlmOperationRecord(BaseModel):
         for msg in self.messages[::-1]:
             if msg.get("role") == "user":
                 content = msg.get("content", "")
-                if isinstance(content, list):
-                    content = "\n".join([str(entry) for entry in content])
+                if isinstance(content, str):
+                    return content
+                elif isinstance(content, list):
+                    text_parts = []
+                    for entry in content:
+                        if isinstance(entry, str):
+                            text_parts.append(entry)
+                        elif isinstance(entry, dict):
+                            if text := entry.get("text"):
+                                text_parts.append(text)
+                    return "\n".join(text_parts)
                 return content
         return ""
 
@@ -218,11 +236,7 @@ class LlmOperationRecord(BaseModel):
     def history_messages(self) -> Optional[str]:
         return json.dumps([
             msg for msg in self.messages
-            if msg.get("content") not in [
-                self.system_prompt,
-                self.assistant_message,
-                self.user_prompt
-            ]
+            if msg.get("content")
         ], indent=4)
 
     @computed_field

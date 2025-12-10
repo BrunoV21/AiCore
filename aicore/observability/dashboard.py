@@ -29,7 +29,7 @@ SEP = "============================="
 MESSAGES_TEMPLATE = """
 {row}. TIMESTAMP: {timestamp}
 {agent}{action}
-{SEP} HISTORY ===============================
+{SEP} MESSAGES REQUEST ======================
 {history}
 
 {SEP} SYSTEM ================================
