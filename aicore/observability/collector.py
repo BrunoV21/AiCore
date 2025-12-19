@@ -291,6 +291,7 @@ class LlmOperationCollector(RootModel):
     _async_session_factory: Optional[Any] = None
     _is_sessions_initialized :set = set()
     _background_tasks: Set[asyncio.Task] = set()
+    _json_storage_enabled: bool = True
 
     # Chunked storage configuration
     _chunk_size_limit: int = int(os.environ.get("OBSERVABILITY_CHUNK_SIZE", "50"))
@@ -311,14 +312,18 @@ class LlmOperationCollector(RootModel):
 
     @model_validator(mode="after")
     def init_dbsession(self) -> Self:
+        # Check if JSON storage should be disabled (in case collector wasn't created via fom_observable_storage_path)
+        disable_json = os.environ.get("OBSERVABILITY_DISABLE_JSON", "false").lower() in ("true", "1", "yes")
+        self._json_storage_enabled = not disable_json
+
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
-            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker            
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
             from aicore.observability.models import Base
             from dotenv import load_dotenv
             load_dotenv()
-            
+
             conn_str = os.environ.get("CONNECTION_STRING")
             async_conn_str = os.environ.get("ASYNC_CONNECTION_STRING")
             
@@ -658,18 +663,31 @@ class LlmOperationCollector(RootModel):
 
         Returns:
             LlmOperationCollector instance configured with the storage path.
+
+        Environment Variables:
+            OBSERVABILITY_DISABLE_JSON: Set to "true" to disable JSON file storage while keeping SQL inserts active.
         """
         obj = cls()
-        env_path = os.environ.get("OBSERVABILITY_DATA_ROOT") or os.environ.get("OBSERVABILITY_DATA_DEFAULT_FILE")
 
-        if storage_path:
-            obj.storage_path = storage_path
-        elif env_path:
-            obj.storage_path = env_path
+        # Check if JSON storage should be disabled
+        disable_json = os.environ.get("OBSERVABILITY_DISABLE_JSON", "false").lower() in ("true", "1", "yes")
+        obj._json_storage_enabled = not disable_json
+
+        # Only set storage path if JSON storage is enabled
+        if obj._json_storage_enabled:
+            env_path = os.environ.get("OBSERVABILITY_DATA_ROOT") or os.environ.get("OBSERVABILITY_DATA_DEFAULT_FILE")
+
+            if storage_path:
+                obj.storage_path = storage_path
+            elif env_path:
+                obj.storage_path = env_path
+            else:
+                # Default to the directory (not including the filename)
+                # This supports the new chunked storage structure
+                obj.storage_path = Path(DEFAULT_OBSERVABILITY_DIR)
         else:
-            # Default to the directory (not including the filename)
-            # This supports the new chunked storage structure
-            obj.storage_path = Path(DEFAULT_OBSERVABILITY_DIR)
+            # JSON storage disabled - set storage_path to None
+            obj.storage_path = None
 
         return obj
 
@@ -836,9 +854,10 @@ class LlmOperationCollector(RootModel):
             response=response,
             extras=extras or {}
         )
-        if self.storage_path:
+        # Only write to JSON file if JSON storage is enabled and storage_path is set
+        if self._json_storage_enabled and self.storage_path:
             self._store_to_file(record)
-        
+
         self.root.append(record)
 
         return record
@@ -885,7 +904,8 @@ class LlmOperationCollector(RootModel):
             response=response,
             extras=extras or {}
         )
-        if self.storage_path:
+        # Only write to JSON file if JSON storage is enabled and storage_path is set
+        if self._json_storage_enabled and self.storage_path:
             await self._a_store_to_file(record)
 
         self.root.append(record)
