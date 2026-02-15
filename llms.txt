@@ -1,212 +1,742 @@
 # AiCore LLM Interface Documentation
 
-## Introduction
-AiCore provides a unified interface for multiple LLM providers with:
-- Provider-agnostic abstractions (10+ supported providers)
-- Configuration via YAML, environment variables, or code
-- Automatic token usage and cost tracking
-- Built-in observability and operation tracking
-- Support for synchronous and asynchronous operations
-- Advanced features like reasoning augmentation
+> A unified Python framework for interacting with multiple LLM providers, embeddings providers, and MCP servers with built-in observability and cost tracking.
 
-Supported Providers:
-- OpenAI (including GPT-4o, GPT-4.5)
-- Anthropic (Claude 3 models)
-- Mistral (Mistral Large, Codestral)
-- Google Gemini (Gemini 2.0/2.5)
-- Groq (Llama 70B, Mixtral)
-- NVIDIA (Nemotron, Nemo)
-- DeepSeek (R1 models)
-- OpenRouter (aggregated models)
-- xAI Grok (Grok-3)
+---
 
-## Configuration (LlmConfig)
-LLMs can be configured through multiple methods:
+## Installation
 
-1. YAML files (recommended for production):
-```yaml
-llm:
-  provider: "openai"
-  api_key: "your_api_key"
-  model: "gpt-4o"
-  temperature: 0.7
-  max_tokens: 1000
-  reasoner:  # Optional reasoning assistant
-    provider: "groq"
-    api_key: "your_api_key"
-    model: "deepseek-r1-distill-llama-70b"
-```
-
-2. Environment variables:
 ```bash
-LLM_PROVIDER=openai
-LLM_API_KEY=your_api_key
-LLM_MODEL=gpt-4o
-LLM_TEMPERATURE=0.7
-LLM_MAX_TOKENS=1000
+pip install core-for-ai
 ```
 
-3. Programmatically:
+### Optional Extras
+
+```bash
+# Install with all optional dependencies
+pip install core-for-ai[all]
+
+# Install with dashboard support (Plotly, Dash)
+pip install core-for-ai[dashboard]
+
+# Install with SQL support (SQLAlchemy, async drivers)
+pip install core-for-ai[sql]
+```
+
+### Requirements
+- Python 3.11, 3.12, or 3.13
+- Pydantic v2
+
+---
+
+## Basic LLM Module
+
+### Imports
+
 ```python
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+```
+
+### Synchronous Completion
+
+```python
+from aicore.llm import Llm
 from aicore.llm.config import LlmConfig
 
-# Basic config
+# Initialize with configuration
 config = LlmConfig(
     provider="openai",
     api_key="your_api_key",
     model="gpt-4o"
 )
 
-# With reasoning assistant
-reasoner_config = LlmConfig(
-    provider="groq",
-    api_key="your_api_key",
-    model="deepseek-r1-distill-llama-70b"
-)
-config = LlmConfig(
-    provider="openai",
-    api_key="your_api_key",
-    model="gpt-4o",
-    reasoner=reasoner_config
-)
-```
+llm = Llm.from_config(config)
 
-## Basic Usage
-Initialize and use the LLM:
-
-```python
-from aicore.llm import Llm
-from aicore.llm.config import LlmConfig
-
-# Initialize with config
-config = LlmConfig(provider="openai", api_key="your_api_key", model="gpt-4o")
-llm = Llm(config=config)
-
-# Synchronous completion
-response = llm.complete("Hello world")
+# Generate completion (streams by default)
+response = llm.complete("Hello, how are you?")
 print(response)
-
-# Async completion
-response = await llm.acomplete("Hello world")
-print(response)
-
-# With streaming (default)
-response = llm.complete("Explain AI in simple terms", stream=True)
-# Output streams in real-time
 
 # With system prompt
 response = llm.complete(
     "Write a poem about technology",
     system_prompt="You are a creative poet"
 )
+
+# With JSON output
+response = llm.complete(
+    "List top 3 programming languages",
+    json_output=True  # Returns dict
+)
+
+# Without streaming
+response = llm.complete("Explain AI", stream=False)
 ```
 
-## Token Usage & Cost Tracking
-Automatic token counting and cost calculation:
+### Asynchronous Completion
 
 ```python
-# Access usage information
-print(llm.usage)  # Shows current session usage
-
-# Example output:
-# Total | Cost: $0.0023 | Tokens: 342 | Prompt: 120 | Response: 222
-
-# Get detailed usage
-latest = llm.usage.latest_completion
-print(f"Cost: ${latest.cost:.4f}")
-print(f"Prompt tokens: {latest.prompt_tokens}")
-print(f"Response tokens: {latest.response_tokens}")
-
-# Pricing is automatically loaded from models_metadata.json
-# Custom pricing can be set:
-llm.usage.set_pricing(input_1m=10.0, output_1m=30.0)  # $ per 1M tokens
-```
-
-## Advanced Features
-
-### FastAPI WebSockets Integration
-```python
-from fastapi import FastAPI, WebSocket
+import asyncio
 from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
 
-app = FastAPI()
-llm = Llm(config=LlmConfig(...))
+async def main():
+    config = LlmConfig(
+        provider="openai",
+        api_key="your_api_key",
+        model="gpt-4o"
+    )
+    
+    llm = Llm.from_config(config)
+    
+    # Async completion
+    response = await llm.acomplete("Hello, how are you?")
+    print(response)
+    
+    # With system prompt
+    response = await llm.acomplete(
+        "Analyze this data",
+        system_prompt="You are a data analyst"
+    )
+    
+    # With streaming (default)
+    response = await llm.acomplete("Explain quantum computing", stream=True)
 
-@app.websocket("/chat")
-async def websocket_chat(websocket: WebSocket):
-    await websocket.accept()
-    while True:
-        message = await websocket.receive_text()
-        response = await llm.acomplete(message)
-        await websocket.send_text(response)
+asyncio.run(main())
 ```
 
-### Observability
+### Complete Method Signatures
+
 ```python
-# All operations are automatically tracked
-# Access collected data:
-from aicore.observability.collector import LlmOperationCollector
+# Synchronous
+def complete(
+    prompt: Union[str, BaseModel, RootModel],
+    system_prompt: Optional[Union[str, List[str]]] = None,
+    prefix_prompt: Optional[Union[str, List[str]]] = None,
+    img_path: Optional[Union[str, Path, bytes, List[Union[str, Path, bytes]]]] = None,
+    json_output: bool = False,
+    stream: bool = True,
+    agent_id: Optional[str] = None,
+    action_id: Optional[str] = None
+) -> Union[str, Dict]
 
-# Get all operations as DataFrame
-df = LlmOperationCollector.polars_from_db()
-
-# Filter by session
-df = LlmOperationCollector.polars_from_db(session_id="session123")
-
-# Key metrics:
-# - Latency
-# - Token usage
-# - Cost
-# - Error rates
+# Asynchronous
+async def acomplete(
+    prompt: Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
+    system_prompt: Optional[Union[str, List[str]]] = None,
+    prefix_prompt: Optional[Union[str, List[str]]] = None,
+    img_path: Optional[Union[str, Path, bytes, List[Union[str, Path, bytes]]]] = None,
+    json_output: bool = False,
+    stream: bool = True,
+    as_message_records: bool = False,
+    agent_id: Optional[str] = None,
+    action_id: Optional[str] = None
+) -> Union[str, Dict, List[Union[str, Dict[str, str]]]]
 ```
 
-### Multimodal Support
+---
+
+## LLM Configuration
+
+### LlmConfig Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `provider` | Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code"] | Yes | LLM provider identifier |
+| `model` | str | Yes | Model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022") |
+| `api_key` | Optional[str] | No | API key (can use env vars instead) |
+| `base_url` | Optional[str] | No | Custom API endpoint |
+| `temperature` | float | No | Sampling temperature (0-1, default: 0) |
+| `max_tokens` | int | No | Max completion tokens (default: 12000) |
+| `timeout` | Optional[int] | No | Request timeout in seconds |
+| `mcp_config_path` | Optional[str] | No | Path to MCP configuration JSON |
+| `tool_choice` | Union[str, Dict, None] | No | Tool calling behavior |
+| `max_tool_calls_per_response` | Optional[int] | No | Limit tool calls per response |
+| `concurrent_tool_calls` | Optional[bool] | No | Allow parallel tool calls (default: True) |
+| `reasoner` | Optional[LlmConfig] | No | Reasoning model configuration |
+| `pricing` | Optional[PricingConfig] | No | Custom pricing configuration |
+
+### YAML Configuration
+
+```yaml
+# config/config.yml
+llm:
+  provider: "openai"
+  api_key: "your_openai_api_key"
+  model: "gpt-4o"
+  temperature: 0.7
+  max_tokens: 2048
+  mcp_config_path: "./mcp_config.json"
+  max_tool_calls_per_response: 3
+
+  # Optional reasoning augmentation
+  reasoner:
+    provider: "groq"
+    api_key: "your_groq_api_key"
+    model: "deepseek-r1-distill-llama-70b"
+    temperature: 0.5
+    max_tokens: 1024
+```
+
+### Programmatic Configuration
+
 ```python
-# With image input
-response = llm.complete(
-    "Describe this image",
-    img_path="path/to/image.jpg"
+from aicore.llm.config import LlmConfig
+
+# Basic configuration
+config = LlmConfig(
+    provider="anthropic",
+    api_key="your_anthropic_key",
+    model="claude-3-5-sonnet-20241022",
+    temperature=0.7,
+    max_tokens=4096
 )
 
-# Multiple images
-response = llm.complete(
-    "Compare these two images",
-    img_path=["image1.jpg", "image2.jpg"]
-)
-```
-
-### Reasoning Augmentation
-```python
-# Configure with reasoner
+# With MCP support
 config = LlmConfig(
     provider="openai",
-    api_key="your_api_key",
+    api_key="your_openai_key",
     model="gpt-4o",
-    reasoner=LlmConfig(
-        provider="groq",
-        api_key="your_api_key",
-        model="deepseek-r1-distill-llama-70b"
+    mcp_config_path="./mcp_config.json",
+    tool_choice="auto"
+)
+
+# With reasoning augmentation
+reasoner_config = LlmConfig(
+    provider="groq",
+    api_key="your_groq_key",
+    model="deepseek-r1-distill-llama-70b"
+)
+
+config = LlmConfig(
+    provider="openai",
+    api_key="your_openai_key",
+    model="gpt-4o",
+    reasoner=reasoner_config
+)
+```
+
+### Loading from YAML File
+
+```python
+import os
+from aicore.config import Config
+from aicore.llm import Llm
+
+# Set config path via environment variable
+os.environ["CONFIG_PATH"] = "./config/config.yml"
+
+# Load and use
+config = Config.from_yaml()
+llm = Llm.from_config(config.llm)
+```
+
+---
+
+## MCP Integration
+
+### Supported MCP Servers (Examples)
+
+| Server | Description | Transport |
+|--------|-------------|-----------|
+| `@modelcontextprotocol/server-brave-search` | Brave web search | stdio |
+| `codetide-mcp-server` | Code analysis | stdio |
+| `@upstash/context7-mcp` | Context management | stdio |
+| `mcp-remote` (Exa) | AI search | SSE/remote |
+
+### MCP Configuration File
+
+```json
+{
+  "mcpServers": {
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "your-brave-api-key"
+      }
+    },
+    "codetide": {
+      "command": "uvx",
+      "args": ["--from", "codetide", "codetide-mcp-server"],
+      "env": {
+        "CODETIDE_WORKSPACE": "./"
+      }
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "exa": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.exa.ai/mcp?exaApiKey=your-exa-api-key"]
+    },
+    "websocket-server": {
+      "transport_type": "ws",
+      "url": "ws://localhost:8080",
+      "description": "Custom WebSocket MCP server"
+    },
+    "sse-server": {
+      "transport_type": "sse",
+      "url": "https://api.example.com/mcp/sse",
+      "headers": {"Authorization": "Bearer token"}
+    }
+  }
+}
+```
+
+### Transport Types
+
+| Transport | Configuration Fields |
+|-----------|----------------------|
+| **stdio** | `command`, `args`, `env`, `cwd` |
+| **WebSocket (ws)** | `url` |
+| **SSE** | `url`, `headers` |
+
+### Using MCP with LLM
+
+```python
+import asyncio
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+async def main():
+    # Configure LLM with MCP
+    config = LlmConfig(
+        provider="openai",
+        api_key="your_openai_key",
+        model="gpt-4o",
+        mcp_config_path="./mcp_config.json",
+        tool_choice="auto"  # Automatically set when mcp_config_path provided
+    )
+    
+    llm = Llm.from_config(config)
+    
+    # Make request that can use MCP tools
+    response = await llm.acomplete(
+        "Search for latest news about AI advancements",
+        system_prompt="Use available tools to gather comprehensive information"
+    )
+    print(response)
+
+asyncio.run(main())
+```
+
+### Direct MCP Client Usage
+
+```python
+import asyncio
+from aicore.llm.mcp.client import MCPClient
+
+async def main():
+    # Create MCP client from config
+    mcp = MCPClient.from_config("./mcp_config.json")
+    
+    # Connect to all servers
+    await mcp.connect()
+    
+    # Get all available tools
+    all_tools = await mcp.servers.tools
+    print(f"Available tools: {[t.name for t in all_tools]}")
+    
+    # Call a tool
+    result = await mcp.servers.call_tool(
+        "brave_web_search",
+        {"query": "Python programming"}
+    )
+    print(result)
+    
+    # Or use with context manager
+    async with MCPClient.from_config("./mcp_config.json") as mcp:
+        tools = await mcp.servers.tools
+        result = await mcp.servers.call_tool("tool_name", {"arg": "value"})
+
+asyncio.run(main())
+```
+
+---
+
+## Tool Callback
+
+### ToolExecutionCallback Type
+
+```python
+from typing import Dict, Any, Callable
+
+ToolExecutionCallback = Callable[[Dict[str, Any]], None]
+```
+
+### Callback Event Structure
+
+The callback receives events at two stages:
+
+**Started Event:**
+```python
+{
+    "stage": "started",
+    "tool_name": "brave_web_search",
+    "server_name": "brave-search",
+    "arguments": {"query": "Python programming"}
+}
+```
+
+**Concluded Event:**
+```python
+{
+    "stage": "concluded",
+    "tool_name": "brave_web_search",
+    "server_name": "brave-search",
+    "duration": 1.23,  # seconds
+    "output": [{"type": "text", "text": "..."}]
+}
+```
+
+### Passing Tool Callback
+
+```python
+import asyncio
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+from aicore.llm.mcp.client import ToolExecutionCallback
+
+def my_tool_callback(event: dict):
+    if event["stage"] == "started":
+        print(f"Tool {event['tool_name']} started on {event['server_name']}")
+    elif event["stage"] == "concluded":
+        print(f"Tool {event['tool_name']} completed in {event['duration']:.2f}s")
+
+async def main():
+    config = LlmConfig(
+        provider="openai",
+        api_key="your_key",
+        model="gpt-4o",
+        mcp_config_path="./mcp_config.json"
+    )
+    
+    llm = Llm.from_config(config)
+    
+    # Set the callback
+    llm.tool_callback = my_tool_callback
+    
+    # Or access provider directly
+    llm.provider.tool_callback = my_tool_callback
+    
+    response = await llm.acomplete("Search for AI news")
+
+asyncio.run(main())
+```
+
+---
+
+## Supported Providers
+
+### LLM Providers
+
+| Provider | Identifier | Example Models |
+|----------|------------|----------------|
+| **Anthropic** | `anthropic` | claude-3-5-sonnet-20241022, claude-3-opus-20240229 |
+| **OpenAI** | `openai` | gpt-4o, gpt-4.5, gpt-5, o1, o3-mini |
+| **Google Gemini** | `gemini` | gemini-2.0-flash, gemini-2.5-pro |
+| **Mistral** | `mistral` | mistral-large-latest, codestral-latest |
+| **Groq** | `groq` | llama-3.3-70b-versatile, deepseek-r1-distill-llama-70b |
+| **NVIDIA** | `nvidia` | meta/llama-3.1-405b-instruct, nvidia/llama-3.1-nemotron-70b |
+| **OpenRouter** | `openrouter` | openai/gpt-4o, anthropic/claude-3.5-sonnet |
+| **DeepSeek** | `deepseek` | deepseek-chat, deepseek-reasoner |
+| **xAI Grok** | `grok` | grok-3, grok-3-fast |
+| **Z.AI** | `zai` | glm-4.5-flash |
+| **Claude Code** | `claude_code` | Uses Claude CLI |
+
+### Provider-Specific Configuration
+
+**Claude Code Provider:**
+```python
+config = LlmConfig(
+    provider="claude_code",
+    model="claude-3-5-sonnet",
+    permission_mode="acceptEdits",  # Optional
+    cwd="./project",  # Working directory
+    max_turns=10,  # Optional turn limit
+    allowed_tools=["Read", "Write", "Edit"],  # Optional tool restrictions
+    cli_path="/path/to/claude"  # Optional CLI path
+)
+```
+
+### Embedding Providers
+
+| Provider | Identifier | Example Models |
+|----------|------------|----------------|
+| **OpenAI** | `openai` | text-embedding-3-small, text-embedding-3-large |
+| **Mistral** | `mistral` | mistral-embed |
+| **Groq** | `groq` | nomic-embed-text |
+| **Gemini** | `gemini` | text-embedding-004 |
+| **NVIDIA** | `nvidia` | nvidia/nv-embed-v1 |
+
+---
+
+## Costs & Usage Tracking
+
+### UsageInfo Class
+
+Access usage through `llm.usage`:
+
+```python
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+config = LlmConfig(provider="openai", api_key="key", model="gpt-4o")
+llm = Llm.from_config(config)
+
+response = llm.complete("Hello world")
+
+# Access usage information
+usage = llm.usage
+print(usage)  # Total | Cost: $0.0023 | Tokens: 342
+
+# Detailed access
+print(f"Total tokens: {usage.total_tokens}")
+print(f"Total cost: ${usage.total_cost:.4f}")
+print(f"Completions count: {len(usage.completions)}")
+
+# Latest completion details
+latest = usage.latest_completion
+print(f"Prompt tokens: {latest.prompt_tokens}")
+print(f"Response tokens: {latest.response_tokens}")
+print(f"Cached tokens: {latest.cached_tokens}")
+print(f"Cost: ${latest.cost:.6f}")
+```
+
+### CompletionUsage Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `completion_id` | str | Unique identifier for the completion |
+| `prompt_tokens` | int | Input tokens used |
+| `response_tokens` | int | Output tokens generated |
+| `cached_tokens` | int | Tokens served from cache |
+| `cache_write_tokens` | int | Tokens written to cache |
+| `cost` | float | Calculated cost in USD |
+| `total_tokens` | int | Computed: prompt + response tokens |
+
+### Automatic Pricing
+
+Pricing is automatically loaded from `aicore/models_metadata.json`:
+
+```python
+# Pricing is auto-loaded based on provider-model combination
+config = LlmConfig(provider="openai", model="gpt-4o")
+llm = Llm.from_config(config)
+
+# Access pricing config
+pricing = llm.usage.pricing
+print(f"Input: ${pricing.input}/1M tokens")
+print(f"Output: ${pricing.output}/1M tokens")
+```
+
+### Custom Pricing
+
+```python
+# Set custom pricing rates (per 1M tokens)
+llm.usage.set_pricing(input_1m=10.0, output_1m=30.0)
+
+# Or via PricingConfig
+from aicore.models_metadata import PricingConfig
+
+config = LlmConfig(
+    provider="openai",
+    model="gpt-4o",
+    pricing=PricingConfig(
+        input=5.0,   # $5 per 1M input tokens
+        output=15.0  # $15 per 1M output tokens
     )
 )
-
-# The main LLM will use the reasoner automatically
-response = llm.complete("Solve this complex math problem")
 ```
 
-### JSON Output
+---
+
+## Observability
+
+### LlmOperationCollector
+
+The collector automatically tracks all LLM operations:
+
 ```python
-# Get structured JSON responses
-response = llm.complete(
-    "List top 3 programming languages with their pros",
-    json_output=True
+from aicore.observability.collector import LlmOperationCollector
+
+# Create collector with default JSON storage
+collector = LlmOperationCollector.fom_observable_storage_path(
+    storage_path="./observability_data"
 )
-# Returns parsed JSON/dict
+
+# Or use environment variable
+# OBSERVABILITY_DATA_ROOT=./observability_data
+collector = LlmOperationCollector.fom_observable_storage_path()
 ```
 
+### LlmOperationRecord Fields
 
-## Best Practices
-1. Use YAML configs for production deployments
-2. Monitor usage with llm.usage
-3. Enable observability for performance tracking
-4. Use async (acomplete) for web applications
-5. Set reasonable max_tokens based on model limits
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | str | Session identifier |
+| `workspace` | str | Workspace name |
+| `agent_id` | str | Agent identifier |
+| `action_id` | str | Action identifier |
+| `operation_id` | str | Unique operation ID (ULID) |
+| `timestamp` | str | ISO timestamp |
+| `operation_type` | str | "completion", "acompletion", "acompletion.tool_call" |
+| `provider` | str | Provider name |
+| `model` | str | Model name (computed) |
+| `system_prompt` | str | System prompt used (computed) |
+| `user_prompt` | str | Last user message (computed) |
+| `response` | str | Model response |
+| `input_tokens` | int | Prompt tokens |
+| `output_tokens` | int | Response tokens |
+| `cached_tokens` | int | Cached tokens |
+| `total_tokens` | int | Total tokens (computed) |
+| `cost` | float | Operation cost |
+| `latency_ms` | float | Response latency |
+| `error_message` | str | Error if failed |
+| `success` | bool | Operation success (computed) |
+
+### JSON Storage Configuration
+
+Default storage uses chunked JSON files organized by session:
+
+```
+observability_data/
+├── session_id_1/
+│   ├── 0.json
+│   ├── 1.json
+│   └── fallback/
+├── session_id_2/
+│   └── 0.json
+└── llm_operations.json
+```
+
+**Environment Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OBSERVABILITY_DATA_ROOT` | `observability_data` | Root directory for data |
+| `OBSERVABILITY_CHUNK_SIZE` | `50` | Records per chunk file |
+| `OBSERVABILITY_WRITE_BUFFER_SIZE` | `5` | Write buffer size |
+| `OBSERVABILITY_DISABLE_JSON` | `false` | Disable JSON storage |
+
+### SQL Database Configuration
+
+For production, use SQL storage:
+
+```bash
+# Install SQL support
+pip install core-for-ai[sql]
+```
+
+**Environment Variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `CONNECTION_STRING` | Sync database connection string |
+| `ASYNC_CONNECTION_STRING` | Async database connection string |
+| `DB_POOL_SIZE` | Connection pool size (default: 10) |
+| `DB_MAX_OVERFLOW` | Max overflow connections (default: 20) |
+| `DB_POOL_TIMEOUT` | Pool timeout seconds (default: 30) |
+| `DB_POOL_RECYCLE` | Connection recycle seconds (default: 3600) |
+| `DB_POOL_PRE_PING` | Enable pre-ping (default: true) |
+
+**Example connection strings:**
+
+```bash
+# PostgreSQL
+CONNECTION_STRING=postgresql://user:pass@localhost:5432/aicore
+ASYNC_CONNECTION_STRING=postgresql+asyncpg://user:pass@localhost:5432/aicore
+
+# SQL Server
+CONNECTION_STRING=mssql+pyodbc://user:pass@server:1433/db?driver=ODBC+Driver+17+for+SQL+Server
+ASYNC_CONNECTION_STRING=mssql+aioodbc://user:pass@server:1433/db?driver=ODBC+Driver+17+for+SQL+Server
+```
+
+### Polars DataFrame Export
+
+```python
+import polars as pl
+from aicore.observability.collector import LlmOperationCollector
+
+# Load all records as Polars DataFrame
+df = LlmOperationCollector.polars_from_file(
+    storage_path="./observability_data"
+)
+
+# Filter by session
+df = LlmOperationCollector.polars_from_file(
+    storage_path="./observability_data",
+    session_id="specific_session_id"
+)
+
+# Query operations
+recent = df.filter(pl.col("timestamp") > "2025-01-01")
+errors = df.filter(pl.col("error_message") != "")
+expensive = df.filter(pl.col("cost") > 0.01).sort("cost", descending=True)
+```
+
+### Observability Dashboard
+
+```python
+from aicore.observability import ObservabilityDashboard
+
+# Create and run dashboard
+dashboard = ObservabilityDashboard(storage="observability_data")
+dashboard.run_server(port=8050)
+```
+
+Dashboard features:
+- Requests per minute
+- Average response time
+- Token usage trends
+- Error rates
+- Cost projections
+- Provider/model breakdown
+
+---
+
+## Environment Variables Summary
+
+| Variable | Description |
+|----------|-------------|
+| `CONFIG_PATH` | Path to YAML config file |
+| `MCP_JSON_PATH` | Path to MCP config JSON |
+| `WORKSPACE` | Default workspace name |
+| `AICORE_TIMEOUT` | Default request timeout (seconds) |
+| `OBSERVABILITY_DATA_ROOT` | Observability data directory |
+| `OBSERVABILITY_DISABLE_JSON` | Disable JSON storage |
+| `CONNECTION_STRING` | SQL database connection string |
+| `ASYNC_CONNECTION_STRING` | Async SQL connection string |
+
+---
+
+## Quick Reference
+
+```python
+# Minimal example
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+config = LlmConfig(provider="openai", api_key="key", model="gpt-4o")
+llm = Llm.from_config(config)
+response = llm.complete("Hello")
+
+# With MCP
+config = LlmConfig(
+    provider="openai",
+    api_key="key",
+    model="gpt-4o",
+    mcp_config_path="./mcp_config.json"
+)
+llm = Llm.from_config(config)
+response = await llm.acomplete("Search for AI news")
+
+# Check costs
+print(llm.usage.total_cost)
+
+# Access observability
+from aicore.observability.collector import LlmOperationCollector
+df = LlmOperationCollector.polars_from_file()
+```
