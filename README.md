@@ -7,14 +7,15 @@
 ![PyPI - Version](https://img.shields.io/pypi/v/core-for-ai?style=flat)
 [![Pydantic v2](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/pydantic/pydantic/main/docs/badge/v2.json)](https://pydantic.dev)
 
-✨ **AiCore** is a comprehensive framework for integrating various language models and embedding providers with a unified interface. It supports both synchronous and asynchronous operations for generating text completions and embeddings, featuring:  
+✨ **AiCore** is a comprehensive framework for integrating various language models and embedding providers with a unified interface. It supports both synchronous and asynchronous operations for generating text completions and embeddings, featuring:
 
-🔌 **Multi-provider support**: OpenAI, Mistral, Groq, Gemini, NVIDIA, and more  
-🤖 **Reasoning augmentation**: Enhance traditional LLMs with reasoning capabilities  
-📊 **Observability**: Built-in monitoring and analytics  
-💰 **Token tracking**: Detailed usage metrics and cost tracking  
-⚡ **Flexible deployment**: Chainlit, FastAPI, and standalone script support  
+🔌 **Multi-provider support**: OpenAI, Mistral, Groq, Gemini, NVIDIA, and more
+🤖 **Reasoning augmentation**: Enhance traditional LLMs with reasoning capabilities
+📊 **Observability**: Built-in monitoring and analytics
+💰 **Token tracking**: Detailed usage metrics and cost tracking
+⚡ **Flexible deployment**: Chainlit, FastAPI, and standalone script support
 🛠️ **MCP Integration**: Connect to Model Control Protocol servers via tool calling
+🖥️ **Claude Code provider**: Use your Claude subscription directly via the Claude Agents Python SDK
 
 ## Quickstart
 ```bash
@@ -91,6 +92,7 @@ more examples available at [examples/](https://github.com/BrunoV21/AiCore/tree/m
 - NVIDIA
 - OpenRouter
 - DeepSeek
+- **Claude Code** *(via Claude Agents Python SDK — use your Claude subscription, no API key required)*
 
 **Embedding Providers:**
 - OpenAI
@@ -183,6 +185,87 @@ Example MCP configuration (`mcp_config.json`):
   }
 }
 ```
+
+## Claude Code Provider
+
+AiCore supports routing completions through your **Claude subscription** via the [Claude Agents Python SDK](https://platform.claude.com/docs/en/agent-sdk/python). This means you can use Claude's full tool-use capabilities — Bash, file editing, web search, and any MCP-connected tools — without an Anthropic API key, just your existing Claude account.
+
+### Prerequisites
+
+```bash
+# 1. Install the Claude Code CLI
+npm install -g @anthropic-ai/claude-code
+
+# 2. Authenticate once
+claude login
+
+# 3. The Python SDK is included in AiCore's dependencies automatically
+```
+
+### Quickstart
+
+```python
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+config = LlmConfig(
+    provider="claude_code",
+    model="claude-sonnet-4-5-20250929",
+    # No api_key needed — auth is handled by the CLI
+)
+
+llm = Llm.from_config(config)
+response = await llm.acomplete("List all Python files in this project")
+print(response)
+```
+
+### Config File
+
+```yaml
+# config.yml
+llm:
+  provider: "claude_code"
+  model: "claude-sonnet-4-5-20250929"
+
+  # Optional settings
+  permission_mode: "bypassPermissions"  # default — all tools allowed
+  cwd: "/path/to/your/project"          # working directory for the CLI
+  max_turns: 10                          # limit agentic turns
+  mcp_config_path: "./mcp_config.json"  # pass through an MCP config
+```
+
+### Tool Call Streaming & Callbacks
+
+The provider streams tool call events in real time, matching the same pattern used by all other AiCore providers:
+
+```python
+def on_tool_event(event: dict):
+    if event["stage"] == "started":
+        print(f"→ Calling tool: {event['tool_name']}")
+    elif event["stage"] == "concluded":
+        status = "✗" if event["is_error"] else "✓"
+        print(f"{status} Tool finished: {event['tool_name']}")
+
+llm.tool_callback = on_tool_event
+
+response = await llm.acomplete("Find all TODO comments in the codebase")
+```
+
+`TOOL_CALL_START_TOKEN` / `TOOL_CALL_END_TOKEN` are also emitted via the `stream_handler`, so any existing stream consumer works without changes.
+
+### Supported Models
+
+| Model | Max Tokens | Context Window |
+|---|---|---|
+| `claude-sonnet-4-5-20250929` | 64 000 | 200 000 |
+| `claude-opus-4-6` | 32 000 | 200 000 |
+| `claude-haiku-4-5-20251001` | 64 000 | 200 000 |
+| `claude-3-7-sonnet-latest` | 64 000 | 200 000 |
+| `claude-3-5-sonnet-latest` | 8 192 | 200 000 |
+
+> **Note:** `temperature`, `max_tokens`, and `api_key` are ignored for this provider — the Claude Code CLI controls model parameters internally. Cost is reported from `ResultMessage.total_cost_usd` rather than computed from a pricing table.
+
+---
 
 ## Usage
 
