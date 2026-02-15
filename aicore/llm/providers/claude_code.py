@@ -22,7 +22,8 @@ import tiktoken
 from pydantic import BaseModel, RootModel, model_validator
 from typing_extensions import Self
 
-from aicore.const import STREAM_END_TOKEN, STREAM_START_TOKEN
+from aicore.const import STREAM_END_TOKEN, STREAM_START_TOKEN, TOOL_CALL_END_TOKEN, TOOL_CALL_START_TOKEN
+from aicore.logger import _logger
 from aicore.llm.config import LlmConfig
 from aicore.llm.mcp.models import ToolCallSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
@@ -123,8 +124,9 @@ class ClaudeCodeLlm(LlmBaseProvider):
             "mcp_servers": self._build_mcp_servers(),
         }
 
-        if self.config.permission_mode is not None:
-            opts["permission_mode"] = self.config.permission_mode
+        # Default to bypassPermissions so all tools are allowed unless the caller
+        # explicitly restricts them via config.permission_mode.
+        opts["permission_mode"] = self.config.permission_mode or "bypassPermissions"
         if self.config.cwd is not None:
             opts["cwd"] = self.config.cwd
         if self.config.max_turns is not None:
@@ -236,8 +238,8 @@ class ClaudeCodeLlm(LlmBaseProvider):
         agent_id: Optional[str] = None,
         action_id: Optional[str] = None,
     ) -> Union[str, Dict, List]:
-        from claude_agent_sdk import query
-        from claude_agent_sdk.types import StreamEvent
+        from claude_agent_sdk import query, AssistantMessage, UserMessage
+        from claude_agent_sdk.types import StreamEvent, ToolResultBlock
         from claude_agent_sdk._errors import CLIConnectionError, CLINotFoundError, ProcessError
 
         if prefix_prompt is not None:
@@ -270,6 +272,9 @@ class ClaudeCodeLlm(LlmBaseProvider):
         error_message: Optional[str] = None
         collected_messages: List[Any] = []
 
+        # Maps tool_id -> tool_name for active tool calls
+        _active_tools: Dict[str, str] = {}
+
         try:
             if stream:
                 await _call_handler(stream_handler, STREAM_START_TOKEN)
@@ -277,10 +282,53 @@ class ClaudeCodeLlm(LlmBaseProvider):
             with _unset_env("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"):
                 async for msg in query(prompt=prompt_str, options=options):
                     collected_messages.append(msg)
-                    if stream and isinstance(msg, StreamEvent):
-                        delta = self._extract_stream_delta(msg)
-                        if delta:
-                            await _call_handler(stream_handler, delta)
+
+                    if isinstance(msg, StreamEvent):
+                        raw = msg.event
+
+                        # Detect tool call starting
+                        if raw.get("type") == "content_block_start":
+                            cb = raw.get("content_block", {})
+                            if cb.get("type") == "tool_use":
+                                tool_name = cb.get("name", "unknown")
+                                tool_id = cb.get("id", "")
+                                _active_tools[tool_id] = tool_name
+                                _logger.logger.info(
+                                    f"Claude Code | Starting tool call: '{tool_name}' (id={tool_id})"
+                                )
+                                if self.tool_callback:
+                                    self.tool_callback({
+                                        "stage": "started",
+                                        "tool_name": tool_name,
+                                        "tool_id": tool_id,
+                                    })
+                                await _call_handler(stream_handler, TOOL_CALL_START_TOKEN)
+
+                        # Stream text deltas
+                        elif stream:
+                            delta = self._extract_stream_delta(msg)
+                            if delta:
+                                await _call_handler(stream_handler, delta)
+
+                    elif isinstance(msg, UserMessage):
+                        content = msg.content if isinstance(msg.content, list) else []
+                        for block in content:
+                            if isinstance(block, ToolResultBlock):
+                                tool_name = _active_tools.pop(block.tool_use_id, block.tool_use_id)
+                                is_err = bool(block.is_error)
+                                status = "error" if is_err else "success"
+                                _logger.logger.info(
+                                    f"Claude Code | Tool '{tool_name}' concluded ({status})"
+                                )
+                                if self.tool_callback:
+                                    self.tool_callback({
+                                        "stage": "concluded",
+                                        "tool_name": tool_name,
+                                        "tool_id": block.tool_use_id,
+                                        "is_error": is_err,
+                                        "content": block.content,
+                                    })
+                                await _call_handler(stream_handler, TOOL_CALL_END_TOKEN)
 
             if stream:
                 await _call_handler(stream_handler, STREAM_END_TOKEN)
