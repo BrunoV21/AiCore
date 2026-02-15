@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Union, Dict
+from typing import List, Literal, Optional, Union, Dict
 from typing_extensions import Self
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 
@@ -6,8 +6,8 @@ from aicore.const import DEFAULT_TIMEOUT, SUPPORTED_REASONER_PROVIDERS, SUPPORTE
 from aicore.models_metadata import METADATA, PricingConfig
 
 class LlmConfig(BaseModel):
-    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai"]
-    api_key :Optional[str]
+    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code"]
+    api_key :Optional[str]=None
     model :str
     base_url :Optional[str]=None
     temperature :float=0
@@ -23,6 +23,14 @@ class LlmConfig(BaseModel):
 
     timeout :Optional[int]=DEFAULT_TIMEOUT
     tool_use :Optional[bool]=None
+    
+    # claude_code-specific fields (ignored by other providers)
+    permission_mode: Optional[str] = None
+    cwd: Optional[str] = None
+    max_turns: Optional[int] = None
+    allowed_tools: Optional[List[str]] = None
+    cli_path: Optional[str] = None
+    # Note: temperature and max_tokens are ignored for the claude_code provider
 
     model_config = ConfigDict(
         extra="allow",

@@ -1,0 +1,28 @@
+llm:
+  provider: "claude_code"
+  model: "claude-sonnet-4-5-20250929"
+
+  # Optional: working directory for the Claude Code CLI
+  # cwd: "/path/to/your/project"
+
+  # Optional: permission mode ("default", "acceptEdits", "plan", "bypassPermissions")
+  # permission_mode: "acceptEdits"
+
+  # Optional: maximum number of agentic turns
+  # max_turns: 10
+
+  # Optional: list of tools Claude Code is allowed to use
+  # allowed_tools:
+  #   - "Read"
+  #   - "Write"
+  #   - "Bash"
+
+  # Optional: custom path to the Claude Code CLI executable
+  # cli_path: "/usr/local/bin/claude"
+
+  # Optional: path to an MCP config file
+  # mcp_config_path: "/path/to/mcp_config.json"
+
+  # Note: api_key, temperature, and max_tokens are ignored for this provider.
+  # Authentication is handled by the Claude Code CLI.
+  # Install the CLI with: npm install -g @anthropic-ai/claude-code

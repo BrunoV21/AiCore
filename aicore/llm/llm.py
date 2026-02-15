@@ -24,7 +24,8 @@ from aicore.llm.providers import (
     GeminiLlm,
     DeepSeekLlm,
     ZaiLlm,
-    GrokLlm
+    GrokLlm,
+    ClaudeCodeLlm,
 )
 
 class Providers(Enum):
@@ -34,10 +35,11 @@ class Providers(Enum):
     MISTRAL :MistralLlm=MistralLlm
     NVIDIA :NvidiaLlm=NvidiaLlm
     GROQ :GroqLlm=GroqLlm
-    GROK :GrokLlm=GrokLlm 
+    GROK :GrokLlm=GrokLlm
     GEMINI :GeminiLlm=GeminiLlm
     DEEPSEEK :DeepSeekLlm=DeepSeekLlm
     ZAI :ZaiLlm=ZaiLlm
+    CLAUDE_CODE :ClaudeCodeLlm=ClaudeCodeLlm
 
     def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
         """
@@ -321,7 +323,7 @@ class Llm(BaseModel):
         prefix_prompt = self._reason(prompt, None, prefix_prompt, img_path, stream, agent_id, action_id)
         return self.provider.complete(prompt, sys_prompt, prefix_prompt, img_path, json_output, stream, agent_id, action_id)
     
-    @retry_on_failure
+    # @retry_on_failure
     @raise_on_balance_error
     async def acomplete(self,
                  prompt :Union[str, List[str], List[Dict[str, str]], BaseModel, RootModel],
