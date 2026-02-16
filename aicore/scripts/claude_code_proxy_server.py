@@ -229,6 +229,38 @@ def to_json(obj: Any) -> str:
 # ===========================================================================
 # Message serialisation
 # ===========================================================================
+def _block_to_dict(block: Any) -> dict:
+    """Convert a content block dataclass to a dict, injecting a 'type' discriminator.
+
+    The SDK block dataclasses (TextBlock, ToolUseBlock, ToolResultBlock,
+    ThinkingBlock) have NO 'type' field of their own.  Without an explicit
+    discriminator the remote deserialiser cannot reconstruct the correct class.
+    """
+    try:
+        from claude_agent_sdk.types import TextBlock, ToolUseBlock, ToolResultBlock  # type: ignore
+        try:
+            from claude_agent_sdk.types import ThinkingBlock  # type: ignore
+        except ImportError:
+            ThinkingBlock = None
+
+        if isinstance(block, TextBlock):
+            return {"type": "text", "text": block.text}
+        if isinstance(block, ToolUseBlock):
+            return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+        if isinstance(block, ToolResultBlock):
+            return {"type": "tool_result", "tool_use_id": block.tool_use_id,
+                    "content": block.content, "is_error": block.is_error}
+        if ThinkingBlock is not None and isinstance(block, ThinkingBlock):
+            return {"type": "thinking", "thinking": block.thinking,
+                    "signature": getattr(block, "signature", "")}
+    except Exception:
+        pass
+    # Fallback: use dataclasses.asdict (type field will be absent but at least the data is there)
+    if dataclasses.is_dataclass(block) and not isinstance(block, type):
+        return dataclasses.asdict(block)
+    return {"type": "unknown", "raw": str(block)}
+
+
 def serialize_message(msg: Any) -> tuple[str, str]:
     """Return (event_type, json_data_string) for an SDK message."""
     try:
@@ -257,6 +289,23 @@ def serialize_message(msg: Any) -> tuple[str, str]:
     else:
         event_type = "unknown"
         return event_type, to_json({"raw": str(msg)})
+
+    # For messages that carry content block lists, inject type discriminators so
+    # the remote deserialiser can reconstruct the correct block class.
+    if isinstance(msg, (AssistantMessage, UserMessage)):
+        raw_content = msg.content
+        if isinstance(raw_content, list):
+            serialized_content = [_block_to_dict(b) for b in raw_content]
+        else:
+            serialized_content = raw_content  # str passthrough for UserMessage
+
+        # Build the rest of the message dict via dataclasses.asdict (excludes content)
+        if dataclasses.is_dataclass(msg) and not isinstance(msg, type):
+            data = dataclasses.asdict(msg)
+        else:
+            data = getattr(msg, "__dict__", {})
+        data["content"] = serialized_content
+        return event_type, to_json(data)
 
     if dataclasses.is_dataclass(msg) and not isinstance(msg, type):
         data = dataclasses.asdict(msg)
@@ -367,11 +416,13 @@ def check_claude_auth() -> None:
     global CLAUDE_CLI_VERSION
     print("[4/5] Checking Claude CLI authentication...")
     try:
+        # On Windows, .CMD/.BAT files require shell=True to be invoked correctly.
         result = subprocess.run(
             ["claude", "--version"],
             capture_output=True,
             text=True,
             timeout=10,
+            shell=(sys.platform == "win32"),
         )
         CLAUDE_CLI_VERSION = (result.stdout or "").strip() or "unknown"
         combined = (result.stdout + result.stderr).lower()
@@ -837,6 +888,43 @@ def setup_tunnel(args: argparse.Namespace) -> None:
 
 
 # ===========================================================================
+# Pydantic models (module-level — required for Pydantic v2 / FastAPI 0.100+)
+# ===========================================================================
+try:
+    from pydantic import BaseModel as _PydanticBaseModel
+
+    class HealthResponse(_PydanticBaseModel):
+        status: str
+        server_version: str
+        claude_cli_version: str
+        uptime_seconds: float
+        active_streams: int
+        authenticated: bool
+
+    class CapabilitiesResponse(_PydanticBaseModel):
+        server_version: str
+        sdk_version: str
+        supported_options: List[str]
+        server_enforced_defaults: Dict[str, Any]
+        cwd_whitelist: List[str]
+
+    class QueryRequest(_PydanticBaseModel):
+        prompt: str
+        system_prompt: Optional[str] = None
+        options: Optional[Dict[str, Any]] = None
+
+        def model_post_init(self, __context: Any) -> None:
+            if self.options is None:
+                self.options = {}
+
+except ImportError:
+    # pydantic not installed yet — will fail later when build_app() is called
+    HealthResponse = None  # type: ignore[assignment,misc]
+    CapabilitiesResponse = None  # type: ignore[assignment,misc]
+    QueryRequest = None  # type: ignore[assignment,misc]
+
+
+# ===========================================================================
 # FastAPI application
 # ===========================================================================
 def build_app(args: argparse.Namespace):
@@ -844,7 +932,6 @@ def build_app(args: argparse.Namespace):
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import StreamingResponse
     from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-    from pydantic import BaseModel
 
     # CORS is wide-open by default because this is a developer tool not intended
     # to be exposed publicly without a proper bearer token in place.
@@ -898,29 +985,6 @@ def build_app(args: argparse.Namespace):
             raise HTTPException(status_code=401, detail="Invalid or missing Bearer token")
 
     # ------------------------------------------------------------------
-    # Pydantic models
-    # ------------------------------------------------------------------
-    class HealthResponse(BaseModel):
-        status: str
-        server_version: str
-        claude_cli_version: str
-        uptime_seconds: float
-        active_streams: int
-        authenticated: bool
-
-    class CapabilitiesResponse(BaseModel):
-        server_version: str
-        sdk_version: str
-        supported_options: List[str]
-        server_enforced_defaults: Dict[str, Any]
-        cwd_whitelist: List[str]
-
-    class QueryRequest(BaseModel):
-        prompt: str
-        system_prompt: Optional[str] = None
-        options: Optional[Dict[str, Any]] = {}
-
-    # ------------------------------------------------------------------
     # GET /health — no auth
     # ------------------------------------------------------------------
     @app.get("/health", response_model=HealthResponse)
@@ -962,10 +1026,10 @@ def build_app(args: argparse.Namespace):
     # POST /query — auth required, SSE streaming
     # ------------------------------------------------------------------
     @app.post("/query")
-    async def query_endpoint(req: QueryRequest, request: Request, _=Depends(verify_token)):
+    async def query_endpoint(req: QueryRequest, _=Depends(verify_token)):
         from claude_agent_sdk import query as sdk_query, ClaudeAgentOptions  # type: ignore
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = "unknown"
         opts_dict: Dict[str, Any] = dict(req.options or {})
 
         # --- CWD whitelist enforcement ---
@@ -1080,7 +1144,7 @@ def build_app(args: argparse.Namespace):
 # Startup banner
 # ===========================================================================
 def print_banner(args: argparse.Namespace) -> None:
-    masked_token = PROXY_TOKEN[:8] + "..." if len(PROXY_TOKEN) >= 8 else PROXY_TOKEN
+    masked_token = PROXY_TOKEN#PROXY_TOKEN[:8] + "..." if len(PROXY_TOKEN) >= 8 else PROXY_TOKEN
     local_url = f"http://{args.host}:{args.port}"
     tunnel_display = TUNNEL_URL if TUNNEL_URL else "N/A"
     cwd_display = args.cwd if args.cwd else "unrestricted"
@@ -1123,6 +1187,15 @@ def print_banner(args: argparse.Namespace) -> None:
 # ===========================================================================
 def main(argv: Optional[List[str]] = None) -> None:
     global SERVER_START_TIME
+
+    # On Windows, stdout/stderr may default to cp1252 which cannot encode box-drawing
+    # characters used in the startup banners. Force UTF-8 with a safe fallback.
+    if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
     args = parse_args(argv)
 
