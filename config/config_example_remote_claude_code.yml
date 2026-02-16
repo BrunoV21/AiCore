@@ -1,0 +1,35 @@
+llm:
+  provider: remote_claude_code
+
+  # URL of the running Claude Code Proxy Server.
+  # Start the proxy with: aicore-proxy-server --port 8080 --tunnel none
+  # Or via module:        python -m aicore.scripts.claude_code_proxy_server
+  base_url: "http://localhost:8080"
+
+  # Bearer token (the CLAUDE_PROXY_TOKEN printed at proxy startup).
+  api_key: "your_proxy_token_here"
+
+  # Claude model to use. The proxy forwards this to the Claude Code CLI.
+  model: "claude-opus-4-5"
+
+  # Optional: working directory for Claude Code on the proxy machine.
+  # The proxy server must have this path in its --allowed-cwd-paths whitelist.
+  cwd: "/path/to/project"
+
+  # Optional: permission mode passed to ClaudeAgentOptions on the proxy.
+  # Values: "bypassPermissions" (default), "acceptEdits", "default"
+  permission_mode: "bypassPermissions"
+
+  # Optional: maximum number of agentic turns before the session ends.
+  max_turns: 10
+
+  # Optional: list of tool names Claude is permitted to use.
+  # Omit to allow all tools.
+  allowed_tools:
+    - "Bash"
+    - "Read"
+    - "Write"
+
+  # Optional: set to true to skip the startup GET /health connectivity check.
+  # Useful in production when the proxy server is known to be running.
+  skip_health_check: false
