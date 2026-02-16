@@ -8,12 +8,15 @@ The Provider System enables seamless integration with multiple LLM and embedding
 AiCore currently supports the following providers:
 
 1. [OpenAI](./openai.md) - GPT models and embeddings
-2. [Anthropic](./anthropic.md) - Claude models
+2. [Anthropic](./anthropic.md) - Claude models via API
 3. [Gemini](./gemini.md) - Google's Gemini models
 4. [Groq](./groq.md) - Ultra-fast inference
 5. [Mistral](./mistral.md) - Open-weight models
 6. [NVIDIA](./nvidia.md) - NVIDIA AI Foundation models
 7. [OpenRouter](./openrouter.md) - Unified API for multiple providers
+8. [Claude Code](./claude-code.md) - Claude subscription via CLI, no API key required
+   - `claude_code` — local CLI on the same machine
+   - `remote_claude_code` — remote access via `aicore-proxy-server`
 
 ## Key Features
 

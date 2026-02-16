@@ -15,7 +15,7 @@
 💰 **Token tracking**: Detailed usage metrics and cost tracking
 ⚡ **Flexible deployment**: Chainlit, FastAPI, and standalone script support
 🛠️ **MCP Integration**: Connect to Model Control Protocol servers via tool calling
-🖥️ **Claude Code provider**: Use your Claude subscription directly via the Claude Agents Python SDK
+🖥️ **Claude Code provider**: Use your Claude subscription locally or remotely via the Claude Agents Python SDK — no API key required
 
 ## Quickstart
 ```bash
@@ -92,7 +92,8 @@ more examples available at [examples/](https://github.com/BrunoV21/AiCore/tree/m
 - NVIDIA
 - OpenRouter
 - DeepSeek
-- **Claude Code** *(via Claude Agents Python SDK — use your Claude subscription, no API key required)*
+- **Claude Code** *(local — via Claude Agents Python SDK, no API key required)*
+- **Remote Claude Code** *(remote — connects to a `aicore-proxy-server` over HTTP)*
 
 **Embedding Providers:**
 - OpenAI
@@ -188,21 +189,36 @@ Example MCP configuration (`mcp_config.json`):
 
 ## Claude Code Provider
 
-AiCore supports routing completions through your **Claude subscription** via the [Claude Agents Python SDK](https://platform.claude.com/docs/en/agent-sdk/python). This means you can use Claude's full tool-use capabilities — Bash, file editing, web search, and any MCP-connected tools — without an Anthropic API key, just your existing Claude account.
+AiCore supports routing completions through your **Claude subscription** via the [Claude Agents Python SDK](https://platform.claude.com/docs/en/agent-sdk/python). No Anthropic API key is required — auth is handled entirely by the Claude Code CLI. This is exposed through two providers and an optional proxy server:
 
-### Prerequisites
+| Component | Description |
+|---|---|
+| `claude_code` | **Local provider** — runs the Claude Code CLI on the same machine as AiCore |
+| `remote_claude_code` | **Remote provider** — connects over HTTP to a `aicore-proxy-server` instance |
+| `aicore-proxy-server` | **Proxy server** — wraps the local CLI as a FastAPI SSE service, shareable over a network |
+
+Both providers share the same `acomplete()` / `complete()` interface and emit identical tool-call streaming events — you can switch between them with a single config change.
+
+---
+
+### Local Provider (`claude_code`)
+
+Runs `claude-agent-sdk` directly on the machine where AiCore is executing.
+
+#### Prerequisites
 
 ```bash
-# 1. Install the Claude Code CLI
+# 1. Install the Claude Code CLI (requires Node.js 18+)
 npm install -g @anthropic-ai/claude-code
 
 # 2. Authenticate once
 claude login
 
-# 3. The Python SDK is included in AiCore's dependencies automatically
+# 3. Install AiCore (the Python SDK is included automatically)
+pip install core-for-ai
 ```
 
-### Quickstart
+#### Quickstart
 
 ```python
 from aicore.llm import Llm
@@ -219,24 +235,164 @@ response = await llm.acomplete("List all Python files in this project")
 print(response)
 ```
 
-### Config File
+#### Config File
 
 ```yaml
-# config.yml
+# config/config_example_claude_code.yml
 llm:
   provider: "claude_code"
   model: "claude-sonnet-4-5-20250929"
 
-  # Optional settings
-  permission_mode: "bypassPermissions"  # default — all tools allowed
-  cwd: "/path/to/your/project"          # working directory for the CLI
-  max_turns: 10                          # limit agentic turns
-  mcp_config_path: "./mcp_config.json"  # pass through an MCP config
+  # Optional
+  permission_mode: "bypassPermissions"   # default — all tools allowed
+  cwd: "/path/to/your/project"           # working directory for the CLI
+  max_turns: 10                           # limit agentic turns
+  mcp_config_path: "./mcp_config.json"   # pass through an MCP config file
+  cli_path: "/usr/local/bin/claude"      # override if CLI is not on PATH
+  allowed_tools:
+    - "Read"
+    - "Write"
+    - "Bash"
 ```
+
+---
+
+### Proxy Server (`aicore-proxy-server`)
+
+The proxy server wraps `claude-agent-sdk` in a FastAPI SSE service so Claude Code can be accessed remotely over HTTP. Useful when:
+
+- The Claude Code CLI is authenticated on a **different machine** (e.g. a dev box, a server, or WSL)
+- You want to **share a single Claude subscription** across multiple AiCore clients
+- Your AiCore workload runs in a **container or cloud environment** that cannot run the CLI directly
+
+#### Installation (server-side only)
+
+```bash
+# Install AiCore with the claude-server extras
+pip install core-for-ai[claude-server]
+
+# Also install the Claude Code CLI and authenticate
+npm install -g @anthropic-ai/claude-code
+claude login
+```
+
+The `[claude-server]` extra installs `fastapi`, `uvicorn[standard]`, and `python-dotenv`. `pyngrok` is optional and only needed for the ngrok tunnel mode.
+
+#### Starting the Server
+
+```bash
+# Minimal — binds to 127.0.0.1:8080, prompts for tunnel choice interactively
+aicore-proxy-server
+
+# Fully configured
+aicore-proxy-server \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --token my-secret-token \
+  --tunnel none \
+  --cwd /path/to/project \
+  --log-level INFO
+
+# Or via Python module
+python -m aicore.scripts.claude_code_proxy_server --port 8080 --tunnel none
+```
+
+On first run the bearer token is auto-generated and printed. Set `CLAUDE_PROXY_TOKEN` in your environment or `.env` file to reuse it across restarts, or pass `--token` explicitly.
+
+#### CLI Reference
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Bind address |
+| `--port` | `8080` | TCP port |
+| `--token` | *(auto-generated)* | Bearer token; also reads `CLAUDE_PROXY_TOKEN` env var |
+| `--tunnel` | *(prompt)* | `none` / `ngrok` / `cloudflare` / `ssh` |
+| `--tunnel-port` | same as `--port` | Remote port for SSH tunnels |
+| `--cwd` | *(unrestricted)* | Force a working directory for all Claude sessions |
+| `--allowed-cwd-paths` | *(any)* | Whitelist of `cwd` values clients may request |
+| `--log-level` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `--cors-origins` | `*` | Allowed CORS origins |
+
+#### Tunnel Support
+
+When `--tunnel` is omitted the server prompts interactively at startup.
+
+| Mode | Requirement | Notes |
+|---|---|---|
+| `none` | — | Local network only |
+| `ngrok` | `pip install pyngrok` | Auth token is stored in the OS credential store on first run and loaded automatically on subsequent runs |
+| `cloudflare` | `cloudflared` binary on PATH | Quick tunnel, ephemeral URL |
+| `ssh` | SSH access to a VPS | Prints the `ssh -R` command; no extra software needed |
+
+#### API Endpoints
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/health` | None | Server status, uptime, Claude CLI version, active stream count |
+| `GET` | `/capabilities` | Bearer | Supported options and server-enforced defaults |
+| `POST` | `/query` | Bearer | Stream a `claude-agent-sdk` query as SSE |
+| `DELETE` | `/query/{session_id}` | Bearer | *(501 stub — reserved for future WebSocket-based cancellation)* |
+
+---
+
+### Remote Provider (`remote_claude_code`)
+
+Connects AiCore to a running `aicore-proxy-server` over HTTP SSE. The remote provider reconstructs the SDK message stream locally, giving the same `acomplete()` / `complete()` interface as the local provider — no Claude Code CLI needed on the client side.
+
+#### Prerequisites (client-side)
+
+```bash
+pip install core-for-ai   # no CLI or claude-server extras required
+```
+
+The proxy server must be running and reachable before instantiating the provider (a `GET /health` check is performed automatically at startup, controllable via `skip_health_check`).
+
+#### Quickstart
+
+```python
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+config = LlmConfig(
+    provider="remote_claude_code",
+    model="claude-sonnet-4-5-20250929",
+    base_url="http://your-proxy-host:8080",   # or a tunnel URL
+    api_key="your_proxy_token",               # CLAUDE_PROXY_TOKEN from server startup
+)
+
+llm = Llm.from_config(config)
+response = await llm.acomplete("Summarise this codebase")
+print(response)
+```
+
+#### Config File
+
+```yaml
+# config/config_example_remote_claude_code.yml
+llm:
+  provider: "remote_claude_code"
+  model: "claude-sonnet-4-5-20250929"
+  base_url: "http://your-proxy-host:8080"   # or the ngrok / cloudflare tunnel URL
+  api_key: "your_proxy_token"               # CLAUDE_PROXY_TOKEN printed at server startup
+
+  # Optional — forwarded to the proxy server
+  permission_mode: "bypassPermissions"
+  cwd: "/path/to/project"                   # must be in server's --allowed-cwd-paths
+  max_turns: 10
+  allowed_tools:
+    - "Bash"
+    - "Read"
+    - "Write"
+
+  # Skip the GET /health connectivity check at startup
+  skip_health_check: false
+```
+
+---
 
 ### Tool Call Streaming & Callbacks
 
-The provider streams tool call events in real time, matching the same pattern used by all other AiCore providers:
+Both `claude_code` and `remote_claude_code` emit identical tool-call events:
 
 ```python
 def on_tool_event(event: dict):
@@ -251,7 +407,7 @@ llm.tool_callback = on_tool_event
 response = await llm.acomplete("Find all TODO comments in the codebase")
 ```
 
-`TOOL_CALL_START_TOKEN` / `TOOL_CALL_END_TOKEN` are also emitted via the `stream_handler`, so any existing stream consumer works without changes.
+`TOOL_CALL_START_TOKEN` / `TOOL_CALL_END_TOKEN` are also emitted via `stream_handler`, so any existing stream consumer works without changes.
 
 ### Supported Models
 
@@ -263,7 +419,7 @@ response = await llm.acomplete("Find all TODO comments in the codebase")
 | `claude-3-7-sonnet-latest` | 64 000 | 200 000 |
 | `claude-3-5-sonnet-latest` | 8 192 | 200 000 |
 
-> **Note:** `temperature`, `max_tokens`, and `api_key` are ignored for this provider — the Claude Code CLI controls model parameters internally. Cost is reported from `ResultMessage.total_cost_usd` rather than computed from a pricing table.
+> **Note:** `temperature`, `max_tokens`, and `api_key` are ignored by both providers — the Claude Code CLI controls model parameters internally. Cost is reported from `ResultMessage.total_cost_usd` rather than computed from a pricing table.
 
 ---
 
