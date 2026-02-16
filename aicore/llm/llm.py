@@ -26,6 +26,7 @@ from aicore.llm.providers import (
     ZaiLlm,
     GrokLlm,
     ClaudeCodeLlm,
+    RemoteClaudeCodeLlm,
 )
 
 class Providers(Enum):
@@ -40,6 +41,7 @@ class Providers(Enum):
     DEEPSEEK :DeepSeekLlm=DeepSeekLlm
     ZAI :ZaiLlm=ZaiLlm
     CLAUDE_CODE :ClaudeCodeLlm=ClaudeCodeLlm
+    REMOTE_CLAUDE_CODE :RemoteClaudeCodeLlm=RemoteClaudeCodeLlm
 
     def get_instance(self, config: LlmConfig) -> LlmBaseProvider:
         """

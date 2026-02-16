@@ -6,9 +6,11 @@ from aicore.const import DEFAULT_TIMEOUT, SUPPORTED_REASONER_PROVIDERS, SUPPORTE
 from aicore.models_metadata import METADATA, PricingConfig
 
 class LlmConfig(BaseModel):
-    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code"]
+    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code", "remote_claude_code"]
+    # For remote_claude_code: api_key is used as the Bearer token for the proxy server
     api_key :Optional[str]=None
     model :str
+    # For remote_claude_code: base_url is the proxy server URL (e.g. "http://localhost:8080")
     base_url :Optional[str]=None
     temperature :float=0
     max_tokens :int=12000
@@ -29,8 +31,13 @@ class LlmConfig(BaseModel):
     cwd: Optional[str] = None
     max_turns: Optional[int] = None
     allowed_tools: Optional[List[str]] = None
+    # cli_path is a server-side concern; RemoteClaudeCodeLlm ignores this field
     cli_path: Optional[str] = None
     # Note: temperature and max_tokens are ignored for the claude_code provider
+
+    # remote_claude_code: set True to skip the startup GET /health connectivity check
+    # (useful in production or when the proxy server is known to be up)
+    skip_health_check: Optional[bool] = False
 
     model_config = ConfigDict(
         extra="allow",
