@@ -21,6 +21,9 @@ pip install core-for-ai[dashboard]
 
 # Install with SQL support (SQLAlchemy, async drivers)
 pip install core-for-ai[sql]
+
+# Install the Claude Code proxy server (FastAPI + SSE)
+pip install core-for-ai[claude-server]
 ```
 
 ### Requirements
@@ -142,7 +145,7 @@ async def acomplete(
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `provider` | Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code"] | Yes | LLM provider identifier |
+| `provider` | Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code", "remote_claude_code"] | Yes | LLM provider identifier |
 | `model` | str | Yes | Model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022") |
 | `api_key` | Optional[str] | No | API key (can use env vars instead) |
 | `base_url` | Optional[str] | No | Custom API endpoint |
@@ -155,6 +158,12 @@ async def acomplete(
 | `concurrent_tool_calls` | Optional[bool] | No | Allow parallel tool calls (default: True) |
 | `reasoner` | Optional[LlmConfig] | No | Reasoning model configuration |
 | `pricing` | Optional[PricingConfig] | No | Custom pricing configuration |
+| `permission_mode` | Optional[str] | No | Claude Code permission mode (`"default"`, `"acceptEdits"`, `"bypassPermissions"`) — `claude_code` / `remote_claude_code` only |
+| `cwd` | Optional[str] | No | Working directory for Claude Code session — `claude_code` / `remote_claude_code` only |
+| `max_turns` | Optional[int] | No | Max agentic turns per call — `claude_code` / `remote_claude_code` only |
+| `allowed_tools` | Optional[List[str]] | No | Allowlisted tool names for Claude Code — `claude_code` / `remote_claude_code` only |
+| `cli_path` | Optional[str] | No | Override path to `claude` binary — `claude_code` only |
+| `skip_health_check` | Optional[bool] | No | Skip proxy `/health` check on init — `remote_claude_code` only |
 
 ### YAML Configuration
 
@@ -444,22 +453,117 @@ asyncio.run(main())
 | **DeepSeek** | `deepseek` | deepseek-chat, deepseek-reasoner |
 | **xAI Grok** | `grok` | grok-3, grok-3-fast |
 | **Z.AI** | `zai` | glm-4.5-flash |
-| **Claude Code** | `claude_code` | Uses Claude CLI |
+| **Claude Code (local)** | `claude_code` | claude-sonnet-4-5-20250929, claude-opus-4-6, … |
+| **Claude Code (remote)** | `remote_claude_code` | claude-sonnet-4-5-20250929, claude-opus-4-6, … |
 
 ### Provider-Specific Configuration
 
-**Claude Code Provider:**
+**`claude_code` — local CLI provider (no API key required):**
 ```python
+# Prerequisites: npm install -g @anthropic-ai/claude-code && claude login
 config = LlmConfig(
     provider="claude_code",
-    model="claude-3-5-sonnet",
-    permission_mode="acceptEdits",  # Optional
-    cwd="./project",  # Working directory
-    max_turns=10,  # Optional turn limit
-    allowed_tools=["Read", "Write", "Edit"],  # Optional tool restrictions
-    cli_path="/path/to/claude"  # Optional CLI path
+    model="claude-sonnet-4-5-20250929",
+    permission_mode="acceptEdits",   # "default" | "acceptEdits" | "bypassPermissions"
+    cwd="./project",                 # working directory for the session
+    max_turns=10,                    # agentic turn limit (default: unlimited)
+    allowed_tools=["Read", "Write", "Edit"],  # restrict available tools
+    cli_path="/usr/local/bin/claude",         # override claude binary path
+    mcp_config_path="./mcp_config.json"       # pass MCP servers to the agent
 )
 ```
+
+```yaml
+# YAML equivalent
+llm:
+  provider: "claude_code"
+  model: "claude-sonnet-4-5-20250929"
+  permission_mode: "acceptEdits"
+  cwd: "./project"
+  max_turns: 10
+```
+
+**`remote_claude_code` — connects to a remote `aicore-proxy-server` over HTTP SSE:**
+```python
+config = LlmConfig(
+    provider="remote_claude_code",
+    model="claude-sonnet-4-5-20250929",
+    base_url="http://your-proxy-host:8080",   # proxy server address
+    api_key="your_proxy_bearer_token",        # Bearer token set on the server
+    permission_mode="acceptEdits",
+    cwd="./project",
+    max_turns=10,
+    allowed_tools=["Read", "Write", "Edit"],
+    skip_health_check=False  # set True to skip GET /health on init
+)
+```
+
+```yaml
+# YAML equivalent
+llm:
+  provider: "remote_claude_code"
+  model: "claude-sonnet-4-5-20250929"
+  base_url: "http://your-proxy-host:8080"
+  api_key: "your_proxy_bearer_token"
+  permission_mode: "acceptEdits"
+```
+
+---
+
+## Claude Code Proxy Server
+
+`aicore-proxy-server` is a FastAPI + SSE service that wraps `claude-agent-sdk` and exposes it over HTTP, enabling `remote_claude_code` clients to use a Claude CLI that lives on a different machine.
+
+### Installation
+
+```bash
+pip install core-for-ai[claude-server]
+```
+
+### Starting the server
+
+```bash
+# Local only (no tunnel)
+aicore-proxy-server --port 8080 --tunnel none
+
+# With ngrok tunnel (token stored in OS credential store on first use)
+aicore-proxy-server --port 8080 --tunnel ngrok
+
+# With Cloudflare tunnel
+aicore-proxy-server --port 8080 --tunnel cloudflare
+
+# With SSH reverse tunnel
+aicore-proxy-server --port 8080 --tunnel ssh --ssh-host user@remote-host --ssh-remote-port 9090
+```
+
+### CLI options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--port` | `8080` | Port to listen on |
+| `--tunnel` | `none` | Tunnel mode: `none`, `ngrok`, `cloudflare`, `ssh` |
+| `--token` | auto-generated | Bearer token for authentication |
+| `--allowed-cwd` | (none) | Comma-separated list of whitelisted working directories |
+| `--ssh-host` | — | `user@host` for SSH tunnel mode |
+| `--ssh-remote-port` | — | Remote port for SSH tunnel |
+
+### API endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check — returns `{"status": "ok"}` |
+| `POST` | `/query` | Execute a prompt; returns an SSE stream of SDK messages |
+
+### ngrok auth token persistence
+
+On first use of `--tunnel ngrok`, the server prompts for the ngrok auth token if `NGROK_AUTH_TOKEN` is not set. The token is stored in the OS credential store:
+
+- **Windows** — Windows Credential Manager (PasswordVault via PowerShell)
+- **macOS** — Keychain (`security` CLI)
+- **Linux** — Secret Service (`secret-tool`)
+- **Fallback** — `keyring` Python library
+
+On subsequent runs the token is retrieved automatically.
 
 ### Embedding Providers
 
@@ -709,6 +813,7 @@ Dashboard features:
 | `OBSERVABILITY_DISABLE_JSON` | Disable JSON storage |
 | `CONNECTION_STRING` | SQL database connection string |
 | `ASYNC_CONNECTION_STRING` | Async SQL connection string |
+| `NGROK_AUTH_TOKEN` | ngrok auth token for `aicore-proxy-server --tunnel ngrok` (stored in OS credential store after first prompt) |
 
 ---
 
@@ -732,6 +837,24 @@ config = LlmConfig(
 )
 llm = Llm.from_config(config)
 response = await llm.acomplete("Search for AI news")
+
+# Claude Code local (no API key)
+config = LlmConfig(
+    provider="claude_code",
+    model="claude-sonnet-4-5-20250929"
+)
+llm = Llm.from_config(config)
+response = await llm.acomplete("Explain this codebase")
+
+# Claude Code remote (via aicore-proxy-server)
+config = LlmConfig(
+    provider="remote_claude_code",
+    model="claude-sonnet-4-5-20250929",
+    base_url="http://proxy-host:8080",
+    api_key="your_proxy_token"
+)
+llm = Llm.from_config(config)
+response = await llm.acomplete("Explain this codebase")
 
 # Check costs
 print(llm.usage.total_cost)
