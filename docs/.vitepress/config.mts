@@ -12,7 +12,7 @@ export default withMermaid(
       nav: [
         { text: 'Home', link: '/' },
         { text: 'Quickstart', link: '/quickstart/index.md' },
-        { text: 'News', link: '/news/mcp-integration.md' },
+        { text: 'News', link: '/news/claude-code-provider.md' },
         { text: 'Configuration', link: '/config/index.md' },
         { text: 'LLM System', link: '/llm/index.md' },
         { text: 'Providers', link: '/providers/index.md' },
@@ -29,7 +29,8 @@ export default withMermaid(
               text: 'Quickstart', 
               items: [
                 { text: 'Installation', link: '/quickstart/installation.md' },
-                { text: 'First Request', link: '/quickstart/first-request.md' }
+                { text: 'First Request', link: '/quickstart/first-request.md' },
+                { text: 'Claude Code Quickstart', link: '/quickstart/claude-code.md' }
               ]
             }
           ]
@@ -37,6 +38,7 @@ export default withMermaid(
         {
           text: 'News',
           items: [
+            { text: 'Claude Code Provider', link: '/news/claude-code-provider.md' },
             { text: 'MCP Integration', link: '/news/mcp-integration.md' }
           ]
         },
@@ -55,7 +57,8 @@ export default withMermaid(
             { text: 'Retry Mechanism', link: '/llm/retry.md' },
             { text: 'Base Provider', link: '/llm/base_provider.md' },
             { text: 'Models Metadata', link: '/llm/models_metadata.md' },
-            { text: 'MCP Integration', link: '/llm/mcp.md' }
+            { text: 'MCP Integration', link: '/llm/mcp.md' },
+            { text: 'Claude Code Providers', link: '/llm/claude-code.md' }
           ]
         },
         {
@@ -70,7 +73,9 @@ export default withMermaid(
             { text: 'NVIDIA', link: '/providers/nvidia.md' },
             { text: 'Deepseek', link: '/providers/deepseek.md' },
             { text: 'Grok', link: '/providers/grok.md' },
-            { text: 'OpenRouter', link: '/providers/openrouter.md' }
+            { text: 'OpenRouter', link: '/providers/openrouter.md' },
+            { text: 'Claude Code (Local)', link: '/providers/claude-code.md' },
+            { text: 'Claude Code (Remote)', link: '/providers/claude-code.md#remote-provider-remote-claude-code' }
           ]
         },
         {

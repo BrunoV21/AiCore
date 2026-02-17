@@ -12,6 +12,10 @@ graph TD
     B --> D[Anthropic]
     B --> E[Groq]
     B --> F[Other Providers]
+    B --> CC[ClaudeCodeLlm]
+    B --> RC[RemoteClaudeCodeLlm]
+    RC -->|HTTP SSE| PS[aicore-proxy-server]
+    PS --> CC
     A --> G[Usage Tracking]
     A --> H[Observability]
     A --> I[Retry Mechanism]
@@ -100,6 +104,7 @@ collector.record_completion(
 
 - [Configuration Guide](../config/llmconfig.md)
 - [Provider Details](../providers/)
+- [Claude Code Providers](claude-code.md)
 - [Usage Tracking](usage.md)
 - [Retry Mechanism](retry.md)
 - [Models Metadata](models_metadata.md)

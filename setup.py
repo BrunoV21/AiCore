@@ -8,11 +8,13 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 install_requires = (here / "requirements.txt").read_text(encoding="utf-8").splitlines()
 requirements_dashboard = (here / "requirements-dashboard.txt").read_text(encoding="utf-8").splitlines()
 requirements_sql = (here / "requirements-sql.txt").read_text(encoding="utf-8").splitlines()
+requirements_claude_server = (here / "requirements-claude-server.txt").read_text(encoding="utf-8").splitlines()
 
 # Define extras
 extras_require = {
     "dashboard": requirements_dashboard,
     "sql": requirements_sql,
+    "claude-server": requirements_claude_server,
 }
 extras_require["all"] = sorted(set(req for group in extras_require.values() for req in group))
 
@@ -33,6 +35,11 @@ setup(
     },
     install_requires=install_requires,
     extras_require=extras_require,
+    entry_points={
+        "console_scripts": [
+            "aicore-proxy-server=aicore.scripts.claude_code_proxy_server:main",
+        ],
+    },
     classifiers=(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
