@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional, Union, Dict
 from typing_extensions import Self
-from pydantic import BaseModel, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field
 
 from aicore.const import DEFAULT_TIMEOUT, SUPPORTED_REASONER_PROVIDERS, SUPPORTED_REASONER_MODELS
 from aicore.models_metadata import METADATA, PricingConfig
@@ -18,7 +18,7 @@ class LlmConfig(BaseModel):
     pricing :Optional[PricingConfig]=None
     _context_window :Optional[int]=None
 
-    mcp_config_path :Optional[str]=None
+    mcp_config :Optional[str]=Field(default=None, alias="mcp_config_path")
     tool_choice :Union[str, Dict, None]=None
     max_tool_calls_per_response :Optional[int]=None
     concurrent_tool_calls :Optional[bool]=True
