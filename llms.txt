@@ -817,6 +817,75 @@ Dashboard features:
 
 ---
 
+## Multi-Turn Conversation History with `as_message_records`
+
+When building agentic flows, the **application** is responsible for maintaining conversation context across turns. AiCore supports this via the `as_message_records=True` parameter on `acomplete()`, which returns the full list of messages from the current execution — including tool calls and tool results — as OpenAI-style message dicts.
+
+You can then append a new user message to that list and pass it back as the `prompt` for the next call, preserving the entire conversation chain.
+
+> Full working example: [examples/async_llm_call_with_mcp.py](https://raw.githubusercontent.com/BrunoV21/AiCore/refs/heads/main/examples/async_llm_call_with_mcp.py)
+
+### Message Record Format
+
+Each record is a dict with a `role` key:
+
+| Role | Fields | Description |
+|------|--------|-------------|
+| `assistant` | `content`, `tool_calls` (optional) | Model response text and/or tool invocations |
+| `tool` | `tool_call_id`, `content` | Result returned by a tool execution |
+
+### Example
+
+```python
+import asyncio
+from aicore.llm import Llm
+from aicore.llm.config import LlmConfig
+
+async def main():
+    config = LlmConfig(
+        provider="openai",
+        api_key="your_key",
+        model="gpt-4o",
+        mcp_config_path="./mcp_config.json",
+    )
+    llm = Llm.from_config(config)
+
+    # Turn 1 — get message records back
+    conversation = await llm.acomplete(
+        prompt="Search for the latest AI news",
+        system_prompt="Use available tools to find information.",
+        as_message_records=True,
+    )
+    # conversation is a list like:
+    # [
+    #   {"role": "assistant", "content": null, "tool_calls": [...]},
+    #   {"role": "tool", "tool_call_id": "call_abc", "content": "..."},
+    #   {"role": "assistant", "content": "Here are the results..."},
+    # ]
+
+    # Turn 2 — append a follow-up and send the whole history back
+    conversation.append({
+        "role": "user",
+        "content": "Which of those stories will have the biggest long-term impact?",
+    })
+
+    follow_up = await llm.acomplete(
+        prompt=conversation,
+        system_prompt="Use available tools to find information.",
+        as_message_records=True,
+    )
+
+    # Merge into a single timeline
+    full_history = conversation + follow_up
+    print(f"Total messages in history: {len(full_history)}")
+
+asyncio.run(main())
+```
+
+This pattern works with all providers (`openai`, `anthropic`, `claude_code`, `remote_claude_code`, etc.) and is the recommended way to build multi-turn agentic workflows where AiCore handles execution and the application owns the conversation state.
+
+---
+
 ## Quick Reference
 
 ```python
