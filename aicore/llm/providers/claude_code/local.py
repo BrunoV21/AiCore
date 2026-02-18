@@ -412,8 +412,8 @@ class ClaudeCodeLlm(ClaudeCodeBase):
             opts["max_turns"] = self.config.max_turns
         if self.config.allowed_tools is not None:
             opts["allowed_tools"] = self.config.allowed_tools
-        if self.config.permissions is not None:
-            opts["permissions"] = self.config.permissions
+        if self.config.disallowed_tools is not None:
+            opts["disallowed_tools"] = self.config.disallowed_tools
         if self.config.cli_path is not None:
             opts["cli_path"] = self.config.cli_path
 
