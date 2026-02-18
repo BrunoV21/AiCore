@@ -21,7 +21,7 @@ llm:
   # cli_path: "/usr/local/bin/claude"
 
   # Optional: path to an MCP config file
-  # mcp_config_path: "/path/to/mcp_config.json"
+  # mcp_config: "/path/to/mcp_config.json"
 
   # Note: api_key, temperature, and max_tokens are ignored for this provider.
   # Authentication is handled by the Claude Code CLI.

@@ -34,7 +34,7 @@ This example demonstrates how to make asynchronous LLM calls with MCP (Multi-Com
 
 ```yaml
 llm:
-  mcp_config_path: "./mcp_config.json"
+  mcp_config: "./mcp_config.json"
   temperature: 0
   max_tokens: 8192
   provider: "deepseek"
@@ -59,7 +59,7 @@ async def main():
     print("LLM Configuration:")
     print(json.dumps(config.llm.model_dump(), indent=4))
     print("\nMCP Configuration:")
-    with open(config.llm.mcp_config_path) as f:
+    with open(config.llm.mcp_config) as f:
         print(json.dumps(json.load(f), indent=4))
     
     # Initialize LLM with MCP config
@@ -109,7 +109,7 @@ The example will:
 
 ## Troubleshooting
 
-- **Missing MCP Config**: Ensure `mcp_config_path` is set in your LLM config
+- **Missing MCP Config**: Ensure `mcp_config` is set in your LLM config
 - **Connection Issues**: Verify MCP servers are running and accessible
 - **Tool Calling Errors**: Check tool schemas match expected formats
 - **API Errors**: Validate your LLM provider API key and model name

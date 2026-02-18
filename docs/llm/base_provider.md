@@ -65,7 +65,7 @@ config = LlmConfig(
     model="gpt-4",
     temperature=0.7,
     max_tokens=1000,
-    mcp_config_path="path/to/mcp_config.json",  # Optional MCP configuration
+    mcp_config="path/to/mcp_config.json",  # Optional MCP configuration
     timeout=30.0
 )
 ```

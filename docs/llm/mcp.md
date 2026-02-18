@@ -24,7 +24,7 @@ Configure MCP servers in your LLM config:
 
 ```yaml
 llm:
-  mcp_config_path: "./mcp_config.json"  # Path to MCP configuration
+  mcp_config: "./mcp_config.json"  # Path to MCP configuration
   max_tool_calls_per_response: 3       # Maximum tool calls per LLM response
 ```
 

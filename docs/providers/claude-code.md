@@ -50,7 +50,7 @@ llm:
   permission_mode: "bypassPermissions"   # default — all tools allowed
   cwd: "/path/to/your/project"
   max_turns: 10
-  mcp_config_path: "./mcp_config.json"
+  mcp_config: "./mcp_config.json"
   cli_path: "/usr/local/bin/claude"      # override if not on PATH
   allowed_tools:
     - "Read"
@@ -69,7 +69,7 @@ llm:
 | `max_turns` | int | `None` | Max agentic turns before session ends |
 | `allowed_tools` | list[str] | `None` | Tool names Claude may use (all allowed if omitted) |
 | `cli_path` | string | `None` | Absolute path to the `claude` binary |
-| `mcp_config_path` | string | `None` | Path to an MCP config JSON file |
+| `mcp_config` | string | `None` | Path to an MCP config JSON file |
 
 > `api_key`, `temperature`, and `max_tokens` are silently ignored — the CLI controls model parameters internally.
 
