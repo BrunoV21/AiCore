@@ -26,7 +26,7 @@ ClaudeCodeLlm (provider name: ``"claude_code"``)
           model: "claude-sonnet-4-5-20250929"
 
     Optional config fields: ``permission_mode``, ``cwd``, ``max_turns``,
-    ``allowed_tools``, ``cli_path``, ``mcp_config_path``.
+    ``allowed_tools``, ``cli_path``, ``mcp_config``.
 
 RemoteClaudeCodeLlm (provider name: ``"remote_claude_code"``)
     Connects to a running **Claude Code Proxy Server** over HTTP SSE.

@@ -58,7 +58,7 @@ Optional:
     ``max_turns``        — maximum number of agentic turns
     ``allowed_tools``    — list of tool names Claude may use
     ``cli_path``         — absolute path to the ``claude`` binary if not on PATH
-    ``mcp_config_path``  — path to an MCP config JSON file
+    ``mcp_config``  — path to an MCP config JSON file
 
 Example config (YAML)
 ---------------------
@@ -70,7 +70,7 @@ Example config (YAML)
       permission_mode: "bypassPermissions"
       cwd: "/path/to/project"
       max_turns: 10
-      mcp_config_path: "./mcp_config.json"
+      mcp_config: "./mcp_config.json"
 
 Example usage (Python)
 ----------------------
@@ -384,11 +384,28 @@ class ClaudeCodeLlm(ClaudeCodeBase):
     # MCP bridge
     # ------------------------------------------------------------------
     def _build_mcp_servers(self) -> Any:
-        """Return the mcp_servers value to pass to ClaudeAgentOptions."""
-        mcp_config_path = getattr(self.config, "mcp_config_path", None)
-        if mcp_config_path:
-            return mcp_config_path  # SDK accepts a path string directly
-        return {}
+        """Return the mcp_servers value to pass to ClaudeAgentOptions.
+
+        ClaudeAgentOptions.mcp_servers accepts:
+        - ``str`` / ``Path`` — file path, passed straight to the CLI
+        - ``dict[str, McpServerConfig]`` — flat map of {server_name: config}
+
+        When mcp_config is a dict with a ``mcpServers`` wrapper (the standard
+        JSON config-file format), we unwrap the inner dict so the SDK receives
+        the expected flat ``{name: config}`` mapping.
+        """
+        mcp_config = getattr(self.config, "mcp_config", None)
+        if not mcp_config:
+            return {}
+        # File path — SDK passes it as-is to --mcp-config
+        if isinstance(mcp_config, (str, Path)):
+            return mcp_config
+        # Dict: unwrap the {"mcpServers": {...}} wrapper if present
+        if isinstance(mcp_config, dict):
+            if "mcpServers" in mcp_config:
+                return mcp_config["mcpServers"]
+            return mcp_config
+        return mcp_config
 
     # ------------------------------------------------------------------
     # Options builder

@@ -49,7 +49,7 @@ SDK.  No Anthropic API key is needed.
           model: "claude-sonnet-4-5-20250929"
 
     Optional fields: ``permission_mode``, ``cwd``, ``max_turns``,
-    ``allowed_tools``, ``cli_path``, ``mcp_config_path``.
+    ``allowed_tools``, ``cli_path``, ``mcp_config``.
 
 ``"remote_claude_code"``  →  ``RemoteClaudeCodeLlm``
     Connects to a running ``aicore-proxy-server`` over HTTP SSE.  Use this

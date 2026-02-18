@@ -18,7 +18,7 @@ class LlmConfig(BaseModel):
     pricing :Optional[PricingConfig]=None
     _context_window :Optional[int]=None
 
-    mcp_config :str | Dict[str, Any] | None=Field(default=None, alias="mcp_config_path")
+    mcp_config :str | Dict[str, Any] | None=Field(default=None, alias="mcp_config")
     tool_choice :Union[str, Dict, None]=None
     max_tool_calls_per_response :Optional[int]=None
     concurrent_tool_calls :Optional[bool]=True
@@ -92,7 +92,7 @@ class LlmConfig(BaseModel):
     @field_validator("tool_choice", mode="before")
     @classmethod
     def auto_tool_choice_from_mcp(cls, kwargs :Dict)->Dict:
-        if kwargs and kwargs.get("mcp_config_path") and not kwargs.get("tool_choice"):
+        if kwargs and kwargs.get("mcp_config") and not kwargs.get("tool_choice"):
             kwargs["tool_choice"] = "auto"
         return kwargs
     

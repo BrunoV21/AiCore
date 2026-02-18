@@ -129,7 +129,7 @@ llm:
   temperature: 0.1
   max_tokens: 1028
   reasonning_effort: "high"
-  mcp_config_path: "./mcp_config.json" # Path to MCP configuration
+  mcp_config: "./mcp_config.json" # Path to MCP configuration
   max_tool_calls_per_response: 3 # Optional limit on tool calls
 ```
 config examples for the multiple providers are included in the [config dir](https://github.com/BrunoV21/AiCore/tree/main/config)
@@ -247,7 +247,7 @@ llm:
   permission_mode: "bypassPermissions"   # default — all tools allowed
   cwd: "/path/to/your/project"           # working directory for the CLI
   max_turns: 10                           # limit agentic turns
-  mcp_config_path: "./mcp_config.json"   # pass through an MCP config file
+  mcp_config: "./mcp_config.json"   # pass through an MCP config file
   cli_path: "/usr/local/bin/claude"      # override if CLI is not on PATH
   allowed_tools:
     - "Read"

@@ -294,7 +294,7 @@ class LlmBaseProvider(BaseModel):
 
     @property
     def mcp(self)->MCPClient:
-        if self.config.mcp_config_path and self._mcp is None:
+        if self.config.mcp_config and self._mcp is None:
             self._mcp = MCPClient.from_config(self.config.mcp_config, tool_callback=self.tool_callback)
         elif self._mcp is None:
             self._mcp = MCPClient(tool_callback=self.tool_callback)
