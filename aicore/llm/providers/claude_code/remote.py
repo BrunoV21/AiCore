@@ -208,6 +208,8 @@ class RemoteClaudeCodeLlm(ClaudeCodeBase):
             options["cwd"] = self.config.cwd
         if self.config.max_turns is not None:
             options["max_turns"] = self.config.max_turns
+        if self.config.permissions is not None:
+            options["config"] = self.config.permissions
         if self.config.allowed_tools is not None:
             options["allowed_tools"] = self.config.allowed_tools
         # cli_path is a server-side concern and must NOT be sent to the proxy

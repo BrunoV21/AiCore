@@ -31,6 +31,7 @@ class LlmConfig(BaseModel):
     cwd: Optional[str] = None
     max_turns: Optional[int] = None
     allowed_tools: Optional[List[str]] = None
+    permissions: Optional[Dict[str, Any]] = None
     # cli_path is a server-side concern; RemoteClaudeCodeLlm ignores this field
     cli_path: Optional[str] = None
     # Note: temperature and max_tokens are ignored for the claude_code provider
