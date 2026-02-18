@@ -498,7 +498,7 @@ class RemoteClaudeCodeLlm(ClaudeCodeBase):
             if stream:
                 await _call_handler(stream_handler, STREAM_END_TOKEN)
 
-            output, input_tokens, output_tokens, cost, sdk_session_id = (
+            output, input_tokens, output_tokens, cost, sdk_session_id, message_records = (
                 self._extract_text_and_usage(collected_messages)
             )
 
@@ -553,7 +553,7 @@ class RemoteClaudeCodeLlm(ClaudeCodeBase):
                 )
 
         if as_message_records:
-            return [{"role": "assistant", "content": output}]
+            return message_records
 
         return output
 

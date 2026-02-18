@@ -94,6 +94,7 @@ Example usage (Python)
 import asyncio
 import contextlib
 import inspect
+import json
 import logging
 import os
 import shutil
@@ -218,20 +219,66 @@ class ClaudeCodeBase(LlmBaseProvider):
     def _extract_text_and_usage(
         messages: List[Any],
     ) -> tuple:
-        """Return (text, input_tokens, output_tokens, cost, session_id)."""
-        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock  # noqa: PLC0415
+        """Return (text, input_tokens, output_tokens, cost, session_id, message_records).
+
+        ``message_records`` is a list of OpenAI-style message dicts that
+        preserves tool calls (``ToolUseBlock``) and tool results
+        (``ToolResultBlock``) alongside regular assistant text, giving
+        callers the same tool-call visibility as ``LlmBaseProvider``.
+        """
+        from claude_agent_sdk import AssistantMessage, ResultMessage, UserMessage, TextBlock  # noqa: PLC0415
+        from claude_agent_sdk.types import ToolUseBlock, ToolResultBlock  # noqa: PLC0415
 
         text_parts: List[str] = []
         input_tokens = 0
         output_tokens = 0
         cost: Optional[float] = None
         session_id: Optional[str] = None
+        message_records: List[Dict[str, Any]] = []
 
         for msg in messages:
             if isinstance(msg, AssistantMessage):
+                msg_text_parts: List[str] = []
+                tool_calls: List[Dict[str, Any]] = []
+
                 for block in msg.content:
                     if isinstance(block, TextBlock):
                         text_parts.append(block.text)
+                        msg_text_parts.append(block.text)
+                    elif isinstance(block, ToolUseBlock):
+                        arguments = block.input
+                        if isinstance(arguments, dict):
+                            arguments = json.dumps(arguments)
+                        tool_calls.append({
+                            "id": block.id,
+                            "type": "function",
+                            "function": {
+                                "name": block.name,
+                                "arguments": arguments,
+                            },
+                        })
+
+                record: Dict[str, Any] = {
+                    "role": "assistant",
+                    "content": "\n".join(msg_text_parts) if msg_text_parts else None,
+                }
+                if tool_calls:
+                    record["tool_calls"] = tool_calls
+                message_records.append(record)
+
+            elif isinstance(msg, UserMessage):
+                content = msg.content if isinstance(msg.content, list) else []
+                for block in content:
+                    if isinstance(block, ToolResultBlock):
+                        tool_content = block.content
+                        if not isinstance(tool_content, str):
+                            tool_content = str(tool_content)
+                        message_records.append({
+                            "role": "tool",
+                            "tool_call_id": block.tool_use_id,
+                            "content": tool_content,
+                        })
+
             elif isinstance(msg, ResultMessage):
                 session_id = msg.session_id
                 if msg.usage:
@@ -240,7 +287,7 @@ class ClaudeCodeBase(LlmBaseProvider):
                 if msg.total_cost_usd is not None:
                     cost = msg.total_cost_usd
 
-        return "".join(text_parts), input_tokens, output_tokens, cost, session_id
+        return "".join(text_parts), input_tokens, output_tokens, cost, session_id, message_records
 
     # ------------------------------------------------------------------
     # Tool-event processing loop (shared between local and remote)
@@ -435,7 +482,7 @@ class ClaudeCodeLlm(ClaudeCodeBase):
             if stream:
                 await _call_handler(stream_handler, STREAM_END_TOKEN)
 
-            output, input_tokens, output_tokens, cost, sdk_session_id = (
+            output, input_tokens, output_tokens, cost, sdk_session_id, message_records = (
                 self._extract_text_and_usage(collected_messages)
             )
 
@@ -486,7 +533,7 @@ class ClaudeCodeLlm(ClaudeCodeBase):
                 )
 
         if as_message_records:
-            return [{"role": "assistant", "content": output}]
+            return message_records
 
         return output
 
