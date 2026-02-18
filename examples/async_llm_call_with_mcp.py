@@ -21,10 +21,10 @@ async def main():
     # os.environ["CONFIG_PATH"] = "./config/config_example_mcp.yml"
     config = Config.from_yaml()
     
-    if not config.llm.mcp_config_path:
+    if not config.llm.mcp_config:
         raise ValueError(
             "MCP configuration path not found in LLM config. "
-            "Please provide a valid mcp_config_path in your configuration."
+            "Please provide a valid mcp_config in your configuration."
         )
 
     # Print configuration details for transparency
@@ -32,15 +32,15 @@ async def main():
     print(config.llm.model_dump_json(indent=4))
     
     # Verify MCP config file exists
-    mcp_config_path = Path(config.llm.mcp_config_path)
-    if not mcp_config_path.exists():
+    mcp_config = Path(config.llm.mcp_config)
+    if not mcp_config.exists():
         raise FileNotFoundError(
-            f"MCP configuration file not found at: {mcp_config_path}\n"
+            f"MCP configuration file not found at: {mcp_config}\n"
             "Please ensure the path is correct and the file exists."
         )
 
     print("\nMCP Configuration:")
-    with open(mcp_config_path) as f:
+    with open(mcp_config) as f:
         print(json.dumps(json.load(f), indent=4))
 
     # Initialize LLM with MCP capabilities
@@ -56,7 +56,8 @@ async def main():
             "For web searches, suggest three different queries to obtain comprehensive information."
         ),
         agent_id="mcp-agent",
-        action_id="tool-call"
+        action_id="tool-call",
+        as_message_records=True
     )
 
     # Display the final response

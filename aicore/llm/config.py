@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional, Union, Dict
+from typing import List, Literal, Optional, Union, Dict, Any
 from typing_extensions import Self
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field
 
@@ -18,7 +18,7 @@ class LlmConfig(BaseModel):
     pricing :Optional[PricingConfig]=None
     _context_window :Optional[int]=None
 
-    mcp_config :str | Dict[str | Any] | None=Field(default=None, alias="mcp_config_path")
+    mcp_config :str | Dict[str, Any] | None=Field(default=None, alias="mcp_config_path")
     tool_choice :Union[str, Dict, None]=None
     max_tool_calls_per_response :Optional[int]=None
     concurrent_tool_calls :Optional[bool]=True

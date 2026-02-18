@@ -913,11 +913,17 @@ class LlmBaseProvider(BaseModel):
   
     @staticmethod
     def _get_message_records(completion_args :Dict[str, str], excluded_roles :Optional[List[Literal["user", "system", "assistant"]]]=None)->List[Dict[str, str]]:
-        messages = completion_args.get("messages")
-        records = [
-            message for message in messages
-            if not excluded_roles or message.get("role") not in excluded_roles
-        ]
+        messages = completion_args.get("messages") or completion_args.get("input") or []
+        records = []
+        for message in messages:
+            if isinstance(message, ToolCallSchema):
+                records.append(message._raw)
+            elif isinstance(message, dict):
+                role = message.get("role")
+                if excluded_roles is None or role not in excluded_roles:
+                    records.append(message)
+            else:
+                records.append(message)
         return records
 
     def complete(
@@ -1107,6 +1113,8 @@ class LlmBaseProvider(BaseModel):
                 messages.extend(tools_messages)
                 self._n_sucessive_tool_calls += 1
 
+                print(f"{messages=}")
+
                 if self.collector:
                     end_time = time.time()
                     latency_ms = (end_time - start_time) * 1000
@@ -1174,7 +1182,7 @@ class LlmBaseProvider(BaseModel):
         
         if as_message_records:
             records = self._get_message_records(completion_args, excluded_roles=["system"])
-            records.append(output)
+            records.append({"role": "assistant", "content": output})
             output = records
             
         return output
