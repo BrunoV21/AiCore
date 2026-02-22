@@ -103,15 +103,17 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import tiktoken
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, UserMessage, query
+from claude_agent_sdk._errors import CLIConnectionError, CLINotFoundError, ProcessError
+from claude_agent_sdk.types import StreamEvent, TextBlock, ToolResultBlock, ToolUseBlock
 from pydantic import BaseModel, RootModel, model_validator
 from typing_extensions import Self
 
 from aicore.const import STREAM_END_TOKEN, STREAM_START_TOKEN, TOOL_CALL_END_TOKEN, TOOL_CALL_START_TOKEN
-from aicore.logger import _logger
 from aicore.llm.config import LlmConfig
 from aicore.llm.mcp.models import ToolCallSchema
 from aicore.llm.providers.base_provider import LlmBaseProvider
-from aicore.logger import default_stream_handler
+from aicore.logger import _logger, default_stream_handler
 
 logger = logging.getLogger(__name__)
 
@@ -226,9 +228,6 @@ class ClaudeCodeBase(LlmBaseProvider):
         (``ToolResultBlock``) alongside regular assistant text, giving
         callers the same tool-call visibility as ``LlmBaseProvider``.
         """
-        from claude_agent_sdk import AssistantMessage, ResultMessage, UserMessage, TextBlock  # noqa: PLC0415
-        from claude_agent_sdk.types import ToolUseBlock, ToolResultBlock  # noqa: PLC0415
-
         text_parts: List[str] = []
         input_tokens = 0
         output_tokens = 0
@@ -300,9 +299,6 @@ class ClaudeCodeBase(LlmBaseProvider):
         active_tools: Dict[str, str],
     ) -> None:
         """Process a single SDK message, handling tool events and stream deltas."""
-        from claude_agent_sdk import UserMessage
-        from claude_agent_sdk.types import StreamEvent, ToolResultBlock
-
         if isinstance(msg, StreamEvent):
             raw = msg.event
 
@@ -412,8 +408,6 @@ class ClaudeCodeLlm(ClaudeCodeBase):
     # ------------------------------------------------------------------
     def _build_options(self) -> Any:
         """Map LlmConfig fields to ClaudeAgentOptions."""
-        from claude_agent_sdk import ClaudeAgentOptions
-
         opts: Dict[str, Any] = {
             "model": self.config.model,
             "include_partial_messages": True,  # Enable StreamEvent for streaming
@@ -452,10 +446,6 @@ class ClaudeCodeLlm(ClaudeCodeBase):
         agent_id: Optional[str] = None,
         action_id: Optional[str] = None,
     ) -> Union[str, Dict, List]:
-        from claude_agent_sdk import query, AssistantMessage, UserMessage
-        from claude_agent_sdk.types import StreamEvent, ToolResultBlock
-        from claude_agent_sdk._errors import CLIConnectionError, CLINotFoundError, ProcessError
-
         if prefix_prompt is not None:
             logger.warning(
                 "ClaudeCodeLlm: prefix_prompt is not supported by query() and will be ignored."
@@ -494,9 +484,12 @@ class ClaudeCodeLlm(ClaudeCodeBase):
                 await _call_handler(stream_handler, STREAM_START_TOKEN)
 
             with _unset_env("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"):
-                async for msg in query(prompt=prompt_str, options=options):
-                    collected_messages.append(msg)
-                    await self._process_message(msg, stream, stream_handler, _active_tools)
+                try:
+                    async for msg in query(prompt=prompt_str, options=options):
+                        collected_messages.append(msg)
+                        await self._process_message(msg, stream, stream_handler, _active_tools)
+                except Exception as e:
+                    logger.error(e)
 
             if stream:
                 await _call_handler(stream_handler, STREAM_END_TOKEN)
