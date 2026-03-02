@@ -412,6 +412,7 @@ class ClaudeCodeLlm(ClaudeCodeBase):
             "model": self.config.model,
             "include_partial_messages": True,  # Enable StreamEvent for streaming
             "mcp_servers": self._build_mcp_servers(),
+            "output_format": getattr(self.config, "output_format", None)
         }
 
         # Default to bypassPermissions so all tools are allowed unless the caller
