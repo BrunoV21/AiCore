@@ -221,12 +221,15 @@ class ClaudeCodeBase(LlmBaseProvider):
     def _extract_text_and_usage(
         messages: List[Any],
     ) -> tuple:
-        """Return (text, input_tokens, output_tokens, cost, session_id, message_records).
+        """Return (text, input_tokens, output_tokens, cost, session_id, message_records, structured_output).
 
         ``message_records`` is a list of OpenAI-style message dicts that
         preserves tool calls (``ToolUseBlock``) and tool results
         (``ToolResultBlock``) alongside regular assistant text, giving
         callers the same tool-call visibility as ``LlmBaseProvider``.
+
+        ``structured_output`` is the parsed object from ``ResultMessage.structured_output``
+        when present, otherwise ``None``.
         """
         text_parts: List[str] = []
         input_tokens = 0
@@ -234,6 +237,7 @@ class ClaudeCodeBase(LlmBaseProvider):
         cost: Optional[float] = None
         session_id: Optional[str] = None
         message_records: List[Dict[str, Any]] = []
+        structured_output: Optional[Any] = None
 
         for msg in messages:
             if isinstance(msg, AssistantMessage):
@@ -285,8 +289,14 @@ class ClaudeCodeBase(LlmBaseProvider):
                     output_tokens = msg.usage.get("output_tokens", 0)
                 if msg.total_cost_usd is not None:
                     cost = msg.total_cost_usd
+                raw_structured = getattr(msg, "structured_output", None)
+                if raw_structured:
+                    structured_output = raw_structured
+                    text_parts.append(
+                        json.dumps(raw_structured) if not isinstance(raw_structured, str) else raw_structured
+                    )
 
-        return "".join(text_parts), input_tokens, output_tokens, cost, session_id, message_records
+        return "".join(text_parts), input_tokens, output_tokens, cost, session_id, message_records, structured_output
 
     # ------------------------------------------------------------------
     # Tool-event processing loop (shared between local and remote)
@@ -495,7 +505,7 @@ class ClaudeCodeLlm(ClaudeCodeBase):
             if stream:
                 await _call_handler(stream_handler, STREAM_END_TOKEN)
 
-            output, input_tokens, output_tokens, cost, sdk_session_id, message_records = (
+            output, input_tokens, output_tokens, cost, sdk_session_id, message_records, structured_output = (
                 self._extract_text_and_usage(collected_messages)
             )
 
@@ -510,7 +520,10 @@ class ClaudeCodeLlm(ClaudeCodeBase):
                 )
 
             if json_output:
-                output = self.extract_json(output)
+                if structured_output is not None:
+                    output = structured_output
+                else:
+                    output = self.extract_json(output)
 
         except (CLINotFoundError, CLIConnectionError, ProcessError) as e:
             error_message = str(e)
