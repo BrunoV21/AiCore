@@ -20,7 +20,7 @@ extras_require["all"] = sorted(set(req for group in extras_require.values() for 
 
 setup(
     name="core-for-ai",
-    version="0.2.254",
+    version="0.2.255",
     author="Bruno V.",
     author_email="bruno.vitorino@tecnico.ulisboa.pt",
     description="A unified interface for interacting with various LLM and embedding providers, with observability tools.",
