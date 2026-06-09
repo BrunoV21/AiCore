@@ -964,7 +964,6 @@ def build_app(args: argparse.Namespace):
     # ------------------------------------------------------------------
     @app.on_event("shutdown")
     async def on_shutdown():
-        global _tunnel_process
         print("Claude Code Proxy Server shutting down. Goodbye.")
         if _tunnel_process is not None:
             try:

@@ -213,7 +213,7 @@ class RemoteClaudeCodeLlm(ClaudeCodeBase):
         if self.config.allowed_tools is not None:
             options["allowed_tools"] = self.config.allowed_tools
         if self.config.disallowed_tools is not None:
-            opts["disallowed_tools"] = self.config.disallowed_tools
+            options["disallowed_tools"] = self.config.disallowed_tools
         # cli_path is a server-side concern and must NOT be sent to the proxy
 
         body: Dict[str, Any] = {
