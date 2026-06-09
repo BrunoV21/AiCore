@@ -19,7 +19,7 @@ CUSTOM_MODELS = [
 ]
 
 OPENAI_NO_TEMPERATURE_MODELS = [
-    "gpt-5,1",
+    "gpt-5.1",
     "gpt-5-codex",
     "gpt-5",
     "gpt-5-mini",
@@ -27,6 +27,9 @@ OPENAI_NO_TEMPERATURE_MODELS = [
 ]
 
 OPENAI_RESPONSE_API_MODELS = [
+    "gpt-5.5",
+    "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
+    "gpt-5.2-pro", "gpt-5.2",
     "gpt-5.1",
     "gpt-5", "gpt-5-mini", "gpt-5-nano", 
     "gpt-5-chat-latest", "gpt-5-codex",

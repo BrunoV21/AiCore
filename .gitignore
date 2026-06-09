@@ -177,3 +177,4 @@ config/config.yml
 storage/
 observability_data/
 *mcp_config.json
+.compass/*

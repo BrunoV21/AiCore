@@ -243,13 +243,14 @@ class OpenAiLlm(LlmBaseProvider):
         return super()._tool_chunk_from_provider(_chunk)
 
     def _handle_openai_response_only_models(self, args :Dict):
-        if self.config.model in OPENAI_RESPONSE_API_MODELS:
+        if self.config.model in OPENAI_RESPONSE_API_MODELS or self.use_responses_api:
             args["input"] = args.pop("messages")
             args.pop("stream_options", None)
             # args.pop("max_tokens")
             # print("here")
-            args.pop("max_tokens", None)
-            # args.pop("max_completion_tokens", None)
+            max_tokens = args.pop("max_tokens", None)
+            if max_tokens is not None:
+                args["max_output_tokens"] = max_tokens
             
             # GPT 5 does not support temperature
             # args.pop("temperature")
