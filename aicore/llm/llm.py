@@ -6,6 +6,7 @@ from pathlib import Path
 from enum import Enum
 from ulid import ulid
 
+from aicore.llm.providers.ollama import OllamaLlm
 from aicore.logger import _logger, Logger
 from aicore.utils import retry_on_failure, raise_on_balance_error
 from aicore.const import REASONING_STOP_TOKEN
@@ -40,6 +41,7 @@ class Providers(Enum):
     GEMINI :GeminiLlm=GeminiLlm
     DEEPSEEK :DeepSeekLlm=DeepSeekLlm
     ZAI :ZaiLlm=ZaiLlm
+    OLLAMA :OllamaLlm=OllamaLlm
     CLAUDE_CODE :ClaudeCodeLlm=ClaudeCodeLlm
     REMOTE_CLAUDE_CODE :RemoteClaudeCodeLlm=RemoteClaudeCodeLlm
 

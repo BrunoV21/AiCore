@@ -13,7 +13,9 @@ from functools import partial
 from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 
 class AnthropicLlm(LlmBaseProvider):
+    base_url :Optional[str]=None
     _access_token :Optional[str] = None
+    _skip_validation :Optional[str] = None
     
     @staticmethod
     def anthropic_count_tokens(contents :str, client :AsyncAnthropic, model :str):
@@ -39,17 +41,19 @@ class AnthropicLlm(LlmBaseProvider):
         _client :Anthropic = Anthropic(            
             auth_token=self._access_token,
             api_key=self.config.api_key,
-            timeout=self.config.timeout
+            timeout=self.config.timeout,
+            base_url=self.base_url or self.config.base_url
         )
         self.client :Anthropic = _client
         self._auth_exception = AuthenticationError
-        if self._access_token is None:
+        if self._access_token is None and not self._skip_validation:
             self.validate_config()
 
         _aclient :AsyncAnthropic = AsyncAnthropic(
             api_key=self.config.api_key,
             auth_token=self._access_token,
-            timeout=self.config.timeout
+            timeout=self.config.timeout,
+            base_url=self.base_url or self.config.base_url
         )
         self._aclient = _aclient
         self.completion_fn = _client.messages.create

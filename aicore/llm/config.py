@@ -6,7 +6,7 @@ from aicore.const import DEFAULT_TIMEOUT, SUPPORTED_REASONER_PROVIDERS, SUPPORTE
 from aicore.models_metadata import METADATA, PricingConfig
 
 class LlmConfig(BaseModel):
-    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "claude_code", "remote_claude_code"]
+    provider :Literal["anthropic", "gemini", "groq", "mistral", "nvidia", "openai", "openrouter", "deepseek", "grok", "zai", "ollama", "claude_code", "remote_claude_code"]
     # For remote_claude_code: api_key is used as the Bearer token for the proxy server
     api_key :Optional[str]=None
     model :str

@@ -54,6 +54,8 @@ class CompletionUsage(BaseModel):
         pricing: Optional[PricingConfig] = None
     ) -> "CompletionUsage":
         """Creates a CompletionUsage instance with calculated cost based on pricing config."""
+        cached_tokens = None or 0
+        cache_write_tokens = None or 0
         total_input_tokens = prompt_tokens + cached_tokens + cache_write_tokens
         if pricing is not None:
             # Apply happy hour pricing if active
