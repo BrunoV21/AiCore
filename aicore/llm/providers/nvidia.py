@@ -1,3 +1,5 @@
+from pydantic import model_validator
+
 from aicore.llm.providers.openai import OpenAiLlm
 from typing import Optional, List, Dict
 from typing_extensions import Self
@@ -8,9 +10,14 @@ class NvidiaLlm(OpenAiLlm):
     """
     
     base_url :str="https://integrate.api.nvidia.com/v1"
+    _skip_model_valiation :bool=True
 
     def _message_content(self, prompt :str, img_b64_str :Optional[List[str]]=None)->List[Dict]:
         if img_b64_str is not None:
             raise ValueError("Nvidia hosted models do not support images uplaod via OpenAi compatible requests.")
 
         return prompt
+    
+    @model_validator(mode="after")
+    def post_validate(self)->Self:
+        self.validate_config(force=True)

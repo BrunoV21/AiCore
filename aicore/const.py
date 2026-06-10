@@ -18,6 +18,11 @@ CUSTOM_MODELS = [
     # "gemini-2.5-pro-preview-03-25"
 ]
 
+ANTRHOPIC_NO_TEMPERATURE_MODELS = [
+    "claude-opus-4-8",
+    "claude-opus-4-7"
+]
+
 OPENAI_NO_TEMPERATURE_MODELS = [
     "gpt-5.1",
     "gpt-5-codex",

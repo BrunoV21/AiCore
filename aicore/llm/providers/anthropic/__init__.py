@@ -1,3 +1,4 @@
+from aicore.const import ANTRHOPIC_NO_TEMPERATURE_MODELS
 from aicore.llm.providers.anthropic.consts import BETA_1M_CONTEXT_HEADERS, CC_DEFAULT_HEADERS, CC_DEFAULT_QUERY, CC_SYSTEM_PROMPT
 from aicore.llm.providers.base_provider import LlmBaseProvider
 from aicore.llm.utils import detect_image_type, is_base64
@@ -15,7 +16,6 @@ from aicore.llm.mcp.models import ToolCallSchema, ToolCalls, ToolSchema
 class AnthropicLlm(LlmBaseProvider):
     base_url :Optional[str]=None
     _access_token :Optional[str] = None
-    _skip_validation :Optional[str] = None
     
     @staticmethod
     def anthropic_count_tokens(contents :str, client :AsyncAnthropic, model :str):
@@ -38,7 +38,7 @@ class AnthropicLlm(LlmBaseProvider):
         self.set_access_token()
         self.set_beta_context_window()
 
-        _client :Anthropic = Anthropic(            
+        _client :Anthropic = Anthropic(
             auth_token=self._access_token,
             api_key=self.config.api_key,
             timeout=self.config.timeout,
@@ -46,7 +46,7 @@ class AnthropicLlm(LlmBaseProvider):
         )
         self.client :Anthropic = _client
         self._auth_exception = AuthenticationError
-        if self._access_token is None and not self._skip_validation:
+        if self._access_token is None:
             self.validate_config()
 
         _aclient :AsyncAnthropic = AsyncAnthropic(
@@ -183,7 +183,7 @@ class AnthropicLlm(LlmBaseProvider):
         response = self.normalize_fn(response)
         # Extract and process content blocks
         messages = [
-            self._fill_tool_schema(block) if isinstance(block, ToolUseBlock) else block.text
+            self._fill_tool_schema(block) if isinstance(block, ToolUseBlock) else getattr(block, "text", None)
             for block in response.content
         ]
         
@@ -197,7 +197,7 @@ class AnthropicLlm(LlmBaseProvider):
                 tool_call_messages.append(message)
                 if first_tool_call_index is None:
                     first_tool_call_index = i
-            else:
+            elif message is not None:
                 text_messages.append(message)
         
         # If no tool calls, just return the joined text messages
@@ -251,6 +251,10 @@ class AnthropicLlm(LlmBaseProvider):
             system_prompt: Optional[Union[List[str], str]] = None):
         pass
 
+    def _handle_special_rules_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
+        self._handle_special_sys_prompt_anthropic(args=args, system_prompt=system_prompt)
+        self._handle_anthropic_no_temperature_models(args=args)
+
     def _handle_special_sys_prompt_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
         if self._access_token is not None:
             if isinstance(system_prompt, str):
@@ -292,6 +296,19 @@ class AnthropicLlm(LlmBaseProvider):
                         } for prompt in system_prompt
                     ]
                 args["system"] = processed_system_prompts
+    
+    def _handle_anthropic_no_temperature_models(self, args :Dict):
+        model = args.get("model", "")
+        if model in ANTRHOPIC_NO_TEMPERATURE_MODELS:
+            args.pop("temperature", None)
+            return
+        try:
+            version = float(".".join(model.split("-")[-2:]))
+            if version > 4.6:
+                args.pop("temperature", None)
+                return
+        except Exception:
+            return
 
     def _handle_thinking_models(self):
         thinking = getattr(self.config, "thinking", None)

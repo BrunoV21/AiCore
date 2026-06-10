@@ -10,6 +10,7 @@ from typing_extensions import Self
 class GeminiLlm(OpenAiLlm):
     base_url :str="https://generativelanguage.googleapis.com/v1beta/openai/"
     _current_signature :Optional[Any]=None
+    _skip_model_valiation :bool=True
 
     @staticmethod
     def gemini_count_tokens(contents :str, client :Client, model :str)->List[int]:
@@ -31,6 +32,10 @@ class GeminiLlm(OpenAiLlm):
         )
 
         return self
+
+    @model_validator(mode="after")
+    def post_validate(self)->Self:
+        self.validate_config(force=True)
 
     def normalize(self, chunk :ChatCompletion, completion_id :Optional[str]=None):
         usage = chunk.usage

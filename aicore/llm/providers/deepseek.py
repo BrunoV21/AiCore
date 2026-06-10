@@ -3,7 +3,7 @@ from aicore.llm.providers.openai import OpenAiLlm
 from openai.types.chat import ChatCompletionChunk
 from deepseek_tokenizer import ds_token
 from pydantic import model_validator
-from typing import Any, Dict, Optional
+from typing import Optional
 from typing_extensions import Self
 
 class DeepSeekLlm(OpenAiLlm):
@@ -12,12 +12,17 @@ class DeepSeekLlm(OpenAiLlm):
     """
     
     base_url :str="https://api.deepseek.com"
+    _skip_model_valiation :bool=True
 
     @model_validator(mode="after")
     def pass_deepseek_tokenizer_fn(self)->Self:
         self.tokenizer_fn = ds_token.encode
 
         return self
+    
+    @model_validator(mode="after")
+    def post_validate(self)->Self:
+        self.validate_config(force=True)
 
     def normalize(self, chunk :ChatCompletionChunk, completion_id :Optional[str]=None):
         usage = chunk.usage

@@ -68,6 +68,7 @@ class LlmBaseProvider(BaseModel):
     _collector: Optional[LlmOperationCollector] = None
     _mcp: Optional[MCPClient] = None
     _n_sucessive_tool_calls :int=0
+    _skip_model_valiation :bool=False
 
     @classmethod
     def from_config(cls, config: LlmConfig) -> "LlmBaseProvider":
@@ -123,7 +124,7 @@ class LlmBaseProvider(BaseModel):
         """
         self._aclient = aclient
 
-    def validate_config(self, force_check_against_provider :bool=False):
+    def validate_config(self, force_check_against_provider :bool=False, force :bool=False):
         """Validate provider configuration against available models.
         
         Args:
@@ -134,6 +135,9 @@ class LlmBaseProvider(BaseModel):
             AuthenticationError: If provider authentication fails
         """
         try:
+            if self._skip_model_valiation and not force:
+                return
+
             if self.config.model in CUSTOM_MODELS:
                 return
             
@@ -509,7 +513,7 @@ class LlmBaseProvider(BaseModel):
         if system_prompt is not None:
             messages.append(self._message_body(system_prompt, role="system"))
 
-    def _handle_special_sys_prompt_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
+    def _handle_special_rules_anthropic(self, args :Dict, system_prompt: Optional[Union[List[str], str]] = None):
         """placeholder to be overwritten by the anthropic provider"""
         pass
 
@@ -573,7 +577,7 @@ class LlmBaseProvider(BaseModel):
             args.update(self.completion_args)
 
         self._handle_openai_response_only_models(args)
-        self._handle_special_sys_prompt_anthropic(args, system_prompt)
+        self._handle_special_rules_anthropic(args, system_prompt)
         
         args = {arg: value for arg, value in args.items() if value is not None}
         
