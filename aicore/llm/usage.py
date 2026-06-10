@@ -54,9 +54,9 @@ class CompletionUsage(BaseModel):
         pricing: Optional[PricingConfig] = None
     ) -> "CompletionUsage":
         """Creates a CompletionUsage instance with calculated cost based on pricing config."""
-        cached_tokens = None or 0
-        cache_write_tokens = None or 0
-        total_input_tokens = prompt_tokens + cached_tokens + cache_write_tokens
+        cached_tokens = cached_tokens or 0
+        cache_write_tokens = cache_write_tokens or 0
+        total_input_for_threshold = prompt_tokens + cached_tokens + cache_write_tokens
         if pricing is not None:
             # Apply happy hour pricing if active
             if pricing.happy_hour is not None and pricing.happy_hour.start <= datetime.now(timezone.utc) <= pricing.happy_hour.finish:
@@ -68,7 +68,7 @@ class CompletionUsage(BaseModel):
             cache_write_cost = cache_write_tokens * pricing.cache_write
             # Apply dynamic pricing based on strategy
             if pricing.dynamic is not None:
-                total_tokens = total_input_tokens + response_tokens
+                total_tokens = total_input_for_threshold + response_tokens
                 
                 if pricing.dynamic.strategy == "full":
                     # https://docs.claude.com/en/docs/about-claude/pricing#long-context-pricing
@@ -103,7 +103,7 @@ class CompletionUsage(BaseModel):
 
         return cls(
             completion_id=completion_id,
-            prompt_tokens=total_input_tokens,
+            prompt_tokens=prompt_tokens,
             response_tokens=response_tokens,
             cached_tokens=cached_tokens,
             cache_write_tokens=cache_write_tokens,

@@ -1,4 +1,5 @@
-from typing import Dict, Self
+from typing import Dict
+from typing_extensions import Self
 
 from pydantic import model_validator
 
