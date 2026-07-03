@@ -1,3 +1,5 @@
+import re
+
 from aicore.const import ANTRHOPIC_NO_TEMPERATURE_MODELS
 from aicore.llm.providers.anthropic.consts import BETA_1M_CONTEXT_HEADERS, CC_DEFAULT_HEADERS, CC_DEFAULT_QUERY, CC_SYSTEM_PROMPT
 from aicore.llm.providers.base_provider import LlmBaseProvider
@@ -296,19 +298,63 @@ class AnthropicLlm(LlmBaseProvider):
                         } for prompt in system_prompt
                     ]
                 args["system"] = processed_system_prompts
-    
-    def _handle_anthropic_no_temperature_models(self, args :Dict):
+
+    @staticmethod
+    def _parse_claude_version(model: str) -> Optional[float]:
+        """
+        Extract the numeric version from a Claude model string as a float,
+        ignoring any trailing release-date suffix (e.g. 20250514).
+
+        Examples:
+            "claude-sonnet-5"                  -> 5.0
+            "claude-sonnet-4-6"                -> 4.6
+            "claude-sonnet-4-20250514"         -> 4.0
+            "claude-opus-4-1-20250805"         -> 4.1
+            "claude-sonnet-4-5-20250929"       -> 4.5
+            "claude-haiku-4-5-20251001"        -> 4.5
+            "claude-opus-4-5-20251101"         -> 4.5
+        """
+        if not model:
+            return None
+
+        parts = model.split("-")
+
+        # Drop a trailing YYYYMMDD date stamp if present
+        if parts and re.fullmatch(r"\d{8}", parts[-1]):
+            parts = parts[:-1]
+
+        # Walk backwards collecting contiguous numeric tokens (major[, minor])
+        numeric_parts = []
+        for part in reversed(parts):
+            if re.fullmatch(r"\d+", part):
+                numeric_parts.insert(0, part)
+            else:
+                break
+
+        if not numeric_parts:
+            return None
+
+        # Use at most the last two numeric tokens as major.minor
+        if len(numeric_parts) == 1:
+            version_str = numeric_parts[0]
+        else:
+            version_str = f"{numeric_parts[-2]}.{numeric_parts[-1]}"
+
+        try:
+            return float(version_str)
+        except ValueError:
+            return None
+
+
+    def _handle_anthropic_no_temperature_models(self, args: Dict):
         model = args.get("model", "")
         if model in ANTRHOPIC_NO_TEMPERATURE_MODELS:
             args.pop("temperature", None)
             return
-        try:
-            version = float(".".join(model.split("-")[-2:]))
-            if version > 4.6:
-                args.pop("temperature", None)
-                return
-        except Exception:
-            return
+
+        version = self._parse_claude_version(model)
+        if version is not None and version > 4.6:
+            args.pop("temperature", None)
 
     def _handle_thinking_models(self):
         thinking = getattr(self.config, "thinking", None)
